@@ -26,8 +26,8 @@ def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
     shutil.copytree(src_session, session_copy)
 
     store_id_to_store_label = {
-        "file0_chev1": "control_region1",
-        "file0_chod1": "signal_region1",
+        "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+        "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
 
@@ -69,7 +69,10 @@ def test_step2_reads_timestamps_on_the_unit_recorded_by_step1(tmp_path):
     step1(
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
-        store_id_to_store_label={"file0_chev1": "control_region1", "file0_chod1": "signal_region1"},
+        store_id_to_store_label={
+            "PagCeAVgatFear_1512_1_chev1": "control_region1",
+            "PagCeAVgatFear_1512_1_chod1": "signal_region1",
+        },
         npm_time_unit="milliseconds",
     )
 
@@ -88,6 +91,41 @@ def test_step2_reads_timestamps_on_the_unit_recorded_by_step1(tmp_path):
     # chev takes every other row from row 0, whose raw timestamp in
     # PagCeAVgatFear_1512_1.csv is 40263510.4768 ms → 40263.5104768 s. Read as seconds it
     # would have stayed at 40263510.4768.
-    with h5py.File(Path(run_folder) / "file0_chev1.hdf5", "r") as hdf5_file:
+    with h5py.File(Path(run_folder) / "PagCeAVgatFear_1512_1_chev1.hdf5", "r") as hdf5_file:
         first_timestamp = np.asarray(hdf5_file["timestamps"])[0]
     np.testing.assert_allclose(first_timestamp, 40263.5104768, atol=1e-6)
+
+
+def test_step1_records_what_each_store_was_demultiplexed_from(tmp_path):
+    # An NPM store name is invented during demultiplexing — no column of the raw file carries
+    # one — so the run folder records the file, excitation and column behind each store. Without
+    # it a consumer of the folder can only re-derive that by parsing the names.
+    src_session = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_3"
+    tmp_base = tmp_path / "data_root"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+    session_copy = tmp_base / "sampleData_NPM_3"
+    shutil.copytree(src_session, session_copy)
+
+    step1(
+        base_dir=str(tmp_base),
+        selected_folders=[str(session_copy)],
+        store_id_to_store_label={
+            "signals_415nm_G2": "control_region3",
+            "signals_470nm_G2": "signal_region3",
+        },
+        npm_timestamp_column_name="ComputerTimestamp",
+        npm_time_unit="milliseconds",
+    )
+
+    run_folder = sorted(list(Path(session_copy).glob("sampleData_NPM_3_output_*")))[0]
+    with (Path(run_folder) / ".npm_params.json").open() as npm_params_file:
+        npm_params = json.load(npm_params_file)
+
+    assert npm_params["stores"]["signals_415nm_G2"] == {
+        "file": "signals.csv",
+        "excitation_wavelength_in_nm": 415,
+        "data_column": "G2",
+        "timestamp_column": "ComputerTimestamp",
+    }
+    # Every channel the session offers is recorded, not only the two that were labeled.
+    assert len(npm_params["stores"]) == 8

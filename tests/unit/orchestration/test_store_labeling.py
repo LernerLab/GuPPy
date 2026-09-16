@@ -9,8 +9,8 @@ import pytest
 from guppy.extractors import NpmRecordingExtractor
 from guppy.frontend.store_labeling_instructions import StoreLabelingInstructionsNPM
 from guppy.orchestration.store_labeling import (
-    _compute_npm_channel_previews,
     _fetchValues,
+    _npm_channel_previews,
     _npm_params_to_persist,
     _save,
     build_store_labeling_template,
@@ -904,30 +904,28 @@ def test_save_button_failed_resave_hides_saved_message(store_labeling_closures, 
 
 
 # ---------------------------------------------------------------------------
-# _compute_npm_channel_previews
+# _npm_channel_previews
 # ---------------------------------------------------------------------------
 
 
-def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
-    # sampleData_NPM_4 interleaves unevenly: chod has one more sample than chev, so chod
-    # borrows chev's (shorter) timestamps. The preview must align x/y to equal length,
-    # otherwise hv.Curve raises a DataError in the Step-1 GUI.
+def test_npm_channel_previews_have_equal_x_and_y_lengths():
+    # sampleData_NPM_4 interleaves unevenly: 470 nm lands on one more frame than 415 nm. Every
+    # channel of a file shares the first slot's timebase, trimmed to the length they have in
+    # common, so no stream reaches the preview with unequal x/y — which hv.Curve rejects with a
+    # DataError in the Step-1 GUI.
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
-    input_parameters = {"noChannels": 2}
 
-    # Confirm the ragged scenario is real: at least one channel stream has unequal
-    # timestamps/data lengths, which is exactly what the alignment guards against.
     streams = NpmRecordingExtractor(folder_path, num_ch=2).decompose()
     ragged = [
         name
         for name, stream in streams.items()
         if "data" in stream and len(stream["timestamps"]) != len(stream["data"])
     ]
-    assert ragged, "Expected at least one ragged chod/chpr channel in sampleData_NPM_4"
+    assert not ragged, f"Channels with unequal timestamps/data lengths: {ragged}"
 
-    previews = _compute_npm_channel_previews(input_parameters, folder_path)
+    previews = _npm_channel_previews(streams)
 
-    assert previews, "Expected chev/chod/chpr previews for an NPM session"
+    assert previews, "Expected photometry previews for an NPM session"
     for name, preview in previews.items():
         assert len(preview["x"]) == len(preview["y"]), f"Unequal x/y lengths for preview {name!r}"
 
@@ -937,6 +935,8 @@ def test_compute_npm_channel_previews_aligns_ragged_channel_lengths():
 # ---------------------------------------------------------------------------
 
 NPM_3_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_3"
+NPM_5_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_5"
+NPM_6_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_6"
 
 
 def test_read_header_npm_defers_discovery():
@@ -1026,13 +1026,101 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     assert input_parameters["npm_timestamp_column_name"] == "ComputerTimestamp"
 
     # Discovery ran and populated the store selector with the derived NPM store_ids.
-    assert "file0_chod3" in selector.cross_selector.options
+    assert "signals_470nm_G2" in selector.cross_selector.options
     assert "event3" in selector.cross_selector.options
     assert selector.cross_selector.options == selector.multi_choice.options
 
     # Preview plot is rendered after confirmation.
     assert instructions.plot_select is not None
     assert instructions.plot_select.options
+
+
+def test_confirm_npm_configuration_succeeds_for_a_blank_header_session(panel_extension):
+    # Issue #337: this session's header carries blank cells and a second timestamp column
+    # named exactly "Timestamp". Confirming used to leave the page blank, with a pandas
+    # traceback visible only in the terminal running the server.
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_6_FOLDER)
+
+    template = build_store_labeling_template(
+        [], [], NPM_6_FOLDER, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+    instructions = template._widgets["instructions"]
+    selector = template._widgets["selector"]
+    instructions.timestamp_column_select.value = "Timestamp"
+    instructions.time_unit_select.value = "seconds"
+
+    template._hooks["confirm_npm_configuration"]()
+
+    assert selector.alert.object == "#### No alerts !!"
+    assert "Sample2_NPM_1fiber_415nm_Region0R" in selector.cross_selector.options
+    assert "Sample2_NPM_1fiber_560nm_Region1G" in selector.cross_selector.options
+    # The blank-header columns are not offered as stores.
+    assert len(selector.cross_selector.options) == 6
+
+
+def test_confirm_npm_configuration_reports_a_failure_as_a_page_alert(panel_extension, tmp_path):
+    # A raise out of the Panel on_click reaches only the server terminal, so the page has to
+    # say what went wrong (issue #337). A v2 file whose state column sets no excitation bit
+    # names no channel, which decomposition rejects.
+    (tmp_path / "a_data.csv").write_text(
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,16,0.01,1.0\n2,0,0.02,2.0\n3,16,0.03,3.0\n4,0,0.04,4.0\n5,16,0.05,5.0\n"
+    )
+
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=tmp_path)
+
+    template = build_store_labeling_template(
+        [], [], tmp_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+    selector = template._widgets["selector"]
+
+    template._hooks["confirm_npm_configuration"]()
+
+    assert selector.alert.object.startswith("####Alert !!")
+    assert "set no excitation bit" in selector.alert.object
+
+
+def test_save_after_a_failed_confirm_reports_rather_than_raising(panel_extension, tmp_path):
+    # Save must not decompose the session a second time: the confirm has already reported the
+    # failure on the page, and a raise out of the Panel on_click would reach only the server
+    # terminal -- the same issue #337 failure the confirm path guards against.
+    (tmp_path / "a_data.csv").write_text(
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,16,0.01,1.0\n2,0,0.02,2.0\n3,16,0.03,3.0\n4,0,0.04,4.0\n5,16,0.05,5.0\n"
+    )
+
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=tmp_path)
+
+    template = build_store_labeling_template(
+        [], [], tmp_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+    selector = template._widgets["selector"]
+    template._hooks["confirm_npm_configuration"]()
+    # The page cannot offer an NPM store when the decomposition failed, so Save is reached with
+    # whatever the store editor holds.
+    selector.set_literal_input_2({"store_ids": [], "store_labels": []})
+    selector.set_run_name("1")
+
+    template._hooks["save_button"]()
+
+    # Save ran to completion: the decomposition error did not escape the on_click, and the run
+    # folder records that this run demultiplexed nothing rather than a decomposition it never made.
+    assert selector.alert.object == "#### No alerts !!"
+    npm_params = json.loads((Path(selector.get_select_location()) / ".npm_params.json").read_text())
+    assert npm_params["stores"] == {}
+
+
+def test_npm_params_to_persist_records_the_provenance_it_is_given(tmp_path):
+    # The provenance comes from the decomposition the confirm already ran; nothing here opens
+    # the session again, so a folder with no NPM file in it at all is immaterial.
+    provenance = {"a_415nm_Signal": {"file": "a.csv", "excitation_wavelength_in_nm": 415}}
+
+    npm_params = _npm_params_to_persist({"npm_time_unit": "milliseconds", "noChannels": 2}, provenance)
+
+    assert npm_params["stores"] is provenance
 
 
 # ---------------------------------------------------------------------------
@@ -1043,14 +1131,12 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
 def test_npm_params_to_persist_records_the_unit_that_will_be_applied():
     # An unset unit must not be persisted as-is: .npm_params.json is the only record of
     # the unit a run was read with, so it states the resolved value (issue #411).
-    npm_params = _npm_params_to_persist({"npm_split_events": [True, False], "noChannels": 2})
+    npm_params = _npm_params_to_persist({"npm_split_events": [False, False], "noChannels": 2}, {})
 
-    assert npm_params == {
-        "npm_split_events": [True, False],
-        "npm_time_unit": "seconds",
-        "npm_timestamp_column_name": None,
-        "noChannels": 2,
-    }
+    assert npm_params["npm_split_events"] == [False, False]
+    assert npm_params["npm_time_unit"] == "seconds"
+    assert npm_params["npm_timestamp_column_name"] is None
+    assert npm_params["noChannels"] == 2
 
 
 def test_npm_params_to_persist_keeps_an_explicit_unit():
@@ -1059,15 +1145,69 @@ def test_npm_params_to_persist_keeps_an_explicit_unit():
             "npm_split_events": None,
             "npm_time_unit": "milliseconds",
             "npm_timestamp_column_name": "ComputerTimestamp",
-            "noChannels": 3,
-        }
+            "noChannels": 2,
+        },
+        {},
     )
 
-    assert npm_params == {
-        "npm_split_events": None,
-        "npm_time_unit": "milliseconds",
-        "npm_timestamp_column_name": "ComputerTimestamp",
-        "noChannels": 3,
+    assert npm_params["npm_split_events"] is None
+    assert npm_params["npm_time_unit"] == "milliseconds"
+    assert npm_params["npm_timestamp_column_name"] == "ComputerTimestamp"
+    assert npm_params["noChannels"] == 2
+
+
+def test_npm_params_to_persist_records_what_each_store_was_read_from():
+    # NPM store names are invented while demultiplexing, so the run folder records the file,
+    # excitation and column behind each one rather than leaving a reader to parse the name.
+    npm_params = _npm_params_to_persist(
+        {
+            "npm_split_events": None,
+            "npm_time_unit": "milliseconds",
+            "npm_timestamp_column_name": "ComputerTimestamp",
+            "noChannels": 2,
+        },
+        NpmRecordingExtractor(
+            str(NPM_3_FOLDER), num_ch=2, npm_time_unit="milliseconds", npm_timestamp_column_name="ComputerTimestamp"
+        ).store_provenance(),
+    )
+
+    assert npm_params["stores"]["signals_415nm_G2"] == {
+        "file": "signals.csv",
+        "excitation_wavelength_in_nm": 415,
+        "data_column": "G2",
+        "timestamp_column": "ComputerTimestamp",
+    }
+    assert npm_params["stores"]["signals_470nm_G0"] == {
+        "file": "signals.csv",
+        "excitation_wavelength_in_nm": 470,
+        "data_column": "G0",
+        "timestamp_column": "ComputerTimestamp",
+    }
+    # Event streams are read whole from their own file and need no such record.
+    assert "event0" not in npm_params["stores"]
+
+
+def test_npm_params_to_persist_records_the_cycle_position_where_no_led_is_named():
+    # A header-less file says nothing about which LED lit a frame, so the record carries the
+    # position in the interleave cycle in place of a wavelength.
+    npm_params = _npm_params_to_persist(
+        {"npm_split_events": None, "npm_time_unit": "milliseconds", "noChannels": 2},
+        NpmRecordingExtractor(str(NPM_5_FOLDER), num_ch=2, npm_time_unit="milliseconds").store_provenance(),
+    )
+
+    assert npm_params["stores"]["PagCeAVgatFear_1512_1_chev1"] == {
+        "file": "PagCeAVgatFear_1512_1.csv",
+        "excitation_wavelength_in_nm": None,
+        "interleave_position": 0,
+        "data_column": 1,
+        "timestamp_column": 0,
+    }
+    assert npm_params["stores"]["PagCeAVgatFear_1512_1_chod3"] == {
+        "file": "PagCeAVgatFear_1512_1.csv",
+        "excitation_wavelength_in_nm": None,
+        "interleave_position": 1,
+        "data_column": 3,
+        "timestamp_column": 0,
     }
 
 

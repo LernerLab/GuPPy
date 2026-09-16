@@ -96,7 +96,7 @@ Dv1A,Dv2A,PrtN
 control_DMS,signal_DMS,port_entries
 ```
 
-**`.npm_params.json`** is written only for Neurophotometrics sessions and holds the settings Step 2 uses to demultiplex the interleaved channels: `npm_split_events`, `npm_time_unit` (always stored resolved, never null), `npm_timestamp_column_name` and `noChannels`.
+**`.npm_params.json`** is written only for Neurophotometrics sessions and holds the settings Step 2 uses to demultiplex the interleaved channels: `npm_split_events`, `npm_time_unit` (always stored resolved, never null), `npm_timestamp_column_name` and `noChannels`. It also holds `stores`, which records what each channel was demultiplexed from — the source file, the excitation wavelength that lit it (or, where the file names no LED, its position in the interleave cycle), the column it was read from, and the timestamp column its samples were timed by. The clock is recorded per store because it is resolved per file: `npm_timestamp_column_name` is a session-wide choice, and a file offering a single timestamp column reads that one instead. NPM store names are invented during demultiplexing, so this is what lets a tool reading the run folder resolve a store back to its source without reproducing GuPPy's demultiplexing.
 
 ---
 

@@ -381,6 +381,24 @@ def npm_template_single_timestamp_column(panel_extension):
     )
 
 
+@pytest.fixture
+def npm_template_no_excitation_bit(panel_extension, tmp_path):
+    """Label Stores template for a session whose state column sets no excitation bit.
+
+    Decomposition rejects a file that names no channel, which is how the page reports a
+    genuine NPM configuration failure.
+    """
+    (tmp_path / "a_data.csv").write_text(
+        "FrameCounter,LedState,Timestamp,Signal\n"
+        "0,0,0.00,0.0\n1,16,0.01,1.0\n2,0,0.02,2.0\n3,16,0.03,3.0\n4,0,0.04,4.0\n5,16,0.05,5.0\n"
+    )
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, 2, tmp_path)
+    return build_store_labeling_template(
+        [], [], tmp_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+
+
 class TestDriveNpmConfigurationForm:
     def test_split_events_length_mismatch_raises(self, npm_template_two_timestamp_columns):
         with pytest.raises(ValueError, match="one boolean per file"):
@@ -406,6 +424,18 @@ class TestDriveNpmConfigurationForm:
             testing_api._drive_npm_configuration_form(
                 template=npm_template_single_timestamp_column,
                 npm_timestamp_column_name="Timestamp",
+                npm_time_unit=None,
+                npm_split_events=None,
+            )
+
+    def test_confirm_failure_surfaces_as_a_value_error(self, npm_template_no_excitation_bit):
+        # The page reports a failed confirm as an alert rather than raising (issue #337), so
+        # the headless driver has to read that alert back out; otherwise a scripted step1()
+        # would sail past the problem and fail much later with an unrelated message.
+        with pytest.raises(ValueError, match="set no excitation bit"):
+            testing_api._drive_npm_configuration_form(
+                template=npm_template_no_excitation_bit,
+                npm_timestamp_column_name=None,
                 npm_time_unit=None,
                 npm_split_events=None,
             )

@@ -61,7 +61,9 @@ dependencies = [
     "dandi",
     "remfile",
     "pyyaml",
-    "neuroconv[guppy]>=0.10.2",
+    # Pinned to the branch of catalystneuro/neuroconv#2058 until it is released; restore a
+    # version pin (>= the release carrying it) before merging.
+    "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv@npm_stores",
     "ndx-guppy>=0.2.1",
     "tornado>=6.5.10",  # 6.5.9 breaks Bokeh's static-file handler, so Panel pages fail to load
 ]

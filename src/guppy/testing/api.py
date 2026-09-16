@@ -260,7 +260,8 @@ def _drive_npm_configuration_form(
     Raises
     ------
     ValueError
-        When a supplied value has no form widget to receive it.
+        When a supplied value has no form widget to receive it, or when confirming the
+        configuration leaves a problem in the page's alert pane.
     """
     instructions = template._widgets["instructions"]
     multiple_event_ttls = instructions.multiple_event_ttls
@@ -289,6 +290,7 @@ def _drive_npm_configuration_form(
     if npm_time_unit is not None:
         instructions.time_unit_select.value = npm_time_unit
     template._hooks["confirm_npm_configuration"]()
+    _raise_on_alert(selector=template._widgets["selector"])
 
 
 def _drive_store_labeling_page(
