@@ -101,13 +101,22 @@ handles run-folder discovery and naming; `progress.py` provides the step progres
 validation helpers reused across layers (`validate_window_bounds`, `validate_peak_windows`,
 `validate_required_folder_selection`, and friends).
 
-`dandi_catalog.py` sits here too, as the archive-side counterpart to the DANDI extractor: it
+`dandi_catalog.py` sits here too, as the archive-side counterpart to the DANDI extractor. It
 searches the DANDI REST API for fiber photometry dandisets and reduces each hit to a
-`DandisetSummary` the browser can tabulate, and it opens one NWB asset's HDF5 header over the
-network to report the channels, sites and indicators it holds plus a decimated slice of its
-traces. The split between the two halves is forced by the archive — DANDI's structured metadata
-carries no notion of fiber photometry, so the catalog can only search free text, and anything
-authoritative has to be read out of the files.
+`DandisetSummary` the browser can tabulate; it scans every asset of a dandiset to report which of
+them hold fiber photometry at all; and it opens one asset's HDF5 header to report the channels,
+sites and indicators it holds plus a decimated slice of its traces. The split between those parts
+is forced by the archive — DANDI's structured metadata carries no notion of fiber photometry, so
+the catalog can only search free text, and anything authoritative has to be read out of the files.
+
+The scan is what makes a large dandiset navigable, and it is shaped by what that reading costs.
+Answering the question for one file touches about five kilobytes, but h5py finds them by
+pointer-chasing through the superblock and object headers, so the cost is round trips rather than
+bytes. `PrefetchedRemoteFile` fetches a head and a tail window in parallel and serves h5py's reads
+out of them, which covers any file written in a single `io.write()` — a read that falls between the
+windows still works, at one request apiece. The scan runs in a process pool rather than a thread
+pool because h5py serializes on a global lock, which would otherwise collapse the concurrency to
+roughly one file at a time.
 
 ### `testing/`
 

@@ -6,9 +6,12 @@ against the real mock NWB files in ``stubbed_testing_data/nwb/`` — one per sup
 ndx-fiber-photometry / events combination — with no network access anywhere.
 """
 
+import io
 from datetime import datetime
 from fnmatch import fnmatch
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 
 import h5py
 import numpy as np
@@ -19,6 +22,9 @@ from guppy.utils import dandi_catalog
 from guppy.utils.dandi_catalog import (
     AssetSummary,
     DandisetSummary,
+    PrefetchedRemoteFile,
+    _direct_content_url,
+    asset_holds_photometry,
     collect_filter_options,
     filter_assets,
     filter_dandisets,
@@ -27,6 +33,7 @@ from guppy.utils.dandi_catalog import (
     list_nwb_assets,
     probe_photometry,
     read_example_traces,
+    scan_assets_for_photometry,
     search_dandisets,
 )
 from guppy_test_data import STUBBED_TESTING_DATA
@@ -53,13 +60,24 @@ class FakeRemoteAsset:
         self.path = path
         self.size = size
 
+    def as_listing_row(self):
+        """Render as the archive's asset listing renders an asset, metadata included."""
+        return {
+            "asset_id": self.identifier,
+            "path": self.path,
+            "size": self.size,
+            "metadata": {
+                "contentUrl": [
+                    f"https://api.dandiarchive.org/api/assets/{self.identifier}/download/",
+                    f"https://dandiarchive.s3.amazonaws.com/blobs/{self.identifier}",
+                ]
+            },
+        }
+
 
 class FakeRemoteDandiset:
     def __init__(self, assets):
         self._assets = assets
-
-    def get_assets_by_glob(self, pattern, order=None):
-        return [asset for asset in self._assets if fnmatch(asset.path, pattern)]
 
 
 class FakeDandiAPIClient:
@@ -82,6 +100,14 @@ class FakeDandiAPIClient:
 
     def paginate(self, path, params=None):
         self.requested_paths.append((path, params))
+        if path.endswith("/assets/"):
+            identifier = path.split("/")[2]
+            pattern = (params or {}).get("glob", "*")
+            return [
+                asset.as_listing_row()
+                for asset in self.assets_by_id.get(identifier, [])
+                if fnmatch(asset.path, pattern)
+            ]
         term = (params or {}).get("search", "")
         return [self._listing_row(identifier) for identifier in self.search_results.get(term, [])]
 
@@ -107,7 +133,11 @@ class FakeDandiAPIClient:
         published = version_record if version_record["version"] != "draft" else None
         return {
             "identifier": identifier,
-            "draft_version": {"version": "draft", "asset_count": len(assets), "size": version_record["size"]},
+            "draft_version": {
+                "version": "draft",
+                "asset_count": len(assets),
+                "size": version_record["size"],
+            },
             "most_recent_published_version": published,
         }
 
@@ -188,7 +218,8 @@ class TestFindVocabularyTerms:
     def test_a_subregion_also_matches_the_region_that_contains_it(self):
         # A study of the DMS is a study of the striatum, so filtering on either finds it.
         terms = find_vocabulary_terms(
-            text="dopamine in the dorsomedial striatum", vocabulary=dandi_catalog._BRAIN_REGION_PATTERNS
+            text="dopamine in the dorsomedial striatum",
+            vocabulary=dandi_catalog._BRAIN_REGION_PATTERNS,
         )
         assert terms == ("Dorsal striatum", "Striatum")
 
@@ -205,7 +236,12 @@ class TestFindVocabularyTerms:
 class TestFormatByteSize:
     @pytest.mark.parametrize(
         ("size_in_bytes", "expected"),
-        [(100, "100 B"), (240_000, "234 KB"), (60_000_000, "57.2 MB"), (23_491_138_657, "21.9 GB")],
+        [
+            (100, "100 B"),
+            (240_000, "234 KB"),
+            (60_000_000, "57.2 MB"),
+            (23_491_138_657, "21.9 GB"),
+        ],
     )
     def test_renders_in_the_largest_unit_above_one(self, size_in_bytes, expected):
         assert format_byte_size(size_in_bytes) == expected
@@ -214,7 +250,11 @@ class TestFormatByteSize:
 class TestSearchDandisets:
     def test_unions_the_search_terms_and_sorts_by_identifier(self, archive):
         summaries = search_dandisets(terms=("photometry", "dLight"))
-        assert [summary.identifier for summary in summaries] == ["000001", "000002", "000003"]
+        assert [summary.identifier for summary in summaries] == [
+            "000001",
+            "000002",
+            "000003",
+        ]
 
     def test_reads_the_published_version_when_there_is_one(self, archive):
         by_id = {summary.identifier: summary for summary in search_dandisets(terms=("photometry",))}
@@ -320,7 +360,15 @@ class TestFilterDandisets:
 
     def test_categorical_criteria_keep_any_requested_value(self, summaries):
         assert [s.identifier for s in filter_dandisets(summaries, species=["Rattus norvegicus"])] == ["000002"]
-        assert len(filter_dandisets(summaries, brain_regions=["Dorsal striatum", "Ventral tegmental area"])) == 2
+        assert (
+            len(
+                filter_dandisets(
+                    summaries,
+                    brain_regions=["Dorsal striatum", "Ventral tegmental area"],
+                )
+            )
+            == 2
+        )
 
     def test_criteria_are_conjunctive(self, summaries):
         assert filter_dandisets(summaries, species=["Mus musculus"], indicators=["dLight"]) == []
@@ -347,6 +395,20 @@ class TestListNwbAssets:
             ("sub-02/ses-1_behavior.nwb", 240_000),
         ]
 
+    def test_listing_carries_the_url_the_bytes_are_read_from(self, archive):
+        assets = list_nwb_assets(dandiset_id="000001")
+        assert [asset.content_url for asset in assets] == [
+            "https://dandiarchive.s3.amazonaws.com/blobs/asset-sub-01/ses-1_behavior.nwb",
+            "https://dandiarchive.s3.amazonaws.com/blobs/asset-sub-01/ses-2_behavior.nwb",
+            "https://dandiarchive.s3.amazonaws.com/blobs/asset-sub-02/ses-1_behavior.nwb",
+        ]
+
+    def test_the_listing_asks_the_archive_for_asset_metadata(self, archive):
+        list_nwb_assets(dandiset_id="000001")
+        assets_request = next(params for path, params in archive.requested_paths if path.endswith("/assets/"))
+        assert assets_request["metadata"] == "true"
+        assert assets_request["glob"] == "*.nwb"
+
     def test_max_assets_truncates(self, archive):
         assert len(list_nwb_assets(dandiset_id="000001", max_assets=2)) == 2
 
@@ -355,27 +417,59 @@ class TestListNwbAssets:
             list_nwb_assets(dandiset_id="999999")
 
 
+class TestDirectContentUrl:
+    def test_prefers_the_url_that_serves_bytes_over_the_one_that_redirects(self):
+        metadata = {
+            "contentUrl": [
+                "https://api.dandiarchive.org/api/assets/abc/download/",
+                "https://dandiarchive.s3.amazonaws.com/blobs/abc",
+            ]
+        }
+        assert _direct_content_url(metadata) == "https://dandiarchive.s3.amazonaws.com/blobs/abc"
+
+    def test_falls_back_to_the_only_url_there_is(self):
+        metadata = {"contentUrl": ["https://api.dandiarchive.org/api/assets/abc/download/"]}
+        assert _direct_content_url(metadata) == "https://api.dandiarchive.org/api/assets/abc/download/"
+
+    def test_an_asset_without_urls_has_none(self):
+        assert _direct_content_url({}) == ""
+
+
 class TestFilterAssets:
     @pytest.fixture
     def assets(self):
         return [
             AssetSummary(asset_id="a", path="sub-01/ses-1_behavior.nwb", size_in_bytes=240_000),
-            AssetSummary(asset_id="b", path="sub-01/ses-2_photometry.nwb", size_in_bytes=60_000_000),
+            AssetSummary(
+                asset_id="b",
+                path="sub-01/ses-2_photometry.nwb",
+                size_in_bytes=60_000_000,
+            ),
             AssetSummary(asset_id="c", path="sub-02/ses-1_behavior.nwb", size_in_bytes=5_000_000),
         ]
 
-    def test_no_criteria_keeps_everything(self, assets):
-        assert filter_assets(assets) == assets
+    @pytest.fixture
+    def verdicts(self):
+        return {
+            "sub-01/ses-1_behavior.nwb": False,
+            "sub-01/ses-2_photometry.nwb": True,
+            "sub-02/ses-1_behavior.nwb": False,
+        }
 
-    def test_name_substring_is_case_insensitive_and_spans_the_path(self, assets):
-        assert [a.asset_id for a in filter_assets(assets, name_contains="SUB-01")] == ["a", "b"]
-        assert [a.asset_id for a in filter_assets(assets, name_contains="photometry")] == ["b"]
+    def test_the_filter_switched_off_keeps_everything(self, assets, verdicts):
+        assert filter_assets(assets, photometry_by_path=verdicts, photometry_only=False) == assets
 
-    def test_minimum_size_keeps_the_recordings(self, assets):
-        assert [a.asset_id for a in filter_assets(assets, minimum_size_in_bytes=1_000_000)] == ["b", "c"]
+    def test_the_filter_keeps_only_the_scanned_photometry_assets(self, assets, verdicts):
+        kept = filter_assets(assets, photometry_by_path=verdicts, photometry_only=True)
+        assert [asset.asset_id for asset in kept] == ["b"]
 
-    def test_criteria_combine(self, assets):
-        assert filter_assets(assets, name_contains="sub-02", minimum_size_in_bytes=10_000_000) == []
+    def test_nothing_scanned_yet_keeps_everything(self, assets):
+        assert filter_assets(assets, photometry_by_path={}, photometry_only=True) == assets
+
+    def test_an_asset_the_scan_never_reached_is_dropped(self, assets):
+        verdicts = {"sub-01/ses-2_photometry.nwb": True}
+        kept = filter_assets(assets, photometry_by_path=verdicts, photometry_only=True)
+        assert [asset.asset_id for asset in kept] == ["b"]
 
 
 # ---------------------------------------------------------------------------------------------
@@ -435,11 +529,17 @@ class TestProbePhotometry:
         probe = probe_photometry(file=mock_nwb_file)
         assert probe.locations == ("VTA",)
         assert probe.indicators == ("GCamp6f",)
-        assert [channel.excitation_wavelength_in_nm for channel in probe.channels] == [405.0, 470.0]
+        assert [channel.excitation_wavelength_in_nm for channel in probe.channels] == [
+            405.0,
+            470.0,
+        ]
 
     def test_isosbestic_excitation_suggests_a_control_label(self, mock_nwb_file):
         probe = probe_photometry(file=mock_nwb_file)
-        assert [channel.suggested_label for channel in probe.channels] == ["control_VTA", "signal_VTA"]
+        assert [channel.suggested_label for channel in probe.channels] == [
+            "control_VTA",
+            "signal_VTA",
+        ]
 
     def test_session_fields_are_read(self, mock_nwb_file):
         probe = probe_photometry(file=mock_nwb_file)
@@ -462,10 +562,19 @@ class TestProbePhotometry:
         # The column exists only in ndx-fiber-photometry v0.2.
         with h5py.File(MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"], "r") as file:
             probe = probe_photometry(file=file)
-        assert [channel.emission_wavelength_in_nm for channel in probe.channels] == [525.0, 525.0]
-        with h5py.File(MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"], "r") as file:
+        assert [channel.emission_wavelength_in_nm for channel in probe.channels] == [
+            525.0,
+            525.0,
+        ]
+        with h5py.File(
+            MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_1_ndx_events_v0_2"],
+            "r",
+        ) as file:
             probe = probe_photometry(file=file)
-        assert [channel.emission_wavelength_in_nm for channel in probe.channels] == [None, None]
+        assert [channel.emission_wavelength_in_nm for channel in probe.channels] == [
+            None,
+            None,
+        ]
 
     def test_timestamps_are_used_when_the_series_has_no_rate(self, sparse_nwb_file):
         probe = probe_photometry(file=sparse_nwb_file)
@@ -552,3 +661,197 @@ class TestReadExampleTraces:
             duration_in_seconds=1.0,
         )
         assert traces.series_name == "fiber_photometry_response_series"
+
+
+# ---------------------------------------------------------------------------------------------
+# Scan layer, against a local server that answers range requests like the archive does
+# ---------------------------------------------------------------------------------------------
+
+# Offsets of the markers planted in the payload the reader fixture serves, chosen to sit in the
+# prefetched head, in the gap between the windows, and in the prefetched tail.
+PAYLOAD_SIZE = 400_000
+HEAD_MARKER_OFFSET = 0
+GAP_MARKER_OFFSET = 100_000
+TAIL_MARKER_OFFSET = PAYLOAD_SIZE - 11  # the last bytes of the file, inside the tail window
+
+
+class RangeRequestHandler(BaseHTTPRequestHandler):
+    """Serve a directory over HTTP, honoring the byte ranges the prefetching reader asks for."""
+
+    def do_GET(self) -> None:
+        payload = (Path(self.server.served_directory) / self.path.lstrip("/")).read_bytes()
+        range_header = self.headers.get("Range")
+        if range_header is None:
+            body, status = payload, 200
+        else:
+            first, last = range_header.removeprefix("bytes=").split("-")
+            body, status = payload[int(first) : int(last) + 1], 206
+            self.server.requested_ranges.append((int(first), int(last)))
+        self.send_response(status)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args: object) -> None:
+        """Keep the test output free of one access log line per range request."""
+
+
+@pytest.fixture
+def byte_server(tmp_path):
+    """Serve ``tmp_path`` over HTTP, yielding the base URL its files are readable from."""
+    server = ThreadingHTTPServer(("127.0.0.1", 0), RangeRequestHandler)
+    server.served_directory = str(tmp_path)
+    server.requested_ranges = []
+    Thread(target=server.serve_forever, daemon=True).start()
+    yield server
+    server.shutdown()
+    server.server_close()
+
+
+def served_url(server, name):
+    """Return the URL ``name`` is served from."""
+    return f"http://127.0.0.1:{server.server_port}/{name}"
+
+
+class TestPrefetchedRemoteFile:
+    @pytest.fixture
+    def payload(self, tmp_path):
+        """A file larger than both prefetch windows, marked in the head, the gap and the tail."""
+        data = bytearray(b"." * PAYLOAD_SIZE)
+        data[HEAD_MARKER_OFFSET : HEAD_MARKER_OFFSET + 11] = b"HEAD-MARKER"
+        data[GAP_MARKER_OFFSET : GAP_MARKER_OFFSET + 10] = b"GAP-MARKER"
+        data[TAIL_MARKER_OFFSET : TAIL_MARKER_OFFSET + 11] = b"TAIL-MARKER"
+        (tmp_path / "large.bin").write_bytes(bytes(data))
+        return bytes(data)
+
+    @pytest.fixture
+    def reader(self, byte_server, payload):
+        return PrefetchedRemoteFile(content_url=served_url(byte_server, "large.bin"), size_in_bytes=PAYLOAD_SIZE)
+
+    def test_a_large_file_is_prefetched_as_a_head_and_a_tail(self, byte_server, reader):
+        # The two windows are fetched in parallel, so they arrive in either order.
+        assert sorted(byte_server.requested_ranges) == [(0, 65535), (137856, 399999)]
+
+    def test_reads_from_the_head_window_cost_no_request(self, byte_server, reader):
+        byte_server.requested_ranges.clear()
+        assert reader.read(11) == b"HEAD-MARKER"
+        assert byte_server.requested_ranges == []
+        assert reader.gap_read_count == 0
+
+    def test_reads_from_the_tail_window_cost_no_request(self, byte_server, reader):
+        byte_server.requested_ranges.clear()
+        reader.seek(TAIL_MARKER_OFFSET)
+        assert reader.read(11) == b"TAIL-MARKER"
+        assert byte_server.requested_ranges == []
+        assert reader.gap_read_count == 0
+
+    def test_a_read_between_the_windows_falls_back_to_its_own_request(self, byte_server, reader):
+        byte_server.requested_ranges.clear()
+        reader.seek(GAP_MARKER_OFFSET)
+        assert reader.read(10) == b"GAP-MARKER"
+        assert byte_server.requested_ranges == [(100_000, 100_009)]
+        assert reader.gap_read_count == 1
+
+    def test_a_small_file_is_fetched_whole_in_one_request(self, byte_server, tmp_path):
+        (tmp_path / "small.bin").write_bytes(b"SMALL-PAYLOAD")
+        reader = PrefetchedRemoteFile(content_url=served_url(byte_server, "small.bin"), size_in_bytes=13)
+        assert byte_server.requested_ranges == [(0, 12)]
+        assert reader.read() == b"SMALL-PAYLOAD"
+        assert reader.gap_read_count == 0
+
+    def test_seeking_reports_where_it_landed(self, reader):
+        assert reader.seek(50) == 50
+        assert reader.tell() == 50
+        assert reader.seek(10, io.SEEK_CUR) == 60
+        assert reader.seek(-11, io.SEEK_END) == PAYLOAD_SIZE - 11
+        assert reader.read(11) == b"TAIL-MARKER"
+
+    def test_a_read_past_the_end_stops_at_the_end(self, reader):
+        reader.seek(PAYLOAD_SIZE - 11)
+        assert reader.read(500) == b"TAIL-MARKER"
+        assert reader.tell() == PAYLOAD_SIZE
+
+
+class TestAssetHoldsPhotometry:
+    @pytest.fixture
+    def behavior_only_file(self, tmp_path):
+        """An NWB file whose ``general`` group holds no fiber photometry table."""
+        path = tmp_path / "behavior_only.nwb"
+        with h5py.File(path, "w") as file:
+            file.create_group("general/devices")
+            file.create_group("acquisition")
+        return path
+
+    def _asset(self, server, name, path):
+        return AssetSummary(
+            asset_id=name,
+            path=name,
+            size_in_bytes=path.stat().st_size,
+            content_url=served_url(server, name),
+        )
+
+    @pytest.mark.parametrize("mock_name", sorted(MOCK_NWB_FILES))
+    def test_a_photometry_file_is_recognized(self, byte_server, tmp_path, mock_name):
+        served = tmp_path / "photometry.nwb"
+        served.write_bytes(MOCK_NWB_FILES[mock_name].read_bytes())
+        assert asset_holds_photometry(self._asset(byte_server, "photometry.nwb", served)) is True
+
+    def test_a_behavior_only_file_is_rejected(self, byte_server, behavior_only_file):
+        asset = self._asset(byte_server, "behavior_only.nwb", behavior_only_file)
+        assert asset_holds_photometry(asset) is False
+
+    def test_an_unreadable_asset_is_reported_as_holding_nothing(self, byte_server, caplog):
+        asset = AssetSummary(
+            asset_id="missing",
+            path="missing.nwb",
+            size_in_bytes=1024,
+            content_url=served_url(byte_server, "missing.nwb"),
+        )
+        assert asset_holds_photometry(asset) is False
+        assert "missing.nwb" in caplog.text
+
+
+class TestScanAssetsForPhotometry:
+    @pytest.fixture
+    def assets(self, byte_server, tmp_path):
+        """One photometry asset and two behavior-only ones, served over HTTP."""
+        photometry = tmp_path / "photometry.nwb"
+        photometry.write_bytes(MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"].read_bytes())
+        summaries = [
+            AssetSummary(
+                asset_id="p",
+                path="sub-01/photometry.nwb",
+                size_in_bytes=photometry.stat().st_size,
+                content_url=served_url(byte_server, "photometry.nwb"),
+            )
+        ]
+        for index in (1, 2):
+            name = f"behavior_{index}.nwb"
+            behavior = tmp_path / name
+            with h5py.File(behavior, "w") as file:
+                file.create_group("general/devices")
+            summaries.append(
+                AssetSummary(
+                    asset_id=f"b{index}",
+                    path=f"sub-01/{name}",
+                    size_in_bytes=behavior.stat().st_size,
+                    content_url=served_url(byte_server, name),
+                )
+            )
+        return summaries
+
+    def test_every_asset_gets_a_verdict_keyed_by_its_path(self, assets):
+        assert scan_assets_for_photometry(assets, process_count=2) == {
+            "sub-01/photometry.nwb": True,
+            "sub-01/behavior_1.nwb": False,
+            "sub-01/behavior_2.nwb": False,
+        }
+
+    def test_progress_is_reported_once_per_asset(self, assets):
+        completed = []
+        scan_assets_for_photometry(assets, process_count=2, progress_callback=completed.append)
+        assert completed == [1, 2, 3]
+
+    def test_scanning_nothing_asks_the_archive_nothing(self, byte_server):
+        assert scan_assets_for_photometry([]) == {}
+        assert byte_server.requested_ranges == []

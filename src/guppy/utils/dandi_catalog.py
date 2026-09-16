@@ -1,10 +1,12 @@
 """Search the DANDI Archive for fiber photometry datasets and inspect their NWB assets.
 
-Two layers live here. The catalog layer talks to the DANDI REST API: it runs the archive's
+Three layers live here. The catalog layer talks to the DANDI REST API: it runs the archive's
 full-text search, pulls each hit's dandiset metadata, and reduces it to a
-:class:`DandisetSummary` that the browser can tabulate and filter. The probe layer opens one
-NWB asset's HDF5 header over the network and reports what fiber photometry it actually holds
--- the channels, their brain regions and indicators, and a short slice of each trace.
+:class:`DandisetSummary` that the browser can tabulate and filter, and it lists a dandiset's
+NWB assets with the URLs their bytes are readable from. The scan layer answers, for every
+asset of a dandiset at once, which of them hold fiber photometry at all. The probe layer opens
+one NWB asset's HDF5 header and reports what that file holds in detail -- the channels, their
+brain regions and indicators, and a short slice of each trace.
 
 The split exists because DANDI's structured metadata does not describe fiber photometry.
 ``assetsSummary.variableMeasured`` is built by dandi-cli from the core NWB types it knows, and
@@ -14,16 +16,19 @@ authoritative -- which files carry photometry data, from which sites, with which
 has to come from the files.
 """
 
+import io
 import logging
 import re
-from collections.abc import Iterable, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Iterable, Sequence
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from math import ceil
 
 import h5py
 import numpy as np
+import requests
 from dandi.dandiapi import DandiAPIClient
+from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +52,30 @@ ISOSBESTIC_WAVELENGTH_CEILING_IN_NM = 420.0
 # Canonical brain region -> the spellings and abbreviations searched for in a dandiset's free
 # text. Every pattern is matched on word boundaries, so "LH" does not fire inside "LHb".
 BRAIN_REGION_VOCABULARY: dict[str, tuple[str, ...]] = {
-    "Dorsal striatum": ("dorsal striatum", "dorsomedial striatum", "dorsolateral striatum", "dms", "dls"),
-    "Ventral striatum": ("ventral striatum", "nucleus accumbens", "nac", "nacc", "accumbens"),
+    "Dorsal striatum": (
+        "dorsal striatum",
+        "dorsomedial striatum",
+        "dorsolateral striatum",
+        "dms",
+        "dls",
+    ),
+    "Ventral striatum": (
+        "ventral striatum",
+        "nucleus accumbens",
+        "nac",
+        "nacc",
+        "accumbens",
+    ),
     "Striatum": ("striatum", "striatal"),
     "Substantia nigra": ("substantia nigra", "snc", "snr"),
     "Ventral tegmental area": ("ventral tegmental area", "vta"),
-    "Prefrontal cortex": ("prefrontal cortex", "mpfc", "pfc", "prelimbic", "infralimbic"),
+    "Prefrontal cortex": (
+        "prefrontal cortex",
+        "mpfc",
+        "pfc",
+        "prelimbic",
+        "infralimbic",
+    ),
     "Orbitofrontal cortex": ("orbitofrontal cortex", "ofc"),
     "Anterior cingulate cortex": ("anterior cingulate", "acc"),
     "Motor cortex": ("motor cortex", "m1", "m2"),
@@ -63,7 +86,10 @@ BRAIN_REGION_VOCABULARY: dict[str, tuple[str, ...]] = {
     "Hippocampus": ("hippocampus", "hippocampal", "ca1", "ca3", "dentate gyrus"),
     "Entorhinal cortex": ("entorhinal",),
     "Amygdala": ("amygdala", "bla", "cea", "basolateral amygdala", "central amygdala"),
-    "Bed nucleus of the stria terminalis": ("bed nucleus of the stria terminalis", "bnst"),
+    "Bed nucleus of the stria terminalis": (
+        "bed nucleus of the stria terminalis",
+        "bnst",
+    ),
     "Septum": ("septum", "septal"),
     "Basal forebrain": ("basal forebrain",),
     "Globus pallidus": ("globus pallidus", "gpe", "gpi"),
@@ -71,7 +97,14 @@ BRAIN_REGION_VOCABULARY: dict[str, tuple[str, ...]] = {
     "Pedunculopontine nucleus": ("pedunculopontine", "ppn", "ppt"),
     "Thalamus": ("thalamus", "thalamic", "mediodorsal thalamus"),
     "Habenula": ("habenula", "lhb", "mhb"),
-    "Hypothalamus": ("hypothalamus", "hypothalamic", "lateral hypothalamus", "pvn", "arcuate", "vmh"),
+    "Hypothalamus": (
+        "hypothalamus",
+        "hypothalamic",
+        "lateral hypothalamus",
+        "pvn",
+        "arcuate",
+        "vmh",
+    ),
     "Locus coeruleus": ("locus coeruleus", "lc"),
     "Dorsal raphe": ("dorsal raphe", "raphe", "drn"),
     "Periaqueductal gray": ("periaqueductal", "pag"),
@@ -240,7 +273,14 @@ def _summarize_dandiset(
     # Everything a submitter wrote about the dataset, in one blob: what the vocabularies are
     # scanned against and what the browser's free-text filter searches.
     searchable_text = " ".join(
-        (name, description, " ".join(keywords), " ".join(study_targets), " ".join(about), identifier)
+        (
+            name,
+            description,
+            " ".join(keywords),
+            " ".join(study_targets),
+            " ".join(about),
+            identifier,
+        )
     ).lower()
 
     return DandisetSummary(
@@ -390,7 +430,9 @@ def filter_dandisets(
     return [summary for summary in summaries if matches(summary)]
 
 
-def collect_filter_options(summaries: Sequence[DandisetSummary]) -> dict[str, list[str]]:
+def collect_filter_options(
+    summaries: Sequence[DandisetSummary],
+) -> dict[str, list[str]]:
     """Return the values each categorical filter can take across ``summaries``.
 
     Offering only values that are present keeps every option in the browser's dropdowns a
@@ -433,11 +475,15 @@ class AssetSummary:
         Path within the dandiset.
     size_in_bytes : int
         Size on the archive.
+    content_url : str
+        Directly readable URL for the asset's bytes, carried in the listing so that reading
+        an asset costs no further metadata request.
     """
 
     asset_id: str
     path: str
     size_in_bytes: int
+    content_url: str = ""
 
 
 def list_nwb_assets(
@@ -447,7 +493,11 @@ def list_nwb_assets(
     glob_pattern: str = "*.nwb",
     max_assets: int = 20000,
 ) -> list[AssetSummary]:
-    """List a dandiset's NWB assets, with their sizes, without fetching per-asset metadata.
+    """List a dandiset's NWB assets, with their sizes and directly readable URLs.
+
+    The archive's asset listing carries each asset's metadata inline when asked for it, so one
+    paginated request supplies everything the browser and the photometry scan need. Resolving
+    the same URLs one asset at a time would cost a redirect per asset.
 
     Parameters
     ----------
@@ -466,43 +516,34 @@ def list_nwb_assets(
         One entry per matching asset, in the archive's own order.
     """
     with DandiAPIClient() as client:
-        dandiset = client.get_dandiset(dandiset_id, version)
+        # Touch the dandiset first so an unknown ID raises NotFoundError before we paginate.
+        client.get_dandiset(dandiset_id, version)
         assets = []
-        for asset in dandiset.get_assets_by_glob(glob_pattern):
-            assets.append(AssetSummary(asset_id=asset.identifier, path=asset.path, size_in_bytes=int(asset.size)))
+        rows = client.paginate(
+            f"/dandisets/{dandiset_id}/versions/{version}/assets/",
+            params={"glob": glob_pattern, "metadata": "true", "page_size": 1000},
+        )
+        for row in rows:
+            assets.append(
+                AssetSummary(
+                    asset_id=row["asset_id"],
+                    path=row["path"],
+                    size_in_bytes=int(row["size"]),
+                    content_url=_direct_content_url(row.get("metadata") or {}),
+                )
+            )
             if len(assets) >= max_assets:
                 break
     return assets
 
 
-def filter_assets(
-    assets: Sequence[AssetSummary],
-    *,
-    name_contains: str = "",
-    minimum_size_in_bytes: int = 0,
-) -> list[AssetSummary]:
-    """Narrow an asset listing by path text and by size.
-
-    Size is the one cheap signal that separates a dandiset's photometry recordings from its
-    behavior-only sidecar files: a recorded trace runs to tens or hundreds of megabytes where
-    a file holding only event timestamps is a few hundred kilobytes.
-
-    Parameters
-    ----------
-    assets : sequence of AssetSummary
-        The listing to narrow.
-    name_contains : str, optional
-        Case-insensitive substring the asset path must contain.
-    minimum_size_in_bytes : int, optional
-        Lower bound on the asset's size.
-
-    Returns
-    -------
-    list of AssetSummary
-        The matching assets, in their original order.
-    """
-    needle = name_contains.strip().lower()
-    return [asset for asset in assets if needle in asset.path.lower() and asset.size_in_bytes >= minimum_size_in_bytes]
+def _direct_content_url(metadata: dict[str, object]) -> str:
+    """Pick the asset URL that serves bytes directly, rather than redirecting to one."""
+    content_urls = metadata.get("contentUrl") or []
+    for url in content_urls:
+        if not url.endswith("/download/"):
+            return url
+    return content_urls[0] if content_urls else ""
 
 
 def format_byte_size(size_in_bytes: int) -> str:
@@ -551,6 +592,217 @@ def asset_content_url(*, dandiset_id: str, asset_path: str, version: str = "draf
     with DandiAPIClient() as client:
         asset = client.get_dandiset(dandiset_id, version).get_asset_by_path(asset_path)
         return asset.get_content_url(follow_redirects=1, strip_query=False)
+
+
+# ----------------------------------------------------------------------------------------------
+# Scan layer: which of a dandiset's assets hold fiber photometry
+# ----------------------------------------------------------------------------------------------
+
+# Group that ndx-fiber-photometry writes its FiberPhotometryTable into. Every
+# FiberPhotometryResponseSeries references a region of that table, so the group's presence is
+# equivalent to the file holding photometry -- and costs a single link lookup to check, where
+# walking acquisition and the processing modules costs an attribute read per member.
+#
+# The cached extension namespaces under /specifications are NOT a usable signal: they record
+# which extensions the conversion session had loaded, not which types it wrote, so a
+# behavior-only file written by a photometry pipeline still declares ndx-fiber-photometry.
+FIBER_PHOTOMETRY_GROUP = "fiber_photometry"
+
+# Bytes prefetched from each end of a remote file before handing it to h5py. Answering the
+# question above reads only ~5 KB, but h5py discovers those bytes by pointer-chasing through
+# the superblock and object headers -- sixteen round trips, each waiting on the last. HDF5
+# places those headers at whatever was the end of the file when they were last written, so a
+# head and a tail window fetched in parallel cover them for any file written in a single
+# session, which is what a one-shot conversion produces. Widening the windows is not free:
+# at these sizes the scan already saturates a typical connection.
+PREFETCH_HEAD_IN_BYTES = 64 * 1024
+PREFETCH_TAIL_IN_BYTES = 256 * 1024
+
+# Assets scanned concurrently. Processes rather than threads because h5py serializes on a
+# global lock, which would otherwise collapse the concurrency to roughly one file at a time.
+SCAN_PROCESS_COUNT = 32
+
+_scan_session: requests.Session | None = None
+
+
+def _session() -> requests.Session:
+    """Return this process's HTTP session, whose connection pool outlives one asset."""
+    global _scan_session
+    if _scan_session is None:
+        _scan_session = requests.Session()
+        _scan_session.mount("https://", HTTPAdapter(pool_connections=4, pool_maxsize=4))
+    return _scan_session
+
+
+class PrefetchedRemoteFile(io.RawIOBase):
+    """A seekable view of a remote file served from a prefetched head and tail window.
+
+    h5py reads through this object instead of issuing its own range requests, so the reads it
+    makes to resolve a path cost no network round trips. A read that falls between the two
+    windows -- which happens when bulk data was appended after the metadata was last written --
+    is served by a range request of its own, which is correct but back to one trip per read.
+
+    Parameters
+    ----------
+    content_url : str
+        Directly readable URL for the file's bytes.
+    size_in_bytes : int
+        The file's total size, as the archive's listing reports it.
+    """
+
+    def __init__(self, *, content_url: str, size_in_bytes: int) -> None:
+        self._content_url = content_url
+        self._size = size_in_bytes
+        self._position = 0
+        self.gap_read_count = 0
+        if size_in_bytes <= PREFETCH_HEAD_IN_BYTES + PREFETCH_TAIL_IN_BYTES:
+            self._head = self._fetch(0, size_in_bytes)
+            self._tail = b""
+            self._tail_start = size_in_bytes
+        else:
+            self._tail_start = size_in_bytes - PREFETCH_TAIL_IN_BYTES
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                head = pool.submit(self._fetch, 0, PREFETCH_HEAD_IN_BYTES)
+                tail = pool.submit(self._fetch, self._tail_start, size_in_bytes)
+                self._head, self._tail = head.result(), tail.result()
+
+    def _fetch(self, start: int, end: int) -> bytes:
+        """Fetch the half-open byte range ``[start, end)``."""
+        response = _session().get(self._content_url, headers={"Range": f"bytes={start}-{end - 1}"}, timeout=60)
+        response.raise_for_status()
+        return response.content
+
+    def readable(self) -> bool:
+        """Report that the file can be read."""
+        return True
+
+    def seekable(self) -> bool:
+        """Report that the file can be seeked."""
+        return True
+
+    def tell(self) -> int:
+        """Return the current read position."""
+        return self._position
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        """Move the read position and return where it landed."""
+        if whence == io.SEEK_SET:
+            self._position = offset
+        elif whence == io.SEEK_CUR:
+            self._position += offset
+        else:
+            self._position = self._size + offset
+        return self._position
+
+    def read(self, size: int = -1) -> bytes:
+        """Return ``size`` bytes from the current position, fetching any the windows miss."""
+        if size is None or size < 0:
+            size = self._size - self._position
+        start = self._position
+        end = min(start + size, self._size)
+        if end <= len(self._head):
+            data = self._head[start:end]
+        elif start >= self._tail_start:
+            data = self._tail[start - self._tail_start : end - self._tail_start]
+        else:
+            self.gap_read_count += 1
+            data = self._fetch(start, end)
+        self._position = end
+        return data
+
+    def readinto(self, buffer: bytearray) -> int:
+        """Fill ``buffer`` from the current position and return how many bytes landed in it."""
+        data = self.read(len(buffer))
+        buffer[: len(data)] = data
+        return len(data)
+
+
+def asset_holds_photometry(asset: AssetSummary) -> bool:
+    """Report whether one remote asset holds fiber photometry, without downloading it.
+
+    Runs in a worker process, so it takes and returns only picklable values.
+
+    Parameters
+    ----------
+    asset : AssetSummary
+        The asset to inspect, carrying the URL its bytes are read from.
+
+    Returns
+    -------
+    bool
+        Whether the file declares a fiber photometry table.
+    """
+    try:
+        reader = PrefetchedRemoteFile(content_url=asset.content_url, size_in_bytes=asset.size_in_bytes)
+        with h5py.File(reader, mode="r") as file:
+            general = file.get("general")
+            return general is not None and FIBER_PHOTOMETRY_GROUP in general
+    except Exception as error:
+        # One unreadable asset -- embargoed, truncated, mid-upload -- should not abandon the
+        # scan of every other asset in the dandiset.
+        logger.warning("Could not scan %s for fiber photometry: %s", asset.path, error)
+        return False
+
+
+def scan_assets_for_photometry(
+    assets: Sequence[AssetSummary],
+    *,
+    process_count: int = SCAN_PROCESS_COUNT,
+    progress_callback: Callable[[int], None] | None = None,
+) -> dict[str, bool]:
+    """Report which of ``assets`` hold fiber photometry.
+
+    Parameters
+    ----------
+    assets : sequence of AssetSummary
+        The assets to scan.
+    process_count : int, optional
+        How many assets to scan at once.
+    progress_callback : callable or None, optional
+        Called with the number of assets scanned so far, each time one finishes.
+
+    Returns
+    -------
+    dict of {str: bool}
+        Asset path mapped to whether that asset holds fiber photometry.
+    """
+    if not assets:
+        return {}
+    verdicts: dict[str, bool] = {}
+    with ProcessPoolExecutor(max_workers=min(process_count, len(assets))) as pool:
+        asset_by_future = {pool.submit(asset_holds_photometry, asset): asset for asset in assets}
+        for future in as_completed(asset_by_future):
+            verdicts[asset_by_future[future].path] = future.result()
+            if progress_callback is not None:
+                progress_callback(len(verdicts))
+    return verdicts
+
+
+def filter_assets(
+    assets: Sequence[AssetSummary],
+    *,
+    photometry_by_path: dict[str, bool],
+    photometry_only: bool,
+) -> list[AssetSummary]:
+    """Narrow an asset listing to the scanned assets that hold fiber photometry.
+
+    Parameters
+    ----------
+    assets : sequence of AssetSummary
+        The listing to narrow.
+    photometry_by_path : dict of {str: bool}
+        Scan verdicts, as :func:`scan_assets_for_photometry` returns them.
+    photometry_only : bool
+        When False, or when nothing has been scanned, every asset is kept.
+
+    Returns
+    -------
+    list of AssetSummary
+        The matching assets, in their original order.
+    """
+    if not photometry_only or not photometry_by_path:
+        return list(assets)
+    return [asset for asset in assets if photometry_by_path.get(asset.path)]
 
 
 # ----------------------------------------------------------------------------------------------

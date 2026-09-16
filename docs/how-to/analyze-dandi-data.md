@@ -124,22 +124,29 @@ the same as local mode — click a folder to descend, Ctrl/Cmd-click to
 multi-select. Only `.nwb` assets are listed.
 
 ```{image} ../_static/images/dandi_asset_browser.png
-:alt: The DANDI asset browser with Asset path contains set to sub-112-283, a status line reading "Showing 37 of 4139 NWB asset(s) in the tree below", that subject's session files listed in the File Browser pane, and sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb moved into the Selected files pane
+:alt: The DANDI asset browser after a scan, with the Show only files with fiber photometry checkbox ticked, a status line reading "Showing 63 of 4139 NWB asset(s) in the tree below. Scanned 4139 file(s): 63 hold fiber photometry", the surviving subject folders listed in the File Browser pane, and sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb moved into the Selected files pane
 :width: 100%
 ```
 
-Two filters narrow the tree, which matters in a dandiset with thousands of
-assets:
+Most dandisets hold far more assets than they hold recordings. Many of them
+store each session's behavioral events in a small NWB file of its own beside
+the recording, so a dandiset of a few thousand assets may carry only a few
+dozen photometry sessions, scattered across subject folders that give no sign
+of which is which. In `000971`, 63 of 4139 assets carry traces, and they sit in
+40 of its 168 subject folders.
 
-- **Asset path contains** keeps the assets whose path contains the text you
-  type, so a subject folder or a filename fragment cuts the tree down to it.
-- **Minimum file size (MB)** keeps the assets at least that large. This is the
-  cheapest way to separate recordings from behavior-only sidecar files, whose
-  sizes differ by orders of magnitude: in dandiset `000971` a floor of 5 MB
-  leaves 63 assets of 4139, and those 63 are the photometry sessions.
+**Scan for fiber photometry** answers that directly. It reads the header of
+every listed file straight from the archive and reports which of them hold a
+fiber photometry table, then ticks **Show only files with fiber photometry** so
+the tree holds just those. A progress bar tracks the scan, which takes a couple
+of seconds for a typical dandiset and well under a minute for one the size of
+`000971`. Nothing is downloaded: the scan reads a few hundred kilobytes per
+file, enough to answer the question and no more.
 
-Both read sizes and paths the archive already reported, so neither costs a
-network round trip.
+The scan is a report about the files rather than a rule applied to them, so
+unticking the checkbox brings the whole listing back with the verdicts still in
+hand. If you already know the file you want, leave the checkbox off and browse
+to it.
 
 **Preview selected file** runs the same preview as the catalog's inspect action,
 against the file you selected. Use it to confirm a specific session before

@@ -6,6 +6,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
+from threading import Thread
 
 import panel as pn
 from dandi.exceptions import NotFoundError
@@ -18,6 +19,7 @@ from ..utils.dandi_catalog import (
     format_byte_size,
     list_nwb_assets,
     preview_asset,
+    scan_assets_for_photometry,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,6 +97,9 @@ class DandiSelector:
     preview_function : callable, optional
         Injection point for the streaming preview; defaults to
         :func:`~guppy.utils.dandi_catalog.preview_asset`.
+    scan_function : callable, optional
+        Injection point for the fiber photometry scan; defaults to
+        :func:`~guppy.utils.dandi_catalog.scan_assets_for_photometry`.
     browser : DandiBrowser or None, optional
         Catalog browser to embed. One is built when not supplied.
 
@@ -118,6 +123,7 @@ class DandiSelector:
         start_path: str | None = None,
         list_assets_function: object = list_nwb_assets,
         preview_function: object = preview_asset,
+        scan_function: object = scan_assets_for_photometry,
         browser: DandiBrowser | None = None,
     ) -> None:
         self.styles = styles or dict(background="WhiteSmoke")
@@ -127,11 +133,16 @@ class DandiSelector:
         Path(self._mirror_parent).mkdir(parents=True, exist_ok=True)
         self.list_assets_function = list_assets_function
         self.preview_function = preview_function
+        self.scan_function = scan_function
 
         self._current_mirror_root = None
         # The loaded dandiset's full NWB asset listing, which the asset filters narrow without
         # going back to the archive.
         self._assets: list[AssetSummary] = []
+        # Asset path -> whether that asset holds fiber photometry, filled in by a scan.
+        self._photometry_by_path: dict[str, bool] = {}
+        # State of the scan currently running, if any: its counter, thread and poller.
+        self._scan: dict[str, object] = {}
         # Re-attached to each rebuilt asset FileSelector by _make_asset_file_selector.
         self._asset_selection_watchers = []
 
@@ -151,29 +162,34 @@ class DandiSelector:
         )
         self.dandiset_input.param.watch(self._on_dandiset_change, "value")
 
-        self.asset_name_filter = pn.widgets.TextInput(
-            name="Asset path contains",
-            value="",
-            placeholder="e.g. sub-112-283, or photometry",
-            width=400,
+        self.scan_button = pn.widgets.Button(
+            name="Scan for fiber photometry",
+            button_type="primary",
+            width=260,
+            disabled=True,
             description=(
-                "Keeps only assets whose path contains this text. Matching is case-insensitive "
-                "and applies to the whole path, so a subject folder narrows the tree to that subject."
+                "Reads the header of every listed NWB file straight from the archive and reports "
+                "which of them hold fiber photometry. Nothing is downloaded; a few hundred "
+                "kilobytes per file are read to answer the question."
             ),
         )
-        self.minimum_size_in_mb = pn.widgets.FloatInput(
-            name="Minimum file size (MB)",
-            value=0.0,
-            start=0.0,
-            width=200,
-            description=(
-                "Keeps only assets at least this large. Many dandisets store behavioral events in "
-                "their own small NWB files alongside the recordings; a recording with traces in it "
-                "runs to tens or hundreds of MB, so a floor of a few MB usually isolates them."
-            ),
+        self.scan_button.on_click(self.scan_assets)
+
+        self.photometry_only = pn.widgets.Checkbox(
+            name="Show only files with fiber photometry",
+            value=False,
+            disabled=True,
+            width=320,
         )
-        for widget in (self.asset_name_filter, self.minimum_size_in_mb):
-            widget.param.watch(self._on_asset_filter_change, "value")
+        self.photometry_only.param.watch(self._on_asset_filter_change, "value")
+
+        self.scan_progress = pn.indicators.Progress(
+            name="Scanning",
+            value=0,
+            max=1,
+            width=600,
+            visible=False,
+        )
 
         # Panel's FileSelector populates its listing once at construction and
         # does not re-scan when ``root_directory`` is reassigned programmatically.
@@ -216,11 +232,13 @@ class DandiSelector:
             pn.pane.Markdown(
                 "**Step 3:** Browse the dandiset's subject folders below and select one or more "
                 "NWB files. Navigation works the same as local mode — click a folder to descend, "
-                "Ctrl/Cmd-click to multi-select files. The two filters narrow the tree, and "
-                "**Preview selected file** streams the file's header to report which channels "
-                "it holds before you commit to analyzing it."
+                "Ctrl/Cmd-click to multi-select files. **Scan for fiber photometry** checks every "
+                "listed file and lets you hide the ones that hold none, and **Preview selected "
+                "file** streams the file's header to report which channels it holds before you "
+                "commit to analyzing it."
             ),
-            pn.Row(self.asset_name_filter, self.minimum_size_in_mb),
+            pn.Row(self.scan_button, self.photometry_only),
+            self.scan_progress,
             self.asset_status,
             self._asset_file_selector_slot,
             self.preview_button,
@@ -278,9 +296,17 @@ class DandiSelector:
     def _reset_to_empty(self) -> None:
         self._current_mirror_root = None
         self._assets = []
+        self._forget_scan()
         self.asset_status.object = ""
         self.asset_preview_pane.clear()
         self._swap_asset_file_selector(self._mirror_parent)
+
+    def _forget_scan(self) -> None:
+        """Drop the previous dandiset's scan verdicts and disable the filter they fed."""
+        self._photometry_by_path = {}
+        self.photometry_only.value = False
+        self.photometry_only.disabled = True
+        self.scan_button.disabled = True
 
     def load_dandiset(self, dandiset_id: str) -> None:
         """Load ``dandiset_id`` into the Dandiset ID field, which lists its assets.
@@ -315,6 +341,8 @@ class DandiSelector:
             return
 
         self._assets = assets
+        self._forget_scan()
+        self.scan_button.disabled = not assets
         size_range = ""
         if assets:
             sizes = [asset.size_in_bytes for asset in assets]
@@ -327,12 +355,68 @@ class DandiSelector:
             self._rebuild_mirror()
 
     def _filtered_assets(self) -> list[AssetSummary]:
-        """Return the loaded dandiset's assets that pass the path and size filters."""
+        """Return the loaded dandiset's assets that pass the fiber photometry filter."""
         return filter_assets(
             self._assets,
-            name_contains=self.asset_name_filter.value,
-            minimum_size_in_bytes=int(self.minimum_size_in_mb.value * 1024 * 1024),
+            photometry_by_path=self._photometry_by_path,
+            photometry_only=self.photometry_only.value,
         )
+
+    def scan_assets(self, event: object = None) -> None:
+        """Scan every listed asset for fiber photometry and switch the filter on.
+
+        The scan runs on a worker thread and is polled from the server IOLoop, rather than
+        being waited on here: a synchronous wait would block the IOLoop for the whole scan,
+        so the progress bar would never repaint and the browser tab would drop its
+        websocket connection.
+        """
+        if not self._assets:
+            return
+        total = len(self._assets)
+        self.scan_button.loading = True
+        self.scan_button.disabled = True
+        self.scan_progress.max = total
+        self.scan_progress.value = 0
+        self.scan_progress.visible = True
+        self.asset_status.object = f"Scanning 0 of {total} NWB asset(s) for fiber photometry..."
+
+        # ``completed`` is written only by the worker thread and read only by the poller, so
+        # it needs no lock: the scan reports from the single thread it collects results on.
+        self._scan = {"completed": 0, "verdicts": {}, "total": total}
+
+        def worker() -> None:
+            self._scan["verdicts"] = self.scan_function(self._assets, progress_callback=self._record_scan_progress)
+
+        self._scan["thread"] = Thread(target=worker)
+        self._scan["thread"].start()
+        self._scan["callback"] = pn.state.add_periodic_callback(self._poll_scan, period=200)
+
+    def _record_scan_progress(self, completed: int) -> None:
+        """Note how many assets the running scan has finished, for the poller to render."""
+        self._scan["completed"] = completed
+
+    def _poll_scan(self) -> None:
+        """Render the running scan's progress, and apply its verdicts once it finishes."""
+        completed = self._scan["completed"]
+        total = self._scan["total"]
+        self.scan_progress.value = min(completed, total)
+        self.asset_status.object = f"Scanning {completed} of {total} NWB asset(s) for fiber photometry..."
+        # Completion is the worker thread finishing, never the count reaching the total, so
+        # the verdicts are always fully assigned before they are read.
+        if not self._scan["thread"].is_alive():
+            self._scan["callback"].stop()
+            self._finish_scan(self._scan["verdicts"])
+
+    def _finish_scan(self, verdicts: dict[str, bool]) -> None:
+        """Apply a finished scan's verdicts and turn the photometry filter on."""
+        self._photometry_by_path = verdicts
+        self.scan_progress.visible = False
+        self.scan_button.loading = False
+        self.scan_button.disabled = False
+        self.photometry_only.disabled = False
+        # Switching it on is why the button was pressed; the unscanned listing is one click away.
+        self.photometry_only.value = True
+        self._rebuild_mirror()
 
     def _rebuild_mirror(self) -> None:
         """Re-materialize the placeholder tree from the filtered assets and repoint the selector."""
@@ -343,7 +427,16 @@ class DandiSelector:
         )
         self.asset_preview_pane.clear()
         self._swap_asset_file_selector(self._current_mirror_root)
-        self.asset_status.object = f"Showing **{len(assets)}** of {len(self._assets)} NWB asset(s) in the tree below."
+        if self._photometry_by_path:
+            with_photometry = sum(1 for held in self._photometry_by_path.values() if held)
+            scanned = (
+                f" Scanned {len(self._photometry_by_path)} file(s): " f"**{with_photometry}** hold fiber photometry."
+            )
+        else:
+            scanned = ""
+        self.asset_status.object = (
+            f"Showing **{len(assets)}** of {len(self._assets)} NWB asset(s) in the tree below.{scanned}"
+        )
 
     def _selected_relative_paths(self) -> list[str]:
         if self._current_mirror_root is None:

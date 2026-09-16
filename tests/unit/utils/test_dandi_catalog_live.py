@@ -18,14 +18,15 @@ import pytest
 
 from guppy.utils.dandi_catalog import (
     PHOTOMETRY_SEARCH_TERMS,
-    filter_assets,
     list_nwb_assets,
     preview_asset,
+    scan_assets_for_photometry,
     search_dandisets,
 )
 
 DANDISET_ID = "000971"
 ASSET_PATH = "sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
+SUBJECT_FOLDER = "sub-112-283/"
 # Site, indicator and wavelengths the how-to guide documents for this recording.
 EXPECTED_STORE_NAMES = [f"fiber_photometry_response_series_{index}" for index in range(4)]
 EXPECTED_SUGGESTED_LABELS = ["signal_DMS", "control_DMS", "signal_DLS", "control_DLS"]
@@ -60,10 +61,30 @@ class TestLiveAssetListing:
         # The recordings are hundreds of megabytes; the behavior-only files are a few hundred KB.
         assert by_path[ASSET_PATH].size_in_bytes > 100_000_000
 
-    def test_a_size_floor_isolates_the_recordings(self):
+    def test_the_listing_carries_a_url_the_bytes_can_be_read_from(self):
         assets = list_nwb_assets(dandiset_id=DANDISET_ID)
-        recordings = filter_assets(assets, minimum_size_in_bytes=5 * 1024 * 1024)
-        assert 0 < len(recordings) < len(assets) / 10
+        by_path = {asset.path: asset for asset in assets}
+        assert by_path[ASSET_PATH].content_url.startswith("https://")
+        assert not by_path[ASSET_PATH].content_url.endswith("/download/")
+
+
+@pytest.mark.dandi_live
+class TestLivePhotometryScan:
+    @pytest.fixture(scope="class")
+    def verdicts(self):
+        assets = list_nwb_assets(dandiset_id=DANDISET_ID)
+        return scan_assets_for_photometry([asset for asset in assets if asset.path.startswith(SUBJECT_FOLDER)])
+
+    def test_the_subjects_one_recording_is_the_only_asset_holding_photometry(self, verdicts):
+        assert len(verdicts) == 37
+        assert [path for path, holds in verdicts.items() if holds] == [ASSET_PATH]
+
+    def test_progress_is_reported_once_per_asset(self):
+        assets = list_nwb_assets(dandiset_id=DANDISET_ID)
+        subject_assets = [asset for asset in assets if asset.path.startswith(SUBJECT_FOLDER)]
+        completed = []
+        scan_assets_for_photometry(subject_assets, progress_callback=completed.append)
+        assert completed == list(range(1, len(subject_assets) + 1))
 
 
 @pytest.mark.dandi_live
