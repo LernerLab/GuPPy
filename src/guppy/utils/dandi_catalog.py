@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import re
+import time
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -662,6 +663,17 @@ PREFETCH_TAIL_IN_BYTES = 256 * 1024
 # global lock, which would otherwise collapse the concurrency to roughly one file at a time.
 SCAN_PROCESS_COUNT = 32
 
+# How many dandiset asset listings to fetch ahead of the scan that consumes them.
+LISTING_PREFETCH_COUNT = 12
+
+# How many further passes a dandiset's unreadable assets get before it is left unresolved, and
+# the delay before the first, doubling after that. The archive resets connections under load, and
+# a reset recorded as "no photometry" would be indistinguishable from a real answer. Retrying is
+# only ever needed on the way to a negative: one asset holding photometry settles the dandiset
+# whatever the others did.
+SCAN_RETRY_PASSES = 2
+SCAN_RETRY_DELAY_IN_SECONDS = 1.0
+
 _scan_session: requests.Session | None = None
 
 
@@ -757,10 +769,12 @@ class PrefetchedRemoteFile(io.RawIOBase):
         return len(data)
 
 
-def asset_holds_photometry(asset: AssetSummary) -> bool:
+def asset_holds_photometry(asset: AssetSummary) -> bool | None:
     """Report whether one remote asset holds fiber photometry, without downloading it.
 
-    Runs in a worker process, so it takes and returns only picklable values.
+    Runs in a worker process, so it takes and returns only picklable values, and it answers
+    once rather than retrying: whether a failed read is worth repeating depends on what the
+    dandiset's other assets said, which only the caller knows.
 
     Parameters
     ----------
@@ -769,27 +783,32 @@ def asset_holds_photometry(asset: AssetSummary) -> bool:
 
     Returns
     -------
-    bool
-        Whether the file declares a fiber photometry table.
+    bool or None
+        Whether the file declares a fiber photometry table, or None when it could not be
+        read. A read that fails is not an answer: reporting it as False would let a dropped
+        connection quietly turn a photometry dandiset into a behavior-only one.
     """
     try:
         reader = PrefetchedRemoteFile(content_url=asset.content_url, size_in_bytes=asset.size_in_bytes)
         with h5py.File(reader, mode="r") as file:
             return _find_fiber_photometry_container(file) is not None
     except Exception as error:
-        # One unreadable asset -- embargoed, truncated, mid-upload -- should not abandon the
-        # scan of every other asset in the dandiset.
-        logger.warning("Could not scan %s for fiber photometry: %s", asset.path, error)
-        return False
+        logger.debug("Could not read %s: %s", asset.path, error)
+        return None
 
 
 class PhotometryVerdictCache:
-    """Verdicts already known for individual assets, kept between sessions.
+    """Verdicts already known, kept between sessions.
 
-    DANDI asset IDs address immutable blobs, so an answer never needs recomputing. That makes
-    the archive-wide crawl a one-time cost rather than a recurring one, and it means the
-    catalog's own verification and the crawl each shorten the other: whatever one of them
-    scanned, the other skips.
+    Two kinds. Asset verdicts are keyed by DANDI asset ID, which addresses an immutable blob,
+    so an answer never needs recomputing. Dandiset verdicts are keyed by identifier and stored
+    alongside the asset count they were reached at: a dandiset that holds photometry always
+    will, while one that does not can acquire it, so a negative is trusted only while the
+    dandiset is the size it was when it was read. Either way a repeat costs no requests at
+    all, where asset verdicts alone still leave the listing to be fetched.
+
+    Only answers are stored. An asset that could not be read has no verdict to remember, and a
+    dandiset holding one is not settled, so neither is written and both are retried next time.
 
     A cache that cannot be read is an empty one. Nothing here is authoritative -- every entry
     can be recomputed from the archive -- so a corrupt or unwritable file costs time, not
@@ -803,11 +822,16 @@ class PhotometryVerdictCache:
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path is not None else default_verdict_cache_path()
-        self._verdicts: dict[str, bool] = {}
+        self._assets: dict[str, bool] = {}
+        self._dandisets: dict[str, list] = {}
         if self.path.is_file():
             try:
-                self._verdicts = {key: bool(value) for key, value in json.loads(self.path.read_text()).items()}
-            except (OSError, ValueError) as error:
+                stored = json.loads(self.path.read_text())
+                self._assets = {key: bool(value) for key, value in (stored.get("assets") or {}).items()}
+                self._dandisets = {
+                    key: [bool(value[0]), int(value[1])] for key, value in (stored.get("dandisets") or {}).items()
+                }
+            except (OSError, ValueError, IndexError, TypeError) as error:
                 logger.warning(
                     "Ignoring unreadable photometry verdict cache %s: %s",
                     self.path,
@@ -815,25 +839,43 @@ class PhotometryVerdictCache:
                 )
 
     def __len__(self) -> int:
-        return len(self._verdicts)
+        return len(self._assets)
 
     def known(self, assets: Sequence[AssetSummary]) -> dict[str, bool]:
         """Return the verdicts already held for ``assets``, keyed by asset path."""
-        return {asset.path: self._verdicts[asset.asset_id] for asset in assets if asset.asset_id in self._verdicts}
+        return {asset.path: self._assets[asset.asset_id] for asset in assets if asset.asset_id in self._assets}
 
     def unknown(self, assets: Sequence[AssetSummary]) -> list[AssetSummary]:
         """Return the assets whose verdict is not held yet."""
-        return [asset for asset in assets if asset.asset_id not in self._verdicts]
+        return [asset for asset in assets if asset.asset_id not in self._assets]
 
-    def record(self, verdicts_by_asset_id: dict[str, bool]) -> None:
-        """Take note of newly computed verdicts."""
-        self._verdicts.update(verdicts_by_asset_id)
+    def record(self, verdicts_by_asset_id: dict[str, bool | None]) -> None:
+        """Take note of newly computed asset verdicts, ignoring the reads that failed."""
+        self._assets.update({key: value for key, value in verdicts_by_asset_id.items() if value is not None})
+
+    def dandiset_verdict(self, reference: "DandisetReference") -> bool | None:
+        """Return what is known about a whole dandiset, or None when it must be read.
+
+        A remembered positive always stands. A remembered negative stands only while the
+        dandiset still holds the number of assets it held when it was read.
+        """
+        remembered = self._dandisets.get(reference.identifier)
+        if remembered is None:
+            return None
+        holds, asset_count = remembered
+        if holds:
+            return True
+        return False if asset_count == reference.asset_count else None
+
+    def record_dandiset(self, reference: "DandisetReference", holds: bool) -> None:
+        """Take note of a whole dandiset's settled verdict."""
+        self._dandisets[reference.identifier] = [holds, reference.asset_count]
 
     def save(self) -> None:
         """Write the verdicts out, replacing whatever was there."""
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps(self._verdicts))
+            self.path.write_text(json.dumps({"assets": self._assets, "dandisets": self._dandisets}))
         except OSError as error:
             logger.warning("Could not write the photometry verdict cache %s: %s", self.path, error)
 
@@ -989,15 +1031,14 @@ def verify_dandisets(
     list_assets_function: object = list_nwb_assets,
     cache: PhotometryVerdictCache | None = None,
     process_count: int = SCAN_PROCESS_COUNT,
-    on_verdict: Callable[[DandisetReference, bool], None] | None = None,
+    on_verdict: Callable[[DandisetReference, bool | None], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
-) -> dict[str, bool]:
+) -> dict[str, bool | None]:
     """Report which of ``references`` hold fiber photometry GuPPy can read.
 
-    Each dandiset's assets are read largest first and the scan stops at the first one that
-    holds photometry, so confirming a dandiset is usually a single file. Ruling one out has no
-    such shortcut -- it means reading every asset -- which is why the answers arrive as
-    confirmations quickly and rejections slowly.
+    Reading stops at the first asset that holds photometry, so confirming a dandiset is
+    usually a handful of files, while ruling one out means reading every asset it has. A
+    dandiset whose assets could not all be read is reported as None rather than as empty.
 
     Parameters
     ----------
@@ -1006,7 +1047,7 @@ def verify_dandisets(
     list_assets_function : callable, optional
         Injection point for the asset listing.
     cache : PhotometryVerdictCache or None, optional
-        Verdicts already known, which are consulted instead of rescanning and extended with
+        Verdicts already known, which are consulted instead of rereading and extended with
         whatever this run computes. No caching happens when omitted.
     process_count : int, optional
         How many assets to scan at once.
@@ -1018,21 +1059,38 @@ def verify_dandisets(
 
     Returns
     -------
-    dict of {str: bool}
-        Dandiset identifier mapped to whether it holds fiber photometry. A dandiset the run
-        stopped before reaching is absent rather than False.
+    dict of {str: bool or None}
+        Dandiset identifier mapped to whether it holds fiber photometry, or to None when its
+        assets could not all be read. A dandiset the run stopped before reaching is absent.
     """
-    verdicts: dict[str, bool] = {}
+    verdicts: dict[str, bool | None] = {}
     if not references:
         return verdicts
-    with ProcessPoolExecutor(max_workers=process_count) as pool:
+    # Listings are network-bound and independent, and one of them can take seconds on a
+    # dandiset with thousands of assets. Fetching them ahead of the scan that needs them keeps
+    # the process pool fed instead of idling between dandisets.
+    with (
+        ProcessPoolExecutor(max_workers=process_count) as pool,
+        ThreadPoolExecutor(max_workers=LISTING_PREFETCH_COUNT) as listers,
+    ):
+        listings = {
+            reference.identifier: listers.submit(
+                _list_for_verification,
+                reference=reference,
+                list_assets_function=list_assets_function,
+                cache=cache,
+            )
+            for reference in references
+        }
         for reference in references:
             if should_stop is not None and should_stop():
+                for pending in listings.values():
+                    pending.cancel()
                 break
             holds = _dandiset_holds_photometry(
                 reference=reference,
                 pool=pool,
-                list_assets_function=list_assets_function,
+                assets=listings[reference.identifier].result(),
                 cache=cache,
                 chunk_size=process_count,
             )
@@ -1044,40 +1102,139 @@ def verify_dandisets(
     return verdicts
 
 
+def _list_for_verification(
+    *,
+    reference: DandisetReference,
+    list_assets_function: object,
+    cache: PhotometryVerdictCache | None,
+) -> list[AssetSummary] | None:
+    """Fetch the assets a dandiset must be read from.
+
+    None means no listing was taken: either the cache already answers for this dandiset, or
+    the archive would not say. The caller checks the cache first, so a None that reaches it
+    is the second case, which leaves the dandiset unresolved rather than empty.
+    """
+    if cache is not None and cache.dandiset_verdict(reference) is not None:
+        return None
+    try:
+        return list_assets_function(dandiset_id=reference.identifier, version=reference.version)
+    except Exception as error:
+        logger.warning(
+            "Could not list dandiset %s while verifying: %s",
+            reference.identifier,
+            error,
+        )
+        return None
+
+
+def scan_order(assets: Sequence[AssetSummary]) -> list[AssetSummary]:
+    """Order a dandiset's assets so that a few reads span every size it holds.
+
+    Which asset carries the photometry depends on what else the dandiset carries. Where the
+    recordings are the bulk of it, they are the largest files and the behavior-only sidecars
+    the smallest. Where photometry accompanies electrophysiology, it is the other way around:
+    in dandiset 000689 the photometry files are 5 MB against 19 GB of ephys, and rank 33rd of
+    53 by size. Reading from either end alone therefore misses one of those layouts entirely.
+
+    Sorting by size and then walking the ends and repeatedly bisecting what is left visits a
+    spread of sizes immediately, so whichever band the photometry occupies is reached within a
+    handful of reads rather than after a scan of everything above it.
+
+    Parameters
+    ----------
+    assets : sequence of AssetSummary
+        The dandiset's assets.
+
+    Returns
+    -------
+    list of AssetSummary
+        Every asset, reordered.
+    """
+    by_size = sorted(assets, key=lambda asset: -asset.size_in_bytes)
+    return [by_size[index] for index in _spread_indices(len(by_size))]
+
+
+def _spread_indices(count: int) -> list[int]:
+    """Return ``0..count-1`` ordered so that any prefix spans the whole range."""
+    if count <= 2:
+        return list(range(count))
+    order = [0, count - 1]
+    taken = set(order)
+    segments = [(0, count - 1)]
+    while segments:
+        low, high = segments.pop(0)
+        middle = (low + high) // 2
+        if middle not in taken:
+            taken.add(middle)
+            order.append(middle)
+        if middle - low > 1:
+            segments.append((low, middle))
+        if high - middle > 1:
+            segments.append((middle, high))
+    return order
+
+
 def _dandiset_holds_photometry(
     *,
     reference: DandisetReference,
     pool: ProcessPoolExecutor,
-    list_assets_function: object,
+    assets: list[AssetSummary] | None,
     cache: PhotometryVerdictCache | None,
     chunk_size: int,
-) -> bool:
-    """Whether any asset of one dandiset holds photometry, stopping at the first that does."""
-    try:
-        assets = list_assets_function(dandiset_id=reference.identifier, version=reference.version)
-    except Exception as error:
-        logger.warning("Could not list dandiset %s while crawling: %s", reference.identifier, error)
+) -> bool | None:
+    """Whether a dandiset holds photometry: True, False, or None when it could not be settled.
+
+    Reading stops at the first asset that holds photometry, so confirming a dandiset is
+    usually a handful of files. Ruling one out has no such shortcut and admits no gaps: every
+    asset has to have actually answered, so any that could not be read are read again before
+    the dandiset is called empty, and it is left unresolved rather than negative if they still
+    will not answer.
+    """
+    if cache is not None:
+        remembered = cache.dandiset_verdict(reference)
+        if remembered is not None:
+            return remembered
+    if assets is None:
+        return None
+    if not assets:
         return False
 
+    outstanding = scan_order(assets)
     if cache is not None:
-        known = cache.known(assets)
+        known = cache.known(outstanding)
         if any(known.values()):
+            cache.record_dandiset(reference, True)
             return True
-        assets = cache.unknown(assets)
+        outstanding = cache.unknown(outstanding)
 
-    # Largest first: a recording carries traces and a behavior-only sidecar does not, so this
-    # is the order that reaches a positive soonest. It decides nothing -- every file it
-    # reaches is still read -- so a dandiset whose photometry sits in its smallest file is
-    # found too, just later.
-    assets = sorted(assets, key=lambda asset: -asset.size_in_bytes)
-    for start in range(0, len(assets), chunk_size):
-        chunk = assets[start : start + chunk_size]
-        results = list(pool.map(asset_holds_photometry, chunk))
-        if cache is not None:
-            cache.record({asset.asset_id: holds for asset, holds in zip(chunk, results, strict=True)})
-        if any(results):
-            return True
-    return False
+    for retry_pass in range(SCAN_RETRY_PASSES + 1):
+        if retry_pass:
+            # Only reached when nothing has been found and some reads failed, which is when a
+            # blip would otherwise masquerade as a definite answer.
+            time.sleep(SCAN_RETRY_DELAY_IN_SECONDS * 2 ** (retry_pass - 1))
+        unresolved = []
+        for start in range(0, len(outstanding), chunk_size):
+            chunk = outstanding[start : start + chunk_size]
+            results = list(pool.map(asset_holds_photometry, chunk))
+            if cache is not None:
+                cache.record({asset.asset_id: holds for asset, holds in zip(chunk, results, strict=True)})
+            if any(holds for holds in results if holds is not None):
+                if cache is not None:
+                    cache.record_dandiset(reference, True)
+                return True
+            unresolved += [asset for asset, holds in zip(chunk, results, strict=True) if holds is None]
+        if not unresolved:
+            if cache is not None:
+                cache.record_dandiset(reference, False)
+            return False
+        outstanding = unresolved
+
+    logger.warning(
+        "Left dandiset %s unresolved: %d asset(s) could not be read.",
+        reference.identifier,
+        len(outstanding),
+    )
+    return None
 
 
 def filter_assets(
