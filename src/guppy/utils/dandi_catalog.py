@@ -598,15 +598,18 @@ def asset_content_url(*, dandiset_id: str, asset_path: str, version: str = "draf
 # Scan layer: which of a dandiset's assets hold fiber photometry
 # ----------------------------------------------------------------------------------------------
 
-# Group that ndx-fiber-photometry writes its FiberPhotometryTable into. Every
-# FiberPhotometryResponseSeries references a region of that table, so the group's presence is
-# equivalent to the file holding photometry -- and costs a single link lookup to check, where
-# walking acquisition and the processing modules costs an attribute read per member.
+# The container ndx-fiber-photometry writes its FiberPhotometryTable into, as a neurodata
+# type rather than a name: the name is whichever one the file's author passed, and differs
+# between writers. Every FiberPhotometryResponseSeries references a region of that table, so
+# the container's presence under /general is equivalent to the file holding photometry, and
+# costs an attribute read per child of /general -- all of them served out of the prefetched
+# tail window, where walking acquisition and the processing modules instead would reach the
+# series' own object headers, which sit beside their data in the middle of the file.
 #
 # The cached extension namespaces under /specifications are NOT a usable signal: they record
 # which extensions the conversion session had loaded, not which types it wrote, so a
 # behavior-only file written by a photometry pipeline still declares ndx-fiber-photometry.
-FIBER_PHOTOMETRY_GROUP = "fiber_photometry"
+FIBER_PHOTOMETRY_LAB_META_DATA = "FiberPhotometry"
 
 # Bytes prefetched from each end of a remote file before handing it to h5py. Answering the
 # question above reads only ~5 KB, but h5py discovers those bytes by pointer-chasing through
@@ -735,8 +738,7 @@ def asset_holds_photometry(asset: AssetSummary) -> bool:
     try:
         reader = PrefetchedRemoteFile(content_url=asset.content_url, size_in_bytes=asset.size_in_bytes)
         with h5py.File(reader, mode="r") as file:
-            general = file.get("general")
-            return general is not None and FIBER_PHOTOMETRY_GROUP in general
+            return _find_fiber_photometry_container(file) is not None
     except Exception as error:
         # One unreadable asset -- embargoed, truncated, mid-upload -- should not abandon the
         # scan of every other asset in the dandiset.
@@ -810,7 +812,7 @@ def filter_assets(
 # ----------------------------------------------------------------------------------------------
 
 FIBER_PHOTOMETRY_RESPONSE_SERIES = "FiberPhotometryResponseSeries"
-FIBER_PHOTOMETRY_TABLE_PATH = "general/fiber_photometry/fiber_photometry_table"
+FIBER_PHOTOMETRY_TABLE = "FiberPhotometryTable"
 # Event containers GuPPy's NWB reader turns into PSTH event stores: the ndx-events v0.2 types
 # and the core ``EventsTable`` that replaced them.
 EVENT_NEURODATA_TYPES = frozenset({"Events", "EventsTable", "LabeledEvents", "AnnotatedEventsTable"})
@@ -940,6 +942,26 @@ def _read_scalar_dataset(file: h5py.File, path: str) -> str | None:
     return None if dataset is None else _decode(dataset[()])
 
 
+def _find_typed_child(group: h5py.Group | None, neurodata_type: str) -> h5py.Group | None:
+    """Return the first child of ``group`` carrying ``neurodata_type``, or None."""
+    if group is None:
+        return None
+    for member in group.values():
+        if member.attrs.get("neurodata_type") == neurodata_type:
+            return member
+    return None
+
+
+def _find_fiber_photometry_container(file: h5py.File) -> h5py.Group | None:
+    """Return the file's ``FiberPhotometry`` container, whatever its author named it."""
+    return _find_typed_child(file.get("general"), FIBER_PHOTOMETRY_LAB_META_DATA)
+
+
+def _find_fiber_photometry_table(file: h5py.File) -> h5py.Group | None:
+    """Return the file's ``FiberPhotometryTable``, whatever its author named it or its parent."""
+    return _find_typed_child(_find_fiber_photometry_container(file), FIBER_PHOTOMETRY_TABLE)
+
+
 def _find_photometry_series(file: h5py.File) -> dict[str, h5py.Group]:
     """Return every ``FiberPhotometryResponseSeries`` group, keyed by object name.
 
@@ -992,7 +1014,7 @@ def _read_fiber_photometry_table(file: h5py.File) -> list[dict[str, object]]:
     wavelengths involved. The indicator and excitation source are object references, and
     their labels and wavelengths live as attributes on the objects they point at.
     """
-    table = file.get(FIBER_PHOTOMETRY_TABLE_PATH)
+    table = _find_fiber_photometry_table(file)
     if table is None:
         return []
     locations = table["location"][:] if "location" in table else []

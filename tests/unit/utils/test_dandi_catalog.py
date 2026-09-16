@@ -24,6 +24,7 @@ from guppy.utils.dandi_catalog import (
     DandisetSummary,
     PrefetchedRemoteFile,
     _direct_content_url,
+    _read_fiber_photometry_table,
     asset_holds_photometry,
     collect_filter_options,
     filter_assets,
@@ -499,11 +500,42 @@ def sparse_nwb_file(tmp_path):
         series.create_dataset("data", data=np.arange(10, dtype=float))
         series.create_dataset("timestamps", data=np.arange(10) * 0.5)
         series.create_dataset("fiber_photometry_table_region", data=np.array([0]))
-        table = file.create_group("general/fiber_photometry/fiber_photometry_table")
+        container = file.create_group("general/fiber_photometry")
+        container.attrs["neurodata_type"] = "FiberPhotometry"
+        table = container.create_group("fiber_photometry_table")
         table.attrs["neurodata_type"] = "FiberPhotometryTable"
         table.create_dataset("location", data=np.array([b"NAc"]))
     with h5py.File(path, "r") as file:
         yield file
+
+
+class TestFindFiberPhotometryTable:
+    def test_the_table_is_found_under_whatever_names_its_author_gave_it(self, tmp_path):
+        # Dandiset 001038 names both levels after their types rather than in snake case.
+        path = tmp_path / "camel_case.nwb"
+        with h5py.File(path, "w") as file:
+            container = file.create_group("general/FiberPhotometry")
+            container.attrs["neurodata_type"] = "FiberPhotometry"
+            table = container.create_group("FiberPhotometryTable")
+            table.attrs["neurodata_type"] = "FiberPhotometryTable"
+            table.create_dataset("location", data=np.array([b"NAc"]))
+        with h5py.File(path, "r") as file:
+            rows = _read_fiber_photometry_table(file)
+        assert rows == [
+            {
+                "location": "NAc",
+                "indicator": None,
+                "excitation_wavelength_in_nm": None,
+                "emission_wavelength_in_nm": None,
+            }
+        ]
+
+    def test_a_file_without_the_container_has_no_table(self, tmp_path):
+        path = tmp_path / "behavior.nwb"
+        with h5py.File(path, "w") as file:
+            file.create_group("general/devices")
+        with h5py.File(path, "r") as file:
+            assert _read_fiber_photometry_table(file) == []
 
 
 class TestProbePhotometry:
@@ -799,6 +831,21 @@ class TestAssetHoldsPhotometry:
     def test_a_behavior_only_file_is_rejected(self, byte_server, behavior_only_file):
         asset = self._asset(byte_server, "behavior_only.nwb", behavior_only_file)
         assert asset_holds_photometry(asset) is False
+
+    def test_the_container_is_found_under_whatever_name_its_author_gave_it(self, byte_server, tmp_path):
+        # Writers name the FiberPhotometry container themselves: neuroconv writes
+        # "fiber_photometry", dandiset 001038 writes "FiberPhotometry".
+        path = tmp_path / "camel_case.nwb"
+        with h5py.File(path, "w") as file:
+            container = file.create_group("general/FiberPhotometry")
+            container.attrs["neurodata_type"] = "FiberPhotometry"
+        assert asset_holds_photometry(self._asset(byte_server, "camel_case.nwb", path)) is True
+
+    def test_a_group_named_like_the_container_but_untyped_is_not_one(self, byte_server, tmp_path):
+        path = tmp_path / "untyped.nwb"
+        with h5py.File(path, "w") as file:
+            file.create_group("general/fiber_photometry")
+        assert asset_holds_photometry(self._asset(byte_server, "untyped.nwb", path)) is False
 
     def test_an_unreadable_asset_is_reported_as_holding_nothing(self, byte_server, caplog):
         asset = AssetSummary(
