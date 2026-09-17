@@ -10,7 +10,12 @@ from threading import Thread
 import panel as pn
 from dandi.exceptions import NotFoundError
 
-from .dandi_browser import BROWSER_WIDTH, DandiBrowser, PhotometryPreviewPane
+from .dandi_browser import (
+    BROWSER_WIDTH,
+    SECONDARY_BUTTON_STYLESHEET,
+    DandiBrowser,
+    PhotometryPreviewPane,
+)
 from .frontend_utils import default_root_path
 from ..utils.dandi_catalog import (
     AssetSummary,
@@ -181,7 +186,9 @@ class DandiSelector:
 
         self.preview_button = pn.widgets.Button(name="Preview selected file", button_type="primary", width=260)
         self.preview_button.on_click(self.preview_selected_asset)
-        self.hide_preview_button = pn.widgets.Button(name="Hide preview", width=140, visible=False)
+        self.hide_preview_button = pn.widgets.Button(
+            name="Hide preview", width=140, visible=False, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
+        )
         self.hide_preview_button.on_click(self.hide_preview)
         self.asset_preview_pane = PhotometryPreviewPane(preview_function=preview_function, width=BROWSER_WIDTH)
 
@@ -196,7 +203,9 @@ class DandiSelector:
         self.asset_status = pn.pane.Markdown("", width=950)
 
         self.dandiset_heading = pn.pane.Markdown("", width=950)
-        self.back_to_catalog_button = pn.widgets.Button(name="← Back to dandisets", width=200)
+        self.back_to_catalog_button = pn.widgets.Button(
+            name="← Back to dandisets", width=200, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
+        )
         self.back_to_catalog_button.on_click(self.show_catalog)
 
         # Two screens, as in the browser above: the catalog, or the files of one dandiset.

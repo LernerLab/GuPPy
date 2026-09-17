@@ -37,6 +37,24 @@ hv.extension("bokeh")
 # Width of the browser's widgets inside the 1000px Input Folder Selection card.
 BROWSER_WIDTH = 950
 
+# Panel's default button type renders as pale grey on white, which reads as page background
+# rather than as something to click. The navigation and dismiss buttons take this solid grey
+# instead: unmistakably a button, and distinct from the blue and green of the primary actions
+# beside them. The declarations need !important to beat the design's own button rules.
+SECONDARY_BUTTON_STYLESHEET = """
+.bk-btn {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #ffffff !important;
+    font-weight: 500 !important;
+}
+.bk-btn:hover {
+    background-color: #5c636a !important;
+    border-color: #565e64 !important;
+    color: #ffffff !important;
+}
+"""
+
 CATALOG_COLUMNS = (
     "Dandiset",
     "Name",
@@ -465,7 +483,9 @@ class DandiBrowser:
         self.dandiset_details = pn.pane.Markdown("", width=width)
         self.use_button = pn.widgets.Button(name="Analyze this dandiset", button_type="success", width=200)
         self.use_button.on_click(self._on_use_clicked)
-        self.back_button = pn.widgets.Button(name="← Back to results", width=180)
+        self.back_button = pn.widgets.Button(
+            name="← Back to results", width=180, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
+        )
         self.back_button.on_click(self.show_results)
 
         # Two screens rather than one growing page: a list of dandisets, or one dandiset.
