@@ -445,7 +445,13 @@ class _FakeDandiAPIClient:
         return self.dandisets_by_id[dandiset_id]
 
     def paginate(self, path, params=None):
-        """Serve the archive's asset listing, which is where the selector gets its assets."""
+        """Serve the archive's asset listing, which is where the selector gets its assets.
+
+        The catalog search hits the same client when the DANDI source is opened; nothing here
+        is testing the catalog, so it returns no dandisets and leaves the table empty.
+        """
+        if not path.endswith("/assets/"):
+            return []
         identifier = path.split("/")[2]
         pattern = (params or {}).get("glob", "*")
         return [
@@ -484,7 +490,7 @@ def _dandi_form_with_existing_runs(*, form, patched_dandi_client, output_root, a
             Path(run_folder_for_run(str(session), run_name)).mkdir()
 
     form.source_mode.value = "dandi"
-    form.dandi_selector.dandiset_input.value = "000971"
+    form.dandi_selector.load_dandiset("000971")
     mirror_root = form.dandi_selector._current_mirror_root
     form.dandi_selector.asset_file_selector.value = [
         str(Path(mirror_root).joinpath(*asset_path.split("/"))) for asset_path in asset_paths
@@ -502,7 +508,7 @@ class TestParameterFormDandiMode:
         }
         form = bare_parameter_form
         form.source_mode.value = "dandi"
-        form.dandi_selector.dandiset_input.value = "000971"
+        form.dandi_selector.load_dandiset("000971")
         mirror_root = form.dandi_selector._current_mirror_root
         form.dandi_selector.asset_file_selector.value = [
             str(Path(mirror_root) / "sub-01" / "session_a.nwb"),
@@ -535,7 +541,7 @@ class TestParameterFormDandiMode:
         patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(["sub-01/data.nwb"])}
         form = bare_parameter_form
         form.source_mode.value = "dandi"
-        form.dandi_selector.dandiset_input.value = "000971"
+        form.dandi_selector.load_dandiset("000971")
         mirror_root = form.dandi_selector._current_mirror_root
         form.dandi_selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "data.nwb")]
         with pytest.raises(Exception, match="local output directory"):
@@ -600,7 +606,7 @@ class TestParameterFormDandiMode:
         form.run_names_for_all_sessions.value = ["1"]
         patched_dandi_client.dandisets_by_id["000972"] = _FakeDandiset(["sub-09/other.nwb"])
 
-        form.dandi_selector.dandiset_input.value = "000972"
+        form.dandi_selector.load_dandiset("000972")
 
         assert form.run_names_for_all_sessions.options == []
         assert form._collect_selected_runs() == {}

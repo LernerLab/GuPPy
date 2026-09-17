@@ -380,38 +380,6 @@ def search_dandisets(
     return sorted(summaries, key=lambda summary: summary.identifier)
 
 
-def summarize_dandisets(identifiers: Sequence[str], *, max_workers: int = 8) -> list[DandisetSummary]:
-    """Fetch and summarize the named dandisets.
-
-    The crawl works from identifiers alone and only needs a dandiset's metadata once it has
-    confirmed the dandiset is worth showing, which is what this fetches.
-
-    Parameters
-    ----------
-    identifiers : sequence of str
-        Six-digit dandiset IDs.
-    max_workers : int, optional
-        How many metadata requests to make at once.
-
-    Returns
-    -------
-    list of DandisetSummary
-        One summary per identifier, in the order given. Identifiers the archive does not
-        return are omitted.
-    """
-    if not identifiers:
-        return []
-    with DandiAPIClient() as client:
-        rows = []
-        for identifier in identifiers:
-            try:
-                rows.append(client.get(f"/dandisets/{identifier}/"))
-            except Exception as error:
-                logger.warning("Could not fetch dandiset %s: %s", identifier, error)
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            return list(pool.map(lambda row: _fetch_summary_for_row(client=client, row=row), rows))
-
-
 def filter_dandisets(
     summaries: Sequence[DandisetSummary],
     *,
@@ -965,64 +933,27 @@ class DandisetReference:
         )
 
 
-def list_dandiset_references(*, page_size: int = 1000) -> list[DandisetReference]:
-    """List every dandiset on the archive that holds at least one asset.
+def order_for_verification(
+    references: Sequence[DandisetReference],
+) -> list[DandisetReference]:
+    """Order dandisets so that the ones likeliest to settle quickly are read first.
 
-    Parameters
-    ----------
-    page_size : int, optional
-        How many rows to request per page.
-
-    Returns
-    -------
-    list of DandisetReference
-        One entry per dandiset with assets, in the archive's own order.
-    """
-    references = []
-    with DandiAPIClient() as client:
-        for row in client.paginate("/dandisets/", params={"page_size": page_size}):
-            version = row.get("most_recent_published_version") or row.get("draft_version")
-            asset_count = (version or {}).get("asset_count") or 0
-            if asset_count:
-                references.append(
-                    DandisetReference(
-                        identifier=row["identifier"],
-                        version=version["version"],
-                        asset_count=asset_count,
-                    )
-                )
-    return references
-
-
-def order_for_crawl(references: Sequence[DandisetReference], *, first: Sequence[str] = ()) -> list[DandisetReference]:
-    """Order a crawl so that the dandisets likeliest to settle quickly come first.
-
-    ``first`` leads, in its own order, because those are the candidates something cheaper has
-    already flagged. The rest follow smallest-first: proving a dandiset empty means reading
-    every asset it has, so the handful of enormous dandisets -- which between them hold most
-    of the archive, and are electrophysiology and imaging rather than photometry -- go last,
-    where they delay nothing.
+    Smallest first: confirming a dandiset takes one file, but ruling one out means reading
+    every asset it has, so the largest dandisets are the slowest to settle either way. Reading
+    them last means the answer fills in steadily from the start rather than stalling on one
+    dataset of thousands of files.
 
     Parameters
     ----------
     references : sequence of DandisetReference
         The dandisets to order.
-    first : sequence of str, optional
-        Identifiers to visit before the rest.
 
     Returns
     -------
     list of DandisetReference
-        The same references, reordered.
+        The same references, smallest first.
     """
-    priority = {identifier: index for index, identifier in enumerate(first)}
-    return sorted(
-        references,
-        key=lambda reference: (
-            priority.get(reference.identifier, len(priority)),
-            reference.asset_count,
-        ),
-    )
+    return sorted(references, key=lambda reference: reference.asset_count)
 
 
 def verify_dandisets(

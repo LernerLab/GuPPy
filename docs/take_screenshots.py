@@ -828,15 +828,12 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
 def screenshot_dandi_source_selection(page: Page) -> None:
     """How-to: Input Folder Selection with the Data Source toggle set to ``dandi``.
 
-    Assigning ``source_mode`` and ``dandiset_input`` fires their param watchers
-    synchronously, so the DANDI panel is swapped in and the dandiset's assets are
-    fetched before the template is served (mirroring screenshot_label_stores_configured).
-    Fetching the asset list touches one zero-byte placeholder per NWB asset under the
-    system temp dir; the tree is reused on subsequent runs.
+    Assigning ``source_mode`` fires its param watcher synchronously, which swaps the DANDI
+    panel in and runs its opening search, so the catalog is populated before the template is
+    served (mirroring screenshot_label_stores_configured).
     """
     template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     template._widgets["source_mode"].value = "dandi"
-    template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
     url = _serve(template)
 
     page.goto(url)
@@ -901,28 +898,22 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
 
 
 def screenshot_dandi_catalog_search(page: Page) -> None:
-    """How-to: the catalog browser, searched, verified and filtered down to one brain region.
+    """How-to: the catalog's list screen, as it looks when the DANDI source is opened.
 
-    Runs the real photometry search against the archive and reads the files of everything it
-    returns, so the table and the counts in shot are the archive's own. Verification runs on a
-    worker thread polled by the server; here it is driven to completion directly, since the
-    page is only served once the catalog is settled.
+    Runs the real opening search against the archive, so the table and the count in shot are
+    the archive's own. The verify checkbox is left off, which is how the panel opens: it reads
+    every listed dandiset's files and takes minutes.
     """
     browser = DandiBrowser()
-    browser.refresh_catalog()
-    browser._verification["thread"].join()
-    browser._poll_verification()
-    browser.brain_region_filter.value = ["Substantia nigra"]
+    browser.open_catalog()
 
     template = pn.template.BootstrapTemplate(title="Find a fiber photometry dandiset")
-    template.main.append(
-        pn.Card(browser.panel, title="Find a fiber photometry dandiset", width=980)
-    )
+    template.main.append(browser.panel)
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1200})
     page.goto(url)
-    page.get_by_text("Search DANDI").first.wait_for()
+    page.get_by_text("Search the DANDI Archive").first.wait_for()
     page.wait_for_timeout(2500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_catalog_search.png",
@@ -965,21 +956,21 @@ def screenshot_dandi_dataset_preview(page: Page) -> None:
 
 
 def screenshot_dandi_asset_browser(page: Page) -> None:
-    """How-to: the DANDI asset browser descended into a subject folder, one asset selected.
+    """How-to: the files screen, scanned for photometry with one asset selected.
 
-    Built from the component directly rather than the homepage so the browser is not
-    pushed down by the sidebar and card chrome. ``FileSelector`` computes its
-    selected/unselected lists at construction, so the widget is built with ``value``
-    already set and swapped into the selector's slot rather than assigned afterwards.
+    Built from the component directly rather than the homepage so the screen is not pushed
+    down by the sidebar and card chrome. ``FileSelector`` computes its selected/unselected
+    lists at construction, so the widget is built with ``value`` already set and swapped into
+    the selector's slot rather than assigned afterwards.
 
-    The dandiset is scanned for fiber photometry first, so the shot shows the state the
-    guide describes: the status line reporting what the scan found, the filter switched on,
-    and the tree holding only the subject folders that carry traces. The browser is left at
-    the top of that tree rather than descended into one subject, because with the filter on
-    a subject folder holds a single session and the pane would read as empty.
+    The dandiset is scanned for fiber photometry first, so the shot shows the state the guide
+    describes: the status line reporting what the scan found, the filter switched on, and the
+    tree holding only the subject folders that carry traces. The browser is left at the top of
+    that tree rather than descended into one subject, because with the filter on a subject
+    folder holds a single session and the pane would read as empty.
     """
     selector = DandiSelector()
-    selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
+    selector.load_dandiset(DANDI_DEMO_DANDISET_ID)
     selector.scan_assets()
     selector._scan["thread"].join()
     selector._poll_scan()
@@ -1003,11 +994,11 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
 
     page.set_viewport_size({"width": 1280, "height": 1700})
     page.goto(url)
-    page.get_by_text("DANDI source").first.wait_for()
+    page.get_by_text("Back to dandisets").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_asset_browser.png",
-        clip={"x": 0, "y": 500, "width": 1130, "height": 580},
+        clip={"x": 0, "y": 55, "width": 1130, "height": 690},
     )
     print("Saved dandi_asset_browser.png")
     page.set_viewport_size(VIEWPORT)

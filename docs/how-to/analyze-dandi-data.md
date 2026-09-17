@@ -30,75 +30,89 @@ GuPPy reads the dandiset's `draft` version.
 ## Choosing a dandiset and assets
 
 In **Input Folder Selection**, set **Data Source** to `dandi`. The local file
-browser is replaced by the DANDI browser, which has its own numbered steps 1–4.
-These are not the pipeline's Steps 1–5 in the sidebar.
+browser is replaced by the DANDI panel, which walks three screens: a list of
+dandisets, one dandiset's page, and that dandiset's files.
 
 ```{image} ../_static/images/dandi_source_selection.png
-:alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel's four steps, the collapsed "Find a fiber photometry dandiset" card, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) found ranging 212 KB - 564.0 MB."
+:alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
 :width: 100%
 ```
 
-### Step 1: Find a dandiset
+### Finding a dandiset
 
-Open **Find a fiber photometry dandiset** and press **Search DANDI**. This asks
-the archive for every dandiset whose text mentions photometry, then reads the
-NWB files of each one to check. Only dandisets confirmed to hold fiber
-photometry GuPPy can read reach the table, so rows appear as they are confirmed
-rather than all at once — a dataset is confirmed as soon as one of its files
-turns out to hold traces, while ruling one out means reading every file it has.
-A progress bar tracks the work and **Stop** ends it early.
+The panel opens having already searched the archive for `photometry`, so the
+datasets GuPPy is for are listed without you typing anything. The search runs
+against what a dataset's authors wrote about it — its title, abstract and
+keywords.
 
-DANDI records nothing about fiber photometry in its structured metadata — there
-is no measurement technique or approach for it, so it cannot be searched for
-directly — which is why the check has to read the files themselves.
+Replace the term to search for something else, or type a six-digit Dandiset ID
+to go straight to one dandiset. Clicking a column header sorts the table.
 
 ```{image} ../_static/images/dandi_catalog_search.png
-:alt: The Find a fiber photometry dandiset card with the Brain region filter set to Substantia nigra, a Search every dandiset button, a status line reading "Showing 4 of 8 dandiset(s)", and a sortable table of four verified dandisets with their species, subject counts, file counts, sizes and detected brain regions
+:alt: The DANDI panel's list screen, with photometry in the search box, the "Filter dandisets for GuPPy-readable fiber photometry (slow)" checkbox below it, and a sortable table of dandisets giving each one's identifier, name, species, subject count, file count and size
 :width: 100%
 ```
 
-What this cannot tell you is what it missed. A dataset that used photometry but
-never says so in its title, abstract or keywords is not in the search results,
-so nothing ever reads its files. **Search every dandiset** covers that: it reads
-every dandiset on the archive rather than only those the text search returned,
-adding each one it confirms to the same table. It takes far longer — up to about
-an hour the first time — and it visits the search's own hits first, so the
-datasets you already have keep working while the rest fills in. You can stop it
-at any point and keep what it found.
+Mentioning photometry is not the same as holding photometry GuPPy can read.
+**Filter dandisets for GuPPy-readable fiber photometry** settles that by reading
+the listed dandisets' NWB files and dropping the ones without a
+`FiberPhotometryResponseSeries`, which is the type GuPPy reads. A dataset can
+record real fiber photometry and still be dropped, if it stores its traces as
+plain time series rather than as that type.
 
-Verdicts are remembered between sessions, keyed to the files they were read
-from, so a second crawl only reads what has been published since the first.
+Reading files takes minutes where the search takes seconds, which is why it is
+off by default. Confirming a dandiset usually takes a single file, while ruling
+one out means reading every asset it has, so the list narrows quickly at first
+and then slows. A progress bar tracks it and **Stop** ends it early. Verdicts
+are remembered between sessions, so filtering the same datasets again is
+immediate. Narrowing the search first narrows the work: filtering one search
+result is seconds where filtering twenty is minutes.
 
-The filters below the search box narrow the catalog without going back to the
-archive, so they respond immediately:
+Unticking the checkbox brings the unread dandisets back, with the verdicts still
+in hand.
 
-| Filter | What it matches |
-|--------|-----------------|
-| **Search terms** | Every word must appear somewhere in the dandiset's title, abstract, keywords or study targets |
-| **Brain region** | A region named anywhere in that same text |
-| **Indicator** | A sensor family named there — GCaMP, dLight, GRAB-DA, and so on |
-| **Species** | The species DANDI recorded for the dandiset's subjects |
-| **Approach / technique** | DANDI's own experimental-approach and measurement-technique terms |
-| **Min. subjects**, **Min. NWB files** | The dandiset's totals, for finding datasets large enough to group |
-| **Published versions only** | Drops draft-only dandisets, which can still change |
+### Reading a dandiset's page
 
-Each dropdown offers only the values present in the current catalog, so every
-option narrows the table rather than emptying it. The **Brain regions** and
-**Indicators** columns are read out of the text a submitter wrote, which is the
-only place DANDI records either — so a dataset whose abstract never names its
-target site shows a blank there even though the files know the site. Clearing
-**Fiber photometry datasets only** sends your search terms to the archive
-itself instead, which reaches all of DANDI rather than the photometry catalog.
+Selecting a row opens that dandiset's page: its citation details, license,
+species, subject and file counts, size, keywords, abstract, and the brain
+regions and indicators named in its text, with a link to its page on
+dandiarchive.org. **← Back to results** returns to the list with your search
+intact.
 
-Selecting a row shows that dandiset's full metadata underneath: its citation
-details, license, subjects, keywords and abstract, with a link to its page on
-dandiarchive.org.
+**Analyze this dandiset** opens its files.
+
+### Selecting the NWB files
+
+Browse the subject folders and select one or more NWB files. Navigation works
+the same as local mode — click a folder to descend, Ctrl/Cmd-click to
+multi-select. Only `.nwb` assets are listed.
+
+```{image} ../_static/images/dandi_asset_browser.png
+:alt: The DANDI panel's files screen for Dandiset 000971 after a scan, with a Back to dandisets link, the "Show only files GuPPy can read" checkbox ticked, a status line reading "Showing 63 of 4139 NWB asset(s) in the tree below. Scanned 4139 file(s): 63 hold fiber photometry", the surviving subject folders listed in the File Browser pane, and sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb moved into the Selected files pane
+:width: 100%
+```
+
+Most dandisets hold far more assets than they hold recordings. Many of them
+store each session's behavioral events in a small NWB file of its own beside
+the recording, so a dandiset of a few thousand assets may carry only a few dozen
+photometry sessions, scattered across subject folders that give no sign of which
+is which. In `000971`, 63 of 4139 assets carry traces, and they sit in 40 of its
+168 subject folders.
+
+**Scan for fiber photometry** answers that for the files. It reads the header of
+every listed file straight from the archive and reports which hold a fiber
+photometry table, then ticks **Show only files GuPPy can read** so the tree holds
+just those. The scan takes a couple of seconds for a typical dandiset and well
+under a minute for one the size of `000971`. Nothing is downloaded: it reads a
+few hundred kilobytes per file, enough to answer the question and no more.
+Unticking the checkbox brings the whole listing back.
 
 ### Reading what is inside a file
 
-**Inspect largest NWB file** streams the header of the dandiset's biggest asset
-and reports what it holds. Within a dandiset the recordings are the large files,
-so the biggest one is a representative recording.
+**Preview selected file** streams the header of the file you selected and reports
+what it holds. It is the fastest way to understand a dandiset you have not worked
+with before, since everything it shows is GuPPy-specific and is not on
+dandiarchive.org.
 
 ```{image} ../_static/images/dandi_dataset_preview.png
 :alt: The preview of sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb, listing one response series of 4 channels at 1017.25 Hz over 61.6 minutes, the session's event objects and subject, a table of four channels giving their brain regions, indicator and wavelengths, and an overlay plotting the first 60 seconds of all four channels
@@ -126,53 +140,11 @@ analyzing:
   for. Pan and zoom to look past it.
 
 A file with no `FiberPhotometryResponseSeries` in it says so instead, and lists
-whatever event objects it does hold. That is worth knowing before Step 2: many
-dandisets store each session's behavioral events in a small NWB file of their
-own alongside the recording, and those files carry no trace for GuPPy to read.
+whatever event objects it does hold.
 
-### Step 2: Load the dandiset
+**Hide preview** puts it away once you are done with it.
 
-**Analyze this dandiset** fills in the Dandiset ID for you and loads its assets.
-You can also type a six-digit ID straight into the field and skip the catalog.
-Either way the status line reports how many NWB assets were found and the range
-of their sizes. A malformed ID or an unknown dandiset is reported inline.
-
-### Step 3: Select the NWB files
-
-Browse the subject folders and select one or more NWB files. Navigation works
-the same as local mode — click a folder to descend, Ctrl/Cmd-click to
-multi-select. Only `.nwb` assets are listed.
-
-```{image} ../_static/images/dandi_asset_browser.png
-:alt: The DANDI asset browser after a scan, with the Show only files with fiber photometry checkbox ticked, a status line reading "Showing 63 of 4139 NWB asset(s) in the tree below. Scanned 4139 file(s): 63 hold fiber photometry", the surviving subject folders listed in the File Browser pane, and sub-112-283/sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb moved into the Selected files pane
-:width: 100%
-```
-
-Most dandisets hold far more assets than they hold recordings. Many of them
-store each session's behavioral events in a small NWB file of its own beside
-the recording, so a dandiset of a few thousand assets may carry only a few
-dozen photometry sessions, scattered across subject folders that give no sign
-of which is which. In `000971`, 63 of 4139 assets carry traces, and they sit in
-40 of its 168 subject folders.
-
-**Scan for fiber photometry** answers that directly. It reads the header of
-every listed file straight from the archive and reports which of them hold a
-fiber photometry table, then ticks **Show only files with fiber photometry** so
-the tree holds just those. A progress bar tracks the scan, which takes a couple
-of seconds for a typical dandiset and well under a minute for one the size of
-`000971`. Nothing is downloaded: the scan reads a few hundred kilobytes per
-file, enough to answer the question and no more.
-
-The scan is a report about the files rather than a rule applied to them, so
-unticking the checkbox brings the whole listing back with the verdicts still in
-hand. If you already know the file you want, leave the checkbox off and browse
-to it.
-
-**Preview selected file** runs the same preview as the catalog's inspect action,
-against the file you selected. Use it to confirm a specific session before
-running it, and to read off the store labels Step 1 will ask for.
-
-### Step 4: Choose an output directory
+### Choosing an output directory
 
 GuPPy creates one session folder per selected asset, named after the asset
 filename minus `.nwb`.

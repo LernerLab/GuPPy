@@ -6,6 +6,8 @@ listing and the streaming preview — is a constructor injection point, so every
 against in-memory stand-ins with no archive access.
 """
 
+from threading import Event
+
 import holoviews as hv
 import numpy as np
 import pytest
@@ -13,6 +15,7 @@ import pytest
 from guppy.frontend.dandi_browser import (
     CATALOG_COLUMNS,
     CHANNEL_COLUMNS,
+    DEFAULT_SEARCH_TERM,
     DandiBrowser,
     PhotometryPreviewPane,
     build_trace_overlay,
@@ -25,7 +28,6 @@ from guppy.utils.dandi_catalog import (
     AssetPreview,
     AssetSummary,
     ChannelInfo,
-    DandisetReference,
     DandisetSummary,
     ExampleTraces,
     PhotometryProbe,
@@ -151,10 +153,8 @@ class TestCatalogDataframe:
         assert list(frame.columns) == list(CATALOG_COLUMNS)
         assert list(frame["Dandiset"]) == ["000001", "000002"]
         assert list(frame["Size"]) == ["57.2 MB", "57.2 MB"]
-        assert list(frame["Brain regions"]) == [
-            "Dorsal striatum",
-            "Ventral tegmental area",
-        ]
+        assert list(frame["Species"]) == ["Mus musculus", "Rattus norvegicus"]
+        assert list(frame["Subjects"]) == [10, 2]
 
     def test_empty_catalog_still_has_the_columns(self):
         assert list(catalog_dataframe([]).columns) == list(CATALOG_COLUMNS)
@@ -364,10 +364,10 @@ class TestPhotometryPreviewPane:
 
 
 class RecordingSearch:
-    """Stand-in for ``search_dandisets`` that records the terms it was asked for."""
+    """Stand-in for ``search_dandisets`` over a fixed catalog."""
 
-    def __init__(self, summaries=SUMMARIES):
-        self.summaries = summaries
+    def __init__(self, summaries=None):
+        self.summaries = list(SUMMARIES if summaries is None else summaries)
         self.calls = []
 
     def __call__(self, *, terms):
@@ -390,26 +390,35 @@ ASSETS = [
     ),
 ]
 
-# Dandisets the fake verification reports as holding photometry. Everything the browser is
-# handed is confirmed unless a test narrows this, so the tests that are about filtering and
-# selection are not also about verification.
-CONFIRMED_IDENTIFIERS = {"000001", "000002", "000003"}
+# Which dandisets the stand-in read reports as holding GuPPy-readable photometry.
+READABLE_IDENTIFIERS = {"000001"}
 
 
 class RecordingVerification:
-    """Stand-in for ``verify_dandisets`` over a fixed set of verdicts."""
+    """Stand-in for ``verify_dandisets`` over a fixed set of verdicts.
 
-    def __init__(self, confirmed=None):
-        self.confirmed = set(CONFIRMED_IDENTIFIERS if confirmed is None else confirmed)
+    Blocks on ``gate`` so a test can hold a read mid-flight and inspect what the widgets show
+    while it runs, rather than only after it finishes.
+    """
+
+    def __init__(self, readable=None, unresolved=()):
+        self.readable = set(READABLE_IDENTIFIERS if readable is None else readable)
+        self.unresolved = set(unresolved)
         self.calls = []
+        self.gate = Event()
+        self.gate.set()
 
     def __call__(self, references, *, cache=None, on_verdict=None, should_stop=None, **kwargs):
         self.calls.append([reference.identifier for reference in references])
+        self.gate.wait()
         verdicts = {}
         for reference in references:
             if should_stop is not None and should_stop():
                 break
-            verdicts[reference.identifier] = reference.identifier in self.confirmed
+            if reference.identifier in self.unresolved:
+                verdicts[reference.identifier] = None
+            else:
+                verdicts[reference.identifier] = reference.identifier in self.readable
             if on_verdict is not None:
                 on_verdict(reference, verdicts[reference.identifier])
         return verdicts
@@ -424,148 +433,109 @@ def browser(panel_extension, tmp_path):
         list_assets_function=lambda **kwargs: list(ASSETS),
         preview_function=RecordingPreview(),
         verify_function=RecordingVerification(),
-        # The archive holds the two the search found plus one whose text never says
-        # "photometry", which is the whole reason the crawl exists.
-        references_function=lambda: [
-            DandisetReference(identifier="000001", version="draft", asset_count=100),
-            DandisetReference(identifier="000002", version="draft", asset_count=5),
-            DandisetReference(identifier="000003", version="draft", asset_count=2),
-        ],
-        summarize_function=lambda identifiers: [
-            make_summary(identifier=identifier, name=f"Crawled {identifier}") for identifier in identifiers
-        ],
         verdict_cache=PhotometryVerdictCache(path=tmp_path / "verdicts.json"),
     )
     browser.chosen = chosen
     return browser
 
 
-def load_catalog(browser):
-    """Search, then run whatever verification it started to completion and draw the result.
+def finish_read(browser):
+    """Wait for the browser's running read and fold its verdicts into the table.
 
-    Verification runs on a worker thread that a periodic callback would normally poll; here
-    the thread is joined and the poll is called once, which is the same sequence without the
-    event loop. Searching the whole archive verifies nothing, so there may be no thread.
+    The read runs on a worker thread that a periodic callback would normally poll; joining the
+    thread and polling once is the same sequence without an event loop.
     """
-    browser.refresh_catalog()
-    finish_verification(browser)
-
-
-def finish_verification(browser):
-    """Wait for the browser's running verification, if any, and fold its result in."""
-    if "thread" not in browser._verification:
-        return
     browser._verification["thread"].join()
     browser._poll_verification()
 
 
-class TestDandiBrowser:
-    def test_starts_empty_and_prompts_for_a_search(self, browser):
-        assert browser.summaries == []
-        assert browser.results_table.value.empty
-        assert "Search DANDI" in browser.status.object
-        assert browser.action_row.visible is False
+def listed(browser):
+    """Return the dandiset identifiers the table is showing."""
+    table = browser.results_table.value
+    return list(table["Dandiset"]) if len(table) else []
 
-    def test_search_loads_the_photometry_terms_by_default(self, browser):
-        load_catalog(browser)
-        assert browser.search_function.calls == [("photometry",)]
-        assert len(browser.results_table.value) == 2
-        assert browser.status.object.startswith("Read **2** of 2 candidate(s): **2** hold fiber photometry.")
 
-    def test_unchecking_photometry_only_sends_the_query_to_the_archive(self, browser):
-        browser.photometry_only.value = False
-        browser.query_input.value = "zebrafish"
-        load_catalog(browser)
-        assert browser.search_function.calls == [("zebrafish",)]
-
-    def test_whole_archive_search_needs_a_term(self, browser):
-        browser.photometry_only.value = False
-        load_catalog(browser)
+class TestDandiBrowserSearch:
+    def test_the_catalog_starts_empty_until_it_is_opened(self, browser):
+        assert listed(browser) == []
         assert browser.search_function.calls == []
-        assert "needs a search term" in browser.status.object
 
-    def test_filter_options_are_the_values_the_catalog_holds(self, browser):
-        load_catalog(browser)
-        assert browser.species_filter.options == ["Mus musculus", "Rattus norvegicus"]
-        assert browser.brain_region_filter.options == [
-            "Dorsal striatum",
-            "Ventral tegmental area",
-        ]
-        assert browser.indicator_filter.options == ["GCaMP", "dLight"]
+    def test_opening_runs_the_photometry_search_once(self, browser):
+        browser.open_catalog()
+        browser.open_catalog()
+        assert browser.search_function.calls == [(DEFAULT_SEARCH_TERM,)]
+        assert listed(browser) == ["000001", "000002"]
 
-    def test_filtering_narrows_the_table_without_researching(self, browser):
-        load_catalog(browser)
-        browser.indicator_filter.value = ["dLight"]
-        assert list(browser.results_table.value["Dandiset"]) == ["000002"]
-        assert "Showing **1** of 2" in browser.status.object
-        assert len(browser.search_function.calls) == 1
+    def test_the_search_box_starts_on_the_photometry_term(self, browser):
+        assert browser.query_input.value == DEFAULT_SEARCH_TERM
 
-    def test_query_filters_the_photometry_catalog_locally(self, browser):
-        load_catalog(browser)
-        browser.query_input.value = "dms"
-        assert list(browser.results_table.value["Dandiset"]) == ["000001"]
-        assert len(browser.search_function.calls) == 1
+    def test_searching_sends_whatever_the_box_holds_to_the_archive(self, browser):
+        browser.query_input.value = "neurotensin"
+        browser.refresh_catalog()
+        assert browser.search_function.calls == [("neurotensin",)]
 
-    def test_toggling_photometry_only_refilters_at_once(self, browser):
-        load_catalog(browser)
-        browser.query_input.value = "dms"
-        assert list(browser.results_table.value["Dandiset"]) == ["000001"]
-        # The query now belongs to the archive, so it stops narrowing the loaded catalog.
-        browser.photometry_only.value = False
-        assert list(browser.results_table.value["Dandiset"]) == ["000001", "000002"]
+    def test_a_six_digit_id_is_just_another_search(self, browser):
+        browser.query_input.value = "000971"
+        browser.refresh_catalog()
+        assert browser.search_function.calls == [("000971",)]
 
-    def test_query_is_not_applied_twice_when_the_archive_ran_it(self, browser):
-        # The archive matched on fields the summary does not carry, so filtering locally on
-        # the same query would drop rows the archive found.
-        browser.photometry_only.value = False
-        browser.query_input.value = "zebrafish"
-        load_catalog(browser)
-        assert len(browser.results_table.value) == 2
+    def test_an_empty_box_asks_for_a_term(self, browser):
+        browser.query_input.value = "   "
+        browser.refresh_catalog()
+        assert browser.search_function.calls == []
+        assert "Type something to search for" in browser.status.object
 
-    def test_scale_filters_apply(self, browser):
-        load_catalog(browser)
-        browser.minimum_subjects.value = 5
-        assert list(browser.results_table.value["Dandiset"]) == ["000001"]
-        browser.minimum_subjects.value = 0
-        browser.published_only.value = True
-        assert list(browser.results_table.value["Dandiset"]) == ["000001"]
+    def test_dandisets_holding_no_assets_are_dropped(self, panel_extension, tmp_path):
+        browser = DandiBrowser(
+            search_function=RecordingSearch(
+                [
+                    make_summary(identifier="000001", file_count=0),
+                    make_summary(identifier="000002"),
+                ]
+            ),
+            verify_function=RecordingVerification(),
+            verdict_cache=PhotometryVerdictCache(path=tmp_path / "verdicts.json"),
+        )
+        browser.refresh_catalog()
+        assert listed(browser) == ["000002"]
 
-    def test_a_new_search_drops_filter_values_the_catalog_no_longer_offers(self, browser):
-        load_catalog(browser)
-        browser.indicator_filter.value = ["dLight"]
-        browser.search_function.summaries = [make_summary()]
-        load_catalog(browser)
-        assert browser.indicator_filter.options == ["GCaMP"]
-        assert browser.indicator_filter.value == []
-        assert list(browser.results_table.value["Dandiset"]) == ["000001"]
+    def test_the_status_counts_what_is_listed(self, browser):
+        browser.refresh_catalog()
+        assert browser.status.object == "**2** dandiset(s). Select one to see its metadata."
 
-    def test_selecting_a_row_shows_its_metadata(self, browser):
-        load_catalog(browser)
-        browser.results_table.selection = [1]
-        assert browser.selected_summary.identifier == "000002"
-        assert "000002 — Ventral tegmental area dLight" in browser.dandiset_details.object
-        assert browser.action_row.visible is True
 
-    def test_selection_indexes_the_filtered_rows(self, browser):
-        load_catalog(browser)
-        browser.indicator_filter.value = ["dLight"]
+class TestDandiBrowserNavigation:
+    def test_the_list_is_the_opening_screen(self, browser):
+        assert browser.list_view.visible is True
+        assert browser.dandiset_view.visible is False
+
+    def test_selecting_a_row_opens_that_dandiset(self, browser):
+        browser.refresh_catalog()
         browser.results_table.selection = [0]
-        assert browser.selected_summary.identifier == "000002"
+        assert browser.list_view.visible is False
+        assert browser.dandiset_view.visible is True
+        assert "000001 — Dorsomedial striatum dopamine" in browser.dandiset_details.object
 
-    def test_filtering_clears_a_stale_selection(self, browser):
-        load_catalog(browser)
-        browser.results_table.selection = [1]
-        browser.indicator_filter.value = ["GCaMP"]
+    def test_going_back_returns_to_the_list_and_clears_the_selection(self, browser):
+        browser.refresh_catalog()
+        browser.results_table.selection = [0]
+        browser.show_results()
+        assert browser.list_view.visible is True
+        assert browser.dandiset_view.visible is False
         assert browser.results_table.selection == []
-        assert browser.selected_summary is None
         assert browser.dandiset_details.object == ""
-        assert browser.action_row.visible is False
 
     def test_analyze_hands_the_identifier_to_the_callback(self, browser):
-        load_catalog(browser)
-        browser.results_table.selection = [0]
+        browser.refresh_catalog()
+        browser.results_table.selection = [1]
         browser._on_use_clicked()
-        assert browser.chosen == ["000001"]
+        assert browser.chosen == ["000002"]
+
+    def test_analyze_without_a_selection_warns(self, browser):
+        browser.refresh_catalog()
+        browser._on_use_clicked()
+        assert browser.chosen == []
+        assert "Select a dandiset first" in browser.status.object
 
     def test_analyze_without_a_callback_is_a_no_op(self, panel_extension, tmp_path):
         # The browser is embeddable on its own, with nothing wired to its Analyze button.
@@ -574,99 +544,96 @@ class TestDandiBrowser:
             verify_function=RecordingVerification(),
             verdict_cache=PhotometryVerdictCache(path=tmp_path / "verdicts.json"),
         )
-        load_catalog(standalone)
+        standalone.refresh_catalog()
         standalone.results_table.selection = [0]
         standalone._on_use_clicked()
         assert standalone.selected_summary.identifier == "000001"
 
-    def test_only_verified_dandisets_reach_the_table(self, browser):
-        browser.verify_function = RecordingVerification(confirmed={"000002"})
-        load_catalog(browser)
-        assert list(browser.results_table.value["Dandiset"]) == ["000002"]
+    def test_a_new_search_returns_to_the_list(self, browser):
+        browser.refresh_catalog()
+        browser.results_table.selection = [0]
+        browser.refresh_catalog()
+        assert browser.list_view.visible is True
+        assert browser.dandiset_view.visible is False
 
-    def test_a_dandiset_with_no_assets_is_never_verified(self, browser):
-        browser.search_function = RecordingSearch(
-            [
-                make_summary(identifier="000001", file_count=0),
-                make_summary(identifier="000002"),
-            ]
-        )
-        load_catalog(browser)
-        assert browser.verify_function.calls == [["000002"]]
 
-    def test_verification_reports_what_it_read_and_what_it_missed(self, browser):
-        browser.verify_function = RecordingVerification(confirmed={"000001"})
-        load_catalog(browser)
+class TestDandiBrowserVerification:
+    def test_the_filter_is_off_until_it_is_asked_for(self, browser):
+        browser.refresh_catalog()
+        assert browser.verify_listed.value is False
+        assert browser.verify_function.calls == []
+        assert listed(browser) == ["000001", "000002"]
+
+    def test_ticking_it_reads_the_listed_dandisets(self, browser):
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
+        assert browser.verify_function.calls == [["000002", "000001"]]
+
+    def test_the_smallest_dandisets_are_read_first(self, browser):
+        # 000002 holds 5 files to 000001's 100, so it settles sooner and goes first.
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
+        assert browser.verify_function.calls[0] == ["000002", "000001"]
+
+    def test_only_the_readable_dandisets_are_kept(self, browser):
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
+        assert listed(browser) == ["000001"]
+
+    def test_unticking_it_brings_the_others_back(self, browser):
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
+        browser.verify_listed.value = False
+        assert listed(browser) == ["000001", "000002"]
+
+    def test_the_status_reports_what_was_read(self, browser):
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
+        assert browser.status.object == ("Read **2** of 2 listed dandiset(s): **1** holds fiber photometry.")
+
+    def test_a_dandiset_that_could_not_be_read_is_reported_separately(self, browser):
+        browser.verify_function = RecordingVerification(readable={"000001"}, unresolved={"000002"})
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
         assert browser.status.object == (
-            "Read **2** of 2 candidate(s): **1** holds fiber photometry. Datasets whose "
-            "description never mentions photometry are not in this list; **Search every "
-            "dandiset** reads the rest of the archive to find them."
+            "Read **2** of 2 listed dandiset(s): **1** holds fiber photometry. 1 could not "
+            "be read in full and are not accounted for either way; reading again retries them."
         )
 
-    def test_progress_is_shown_while_verifying_and_hidden_after(self, browser):
+    def test_progress_shows_while_reading_and_hides_after(self, browser):
         browser.refresh_catalog()
-        assert browser.verification_progress.visible
+        browser.verify_function.gate.clear()
+        browser.verify_listed.value = True
+        assert browser.verification_progress.visible is True
         assert browser.verification_progress.max == 2
-        assert browser.search_button.disabled
-        assert browser.stop_button.visible
-        finish_verification(browser)
-        assert not browser.verification_progress.visible
-        assert not browser.search_button.disabled
-        assert not browser.stop_button.visible
+        assert browser.stop_button.visible is True
+        assert browser.search_button.disabled is True
 
-    def test_the_crawl_reads_every_dandiset_and_adds_what_it_finds(self, browser):
-        load_catalog(browser)
-        assert list(browser.results_table.value["Dandiset"]) == ["000001", "000002"]
-        browser.crawl_archive()
-        finish_verification(browser)
-        # 000003 is only reachable by crawling; the search never returned it.
-        assert list(browser.results_table.value["Dandiset"]) == ["000001", "000002", "000003"]
-        assert browser.status.object == "Read **3** of 3 dandiset(s): **3** hold fiber photometry."
+        browser.verify_function.gate.set()
+        finish_read(browser)
+        assert browser.verification_progress.visible is False
+        assert browser.stop_button.visible is False
+        assert browser.search_button.disabled is False
 
-    def test_the_crawl_visits_the_search_hits_first(self, browser):
-        load_catalog(browser)
-        browser.crawl_archive()
-        finish_verification(browser)
-        # The two hits already on screen lead, then everything else smallest-first.
-        assert browser.verify_function.calls[-1] == ["000001", "000002", "000003"]
-
-    def test_stopping_ends_the_run_and_says_so(self, browser):
+    def test_stopping_ends_the_read_and_says_so(self, browser):
         browser.refresh_catalog()
+        browser.verify_listed.value = True
         browser.stop_verification()
-        finish_verification(browser)
+        finish_read(browser)
         assert browser.status.object.startswith("Stopped after")
-        assert not browser.search_button.disabled
+        assert browser.search_button.disabled is False
 
-    def test_analyze_without_a_selection_warns(self, browser):
-        load_catalog(browser)
-        browser._on_use_clicked()
-        assert browser.chosen == []
-        assert "Select a dandiset row first" in browser.status.object
-
-    def test_inspect_streams_the_largest_asset(self, browser):
-        load_catalog(browser)
-        browser.results_table.selection = [0]
-        browser.inspect_selected_dandiset()
-        assert browser.preview_function.calls == [
-            {
-                "dandiset_id": "000001",
-                "asset_path": "sub-01/ses-2.nwb",
-                "series_name": None,
-            }
-        ]
-        assert browser.preview_pane.panel.visible is True
-        assert "the largest of 2 NWB asset(s)" in browser.status.object
-
-    def test_inspect_without_a_selection_warns(self, browser):
-        load_catalog(browser)
-        browser.inspect_selected_dandiset()
-        assert browser.preview_function.calls == []
-        assert "Select a dandiset row first" in browser.status.object
-
-    def test_inspect_reports_a_dandiset_with_no_nwb_assets(self, browser):
-        browser.list_assets_function = lambda **kwargs: []
-        load_catalog(browser)
-        browser.results_table.selection = [0]
-        browser.inspect_selected_dandiset()
-        assert "holds no NWB assets" in browser.status.object
-        assert browser.preview_pane.panel.visible is False
+    def test_a_new_search_forgets_the_previous_verdicts(self, browser):
+        browser.refresh_catalog()
+        browser.verify_listed.value = True
+        finish_read(browser)
+        browser.refresh_catalog()
+        assert browser.verdicts == {}
+        assert browser.verify_listed.value is False
+        assert listed(browser) == ["000001", "000002"]

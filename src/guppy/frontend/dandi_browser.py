@@ -17,19 +17,19 @@ from ..utils.dandi_catalog import (
     DandisetSummary,
     PhotometryProbe,
     PhotometryVerdictCache,
-    collect_filter_options,
-    filter_dandisets,
     format_byte_size,
-    list_dandiset_references,
     list_nwb_assets,
-    order_for_crawl,
+    order_for_verification,
     preview_asset,
     search_dandisets,
-    summarize_dandisets,
     verify_dandisets,
 )
 
 logger = logging.getLogger(__name__)
+
+# What the search box holds when the panel opens: GuPPy is for photometry, so the search it is
+# for should already be running rather than waiting to be typed.
+DEFAULT_SEARCH_TERM = PHOTOMETRY_SEARCH_TERMS[0]
 
 pn.extension()
 hv.extension("bokeh")
@@ -44,9 +44,20 @@ CATALOG_COLUMNS = (
     "Subjects",
     "Files",
     "Size",
-    "Brain regions",
-    "Indicators",
 )
+# Widths summing under the table's own, so the last column ends inside the card rather than
+# under its edge. Name takes whatever the others do not need, since a dandiset's title is the
+# one cell that is routinely a sentence long. Brain regions and indicators are not columns:
+# they are scraped from free prose, so they are blank as often as not, and the dandiset's own
+# page has room to show them properly.
+CATALOG_COLUMN_WIDTHS = {
+    "Dandiset": 110,
+    "Name": 375,
+    "Species": 145,
+    "Subjects": 105,
+    "Files": 90,
+    "Size": 100,
+}
 CHANNEL_COLUMNS = (
     "Store name",
     "Brain region",
@@ -88,8 +99,6 @@ def catalog_dataframe(summaries: list[DandisetSummary]) -> pd.DataFrame:
             "Subjects": summary.subject_count,
             "Files": summary.file_count,
             "Size": format_byte_size(summary.size_in_bytes),
-            "Brain regions": ", ".join(summary.brain_regions),
-            "Indicators": ", ".join(summary.indicators),
         }
         for summary in summaries
     ]
@@ -326,14 +335,18 @@ class PhotometryPreviewPane:
 
 
 class DandiBrowser:
-    """A searchable catalog of the DANDI Archive's fiber photometry dandisets.
+    """A searchable catalog of the DANDI Archive, on two screens.
 
-    Runs the archive's full-text search over the photometry terms (or over the user's own
-    query), summarizes every hit, and lists them in a sortable table. The catalog is held in
-    the component, so the region, indicator, species, approach and scale filters narrow it
-    without going back to the network. Selecting a row shows that dandiset's metadata, and
-    an explicit inspect action streams one of its NWB files to report the channels it holds
-    and plot the start of each trace.
+    The list screen runs the archive's full-text search -- starting on the photometry term,
+    so the panel opens on the datasets GuPPy is for -- and tabulates the hits. Selecting one
+    replaces the list with that dandiset's page: its metadata, and the action that hands its
+    identifier on for analysis.
+
+    The search matches what a dataset's authors wrote about it, which is a cheap precondition
+    rather than an answer. An optional filter reads the listed dandisets' NWB files and keeps
+    only those holding a type GuPPy can read. That takes minutes where the search takes
+    seconds, so it runs on a worker thread, is polled back onto the server IOLoop, and is off
+    until asked for.
 
     Parameters
     ----------
@@ -348,6 +361,12 @@ class DandiBrowser:
     preview_function : callable, optional
         Injection point for the streaming preview; defaults to
         :func:`~guppy.utils.dandi_catalog.preview_asset`.
+    verify_function : callable, optional
+        Injection point for reading the listed dandisets' files; defaults to
+        :func:`~guppy.utils.dandi_catalog.verify_dandisets`.
+    verdict_cache : PhotometryVerdictCache or None, optional
+        Where verdicts are remembered between sessions. One in GuPPy's user cache directory
+        is used when not supplied.
     width : int, optional
         Fixed width of the composed layout, in pixels.
 
@@ -356,9 +375,12 @@ class DandiBrowser:
     panel : panel.Column
         The composed Panel layout to embed in a page.
     summaries : list of DandisetSummary
-        The catalog as last fetched, before filtering.
+        Every dandiset the last search returned, whether or not its files have been read.
+    verdicts : dict of {str: bool or None}
+        What reading the files concluded about each dandiset, empty until it is asked for.
+        None means the dandiset could not be read in full.
     visible_summaries : list of DandisetSummary
-        The rows the filters currently leave in the table.
+        The rows currently in the table.
     selected_summary : DandisetSummary or None
         The dandiset whose row is selected, or None when no row is.
     """
@@ -371,8 +393,6 @@ class DandiBrowser:
         list_assets_function: object = list_nwb_assets,
         preview_function: object = preview_asset,
         verify_function: object = verify_dandisets,
-        references_function: object = list_dandiset_references,
-        summarize_function: object = summarize_dandisets,
         verdict_cache: PhotometryVerdictCache | None = None,
         width: int = BROWSER_WIDTH,
     ) -> None:
@@ -381,8 +401,6 @@ class DandiBrowser:
         self.list_assets_function = list_assets_function
         self.preview_function = preview_function
         self.verify_function = verify_function
-        self.references_function = references_function
-        self.summarize_function = summarize_function
         self.verdict_cache = verdict_cache if verdict_cache is not None else PhotometryVerdictCache()
         self.width = width
 
@@ -394,78 +412,52 @@ class DandiBrowser:
         self.visible_summaries: list[DandisetSummary] = []
         # State of the verification or crawl currently running, if any.
         self._verification: dict[str, object] = {}
+        # Whether the default search has been run; see open_catalog.
+        self._searched = False
         # Set while the filter options are rewritten after a search, so dropping a value that
         # the new catalog no longer offers does not re-run the filters mid-rewrite.
         self._rewriting_filter_options = False
 
+        # The archive's own text search, with the term GuPPy is for already in it. The results
+        # are what a dandiset's authors wrote about it, not what its files hold -- reading the
+        # files is what the thorough options below and the per-file scan are for.
         self.query_input = pn.widgets.TextInput(
-            name="Search terms",
-            placeholder="e.g. neurotensin — leave empty for every fiber photometry dataset",
-            width=360,
+            name="Search the DANDI Archive",
+            value=DEFAULT_SEARCH_TERM,
+            placeholder="a word, or a six-digit Dandiset ID",
+            width=460,
         )
-        self.photometry_only = pn.widgets.Checkbox(
-            name="Fiber photometry datasets only",
-            value=True,
-        )
-        self.search_button = pn.widgets.Button(name="Search DANDI", button_type="primary", width=150)
+        self.query_input.param.watch(self.refresh_catalog, "enter_pressed")
+        self.search_button = pn.widgets.Button(name="Search", button_type="primary", width=110)
         self.search_button.on_click(self.refresh_catalog)
 
-        self.scan_button = pn.widgets.Button(
-            name="Scan for fiber photometry",
-            button_type="primary",
-            width=220,
-            disabled=True,
-        )
-        self.scan_button.on_click(self.scan_dandisets)
-        self.verified_only = pn.widgets.Checkbox(
-            name="Show only dandisets with fiber photometry",
+        # Reads the listed dandisets' NWB files, which takes minutes where the search takes
+        # seconds, so it is off until asked for.
+        self.verify_listed = pn.widgets.Checkbox(
+            name="Filter dandisets for GuPPy-readable fiber photometry (slow)",
             value=False,
-            disabled=True,
-            width=330,
+            width=420,
         )
-        self.verified_only.param.watch(self.apply_filters, "value")
-
-        self.crawl_button = pn.widgets.Button(name="Search every dandiset", width=200)
-        self.crawl_button.on_click(self.crawl_archive)
+        self.verify_listed.param.watch(self._on_verify_listed, "value")
         self.stop_button = pn.widgets.Button(name="Stop", button_type="warning", width=90, visible=False)
         self.stop_button.on_click(self.stop_verification)
-        self.verification_progress = pn.indicators.Progress(name="Verifying", value=0, max=1, width=460, visible=False)
+        self.verification_progress = pn.indicators.Progress(name="Reading", value=0, max=1, width=460, visible=False)
 
-        self.species_filter = pn.widgets.MultiChoice(name="Species", options=[], width=300)
-        self.brain_region_filter = pn.widgets.MultiChoice(name="Brain region", options=[], width=300)
-        self.indicator_filter = pn.widgets.MultiChoice(name="Indicator", options=[], width=300)
-        self.approach_filter = pn.widgets.MultiChoice(name="Approach / technique", options=[], width=300)
-        self.minimum_subjects = pn.widgets.IntInput(name="Min. subjects", value=0, start=0, width=140)
-        self.minimum_files = pn.widgets.IntInput(name="Min. NWB files", value=0, start=0, width=140)
-        self.published_only = pn.widgets.Checkbox(name="Published versions only", value=False)
-        for widget in (
-            self.query_input,
-            self.photometry_only,
-            self.species_filter,
-            self.brain_region_filter,
-            self.indicator_filter,
-            self.approach_filter,
-            self.minimum_subjects,
-            self.minimum_files,
-            self.published_only,
-        ):
-            widget.param.watch(self.apply_filters, "value")
-
-        self.status = pn.pane.Markdown(
-            "Press **Search DANDI** to list every dandiset whose description mentions "
-            "photometry, or type a term above first to narrow it.",
-            width=width,
-        )
+        self.status = pn.pane.Markdown("", width=width)
         self.results_table = pn.widgets.Tabulator(
             catalog_dataframe([]),
             show_index=False,
             disabled=True,
             selectable=1,
             width=width,
-            height=320,
-            widths={"Name": 320},
-            # Names and region lists outrun their columns; a hover tooltip shows the whole
-            # cell without widening the table past the card.
+            height=430,
+            widths=dict(CATALOG_COLUMN_WIDTHS),
+            # Stretch the columns to the table's own width, so the last one ends at the edge
+            # rather than leaving a dead strip beside it.
+            layout="fit_columns",
+            # Titles routinely outrun any width that leaves room for the other columns, so
+            # they wrap onto a second line instead of being clipped mid-word.
+            formatters={"Name": {"type": "textarea"}},
             configuration={"columnDefaults": {"tooltip": True}},
         )
         self.results_table.param.watch(self._on_row_selected, "selection")
@@ -473,123 +465,103 @@ class DandiBrowser:
         self.dandiset_details = pn.pane.Markdown("", width=width)
         self.use_button = pn.widgets.Button(name="Analyze this dandiset", button_type="success", width=200)
         self.use_button.on_click(self._on_use_clicked)
-        self.inspect_button = pn.widgets.Button(name="Inspect largest NWB file", width=220)
-        self.inspect_button.on_click(self.inspect_selected_dandiset)
-        self.action_row = pn.Row(self.use_button, self.inspect_button, visible=False)
+        self.back_button = pn.widgets.Button(name="← Back to results", width=180)
+        self.back_button.on_click(self.show_results)
 
-        self.preview_pane = PhotometryPreviewPane(preview_function=preview_function, width=width)
-
-        self.panel = pn.Column(
-            pn.pane.Markdown("**Step 1 — search:** list the dandisets that mention photometry."),
+        # Two screens rather than one growing page: a list of dandisets, or one dandiset.
+        # Going back is free because the search's results are held in the component.
+        self.list_view = pn.Column(
             pn.Row(
                 self.query_input,
                 pn.Column(pn.Spacer(height=22), self.search_button),
-                pn.Column(pn.Spacer(height=22), self.crawl_button),
             ),
-            pn.Row(self.photometry_only, self.published_only),
-            pn.Row(self.species_filter, self.brain_region_filter),
-            pn.Row(self.indicator_filter, self.approach_filter),
-            pn.Row(self.minimum_subjects, self.minimum_files),
-            pn.pane.Markdown(
-                "**Step 2 — verify:** read the listed dandisets' files to confirm which "
-                "actually hold fiber photometry."
-            ),
-            pn.Row(self.scan_button, self.verified_only, self.stop_button),
+            pn.Row(self.verify_listed, self.stop_button),
             self.verification_progress,
             self.status,
             self.results_table,
-            self.dandiset_details,
-            self.action_row,
-            self.preview_pane.panel,
             width=width,
         )
+        self.dandiset_view = pn.Column(
+            self.back_button,
+            self.dandiset_details,
+            self.use_button,
+            width=width,
+            visible=False,
+        )
+        self.panel = pn.Column(self.list_view, self.dandiset_view, width=width)
 
     # ------------------------------------------------------------------------------------
     # Catalog
     # ------------------------------------------------------------------------------------
 
     def refresh_catalog(self, event: object = None) -> None:
-        """Search the archive's text and list what it returned, without reading any files.
+        """Run the archive's text search and list what it returned, reading no files.
 
-        With **Fiber photometry datasets only** checked this runs the archive's full-text
-        search for the photometry term, which is a cheap precondition rather than an answer:
-        a dandiset whose text mentions photometry usually holds some, but the only way to be
-        sure is to read its files, which is what **Scan for fiber photometry** is for.
-        Unchecked, the query goes to the archive itself and its results are listed as they
-        come.
+        The box starts on the photometry term, so opening the panel already shows the
+        datasets GuPPy is for. Replacing the term searches the archive for anything else,
+        and a six-digit Dandiset ID finds that dandiset, which is why there is no separate
+        field for one.
 
         Parameters
         ----------
         event : object, optional
-            The Panel click event; unused.
+            The Panel click or Enter event; unused.
         """
         query = self.query_input.value.strip()
-        if not self.photometry_only.value:
-            if not query:
-                self.status.object = (
-                    "⚠️ Searching the whole archive needs a search term. Type one, or tick "
-                    "**Fiber photometry datasets only** to list every candidate."
-                )
-                return
-            self.status.object = "Searching the DANDI Archive…"
-            self._forget_verdicts()
-            self.summaries = self.search_function(terms=(query,))
-            self._rewrite_filter_options()
-            self.apply_filters()
+        if not query:
+            self.status.object = "⚠️ Type something to search for, or a six-digit Dandiset ID."
             return
-
         self.status.object = "Searching the DANDI Archive…"
         self._forget_verdicts()
-        self.summaries = [
-            summary for summary in self.search_function(terms=PHOTOMETRY_SEARCH_TERMS) if summary.file_count
-        ]
-        self._rewrite_filter_options()
+        self.summaries = [summary for summary in self.search_function(terms=(query,)) if summary.file_count]
+        self.show_results()
         self.apply_filters()
-        self.scan_button.disabled = not self.summaries
 
-    def scan_dandisets(self, event: object = None) -> None:
-        """Read the listed dandisets' files and report which of them hold fiber photometry.
+    def open_catalog(self) -> None:
+        """Run the default search the first time the catalog is shown.
 
-        Scans what the table is currently showing rather than everything the search returned,
-        so narrowing the filters first narrows the work.
+        Searching from the constructor would put a network call in the path of every GuPPy
+        start, including runs that never touch DANDI, so the archive is not asked until the
+        panel is actually looked at.
+        """
+        self.show_results()
+        if self._searched:
+            return
+        self._searched = True
+        self.refresh_catalog()
+
+    def show_results(self, event: object = None) -> None:
+        """Show the list of dandisets, leaving any dandiset that was open.
 
         Parameters
         ----------
         event : object, optional
             The Panel click event; unused.
         """
+        self.dandiset_view.visible = False
+        self.list_view.visible = True
+        self.results_table.selection = []
+        self._clear_selection()
+
+    def _show_dandiset(self, summary: DandisetSummary) -> None:
+        """Show one dandiset's page in place of the list."""
+        self.dandiset_details.object = describe_dandiset(summary)
+        self.list_view.visible = False
+        self.dandiset_view.visible = True
+
+    def _on_verify_listed(self, event: object) -> None:
+        if not self.verify_listed.value or self._verification.get("running"):
+            self.apply_filters()
+            return
         candidates = list(self.visible_summaries)
         self._start_verification(
-            references=order_for_crawl([DandisetReference.from_summary(summary) for summary in candidates]),
+            references=order_for_verification([DandisetReference.from_summary(summary) for summary in candidates]),
             known_summaries={summary.identifier: summary for summary in candidates},
             description="listed dandiset",
-            adds_rows=False,
-        )
-
-    def crawl_archive(self, event: object = None) -> None:
-        """Read every dandiset on the archive, not only those whose text mentions photometry.
-
-        The search terms find datasets that say what they are; this finds the rest. It reads
-        every asset of every dandiset, which takes far longer, and adds each dandiset as soon
-        as it is confirmed rather than at the end.
-
-        Parameters
-        ----------
-        event : object, optional
-            The Panel click event; unused.
-        """
-        self.status.object = "Listing every dandiset on the archive…"
-        references = self.references_function()
-        found_by_text = [summary.identifier for summary in self.summaries]
-        self._start_verification(
-            references=order_for_crawl(references, first=found_by_text),
-            known_summaries={summary.identifier: summary for summary in self.summaries},
-            description="dandiset",
-            adds_rows=True,
         )
 
     def stop_verification(self, event: object = None) -> None:
-        """Ask the running scan to stop after the dandiset it is on.
+        """Ask the running read to stop after the dandiset it is on.
 
         Parameters
         ----------
@@ -600,11 +572,9 @@ class DandiBrowser:
         self.stop_button.disabled = True
 
     def _forget_verdicts(self) -> None:
-        """Drop the previous search's verdicts and the filter they fed."""
+        """Drop the previous search's verdicts and the option that produced them."""
         self.verdicts = {}
-        self.verified_only.value = False
-        self.verified_only.disabled = True
-        self.scan_button.disabled = True
+        self.verify_listed.value = False
 
     def _start_verification(
         self,
@@ -612,7 +582,6 @@ class DandiBrowser:
         references: list,
         known_summaries: dict,
         description: str,
-        adds_rows: bool,
     ) -> None:
         """Read ``references`` on a worker thread, recording each verdict as it settles.
 
@@ -623,11 +592,9 @@ class DandiBrowser:
         """
         total = len(references)
         if not total:
-            self.status.object = "No dandisets to read."
+            self.status.object = "Nothing to read."
             return
         self.search_button.disabled = True
-        self.scan_button.disabled = True
-        self.crawl_button.disabled = True
         self.stop_button.disabled = False
         self.stop_button.visible = True
         self.verification_progress.max = total
@@ -640,8 +607,8 @@ class DandiBrowser:
             "verdicts": {},
             "known": known_summaries,
             "description": description,
-            "adds_rows": adds_rows,
             "stopping": False,
+            "running": True,
         }
 
         def on_verdict(reference: object, holds: bool | None) -> None:
@@ -662,31 +629,22 @@ class DandiBrowser:
         self._verification["callback"] = pn.state.add_periodic_callback(self._poll_verification, period=500)
 
     def _poll_verification(self) -> None:
-        """Draw the running scan's progress and fold in the verdicts it has reached."""
+        """Draw the running read's progress and fold in the verdicts it has reached."""
         state = self._verification
         settled, total = state["settled"], state["total"]
         self.verification_progress.value = min(settled, total)
         verdicts = dict(state["verdicts"])
         confirmed = [identifier for identifier, holds in verdicts.items() if holds]
-        # Completion is the worker thread finishing rather than the count reaching the total,
-        # which it does not when the run is stopped early.
         finished = not state["thread"].is_alive()
         if finished or len(verdicts) != len(self.verdicts):
             self.verdicts = verdicts
-            if state["adds_rows"]:
-                self._add_confirmed_rows(confirmed)
-            else:
-                self.apply_filters()
+            self.apply_filters()
         if finished:
             state["callback"].stop()
+            state["running"] = False
             self.search_button.disabled = False
-            self.scan_button.disabled = False
-            self.crawl_button.disabled = False
             self.stop_button.visible = False
             self.verification_progress.visible = False
-            self.verified_only.disabled = False
-            # Switching it on is why the button was pressed; the full listing is one click away.
-            self.verified_only.value = True
         self.status.object = self._verification_status(
             settled=settled,
             total=total,
@@ -704,13 +662,12 @@ class DandiBrowser:
         unresolved: int,
         finished: bool,
     ) -> str:
-        """Describe how far the scan has got and what its answer does not cover."""
+        """Describe how far the read has got and what its answer does not cover."""
         noun = self._verification["description"]
         holds = "holds" if confirmed == 1 else "hold"
         if not finished:
             return f"Read **{settled}** of {total} {noun}(s) so far — " f"**{confirmed}** {holds} fiber photometry."
-        stopped = bool(self._verification["stopping"])
-        lead = "Stopped after" if stopped else "Read"
+        lead = "Stopped after" if self._verification["stopping"] else "Read"
         # An unread dandiset is not an empty one, and saying nothing about it would make the
         # two look alike.
         unreadable = (
@@ -718,93 +675,34 @@ class DandiBrowser:
             if not unresolved
             else (
                 f" {unresolved} could not be read in full and are not accounted for either "
-                "way; scanning again retries them."
+                "way; reading again retries them."
             )
         )
-        caveat = (
-            ""
-            if noun == "dandiset" and not stopped
-            else (
-                " Datasets whose description never mentions photometry were not read at all; "
-                "**Search every dandiset** reads the archive in full to find them."
-            )
-        )
-        return (
-            f"{lead} **{settled}** of {total} {noun}(s): "
-            f"**{confirmed}** {holds} fiber photometry.{unreadable}{caveat}"
-        )
-
-    def _add_confirmed_rows(self, identifiers: list) -> None:
-        """Put dandisets the crawl confirmed into the catalog, fetching summaries it lacks."""
-        known = self._verification["known"]
-        missing = [identifier for identifier in identifiers if identifier not in known]
-        if missing:
-            for summary in self.summarize_function(missing):
-                known[summary.identifier] = summary
-        listed = {summary.identifier for summary in self.summaries}
-        self.summaries = self.summaries + [
-            known[identifier] for identifier in identifiers if identifier in known and identifier not in listed
-        ]
-        self._rewrite_filter_options()
-        self.apply_filters()
-
-    def _rewrite_filter_options(self) -> None:
-        """Repoint each categorical filter at the values the new catalog actually holds."""
-        options = collect_filter_options(self.summaries)
-        self._rewriting_filter_options = True
-        try:
-            for widget, key in (
-                (self.species_filter, "species"),
-                (self.brain_region_filter, "brain_regions"),
-                (self.indicator_filter, "indicators"),
-                (self.approach_filter, "approaches"),
-            ):
-                widget.options = options[key]
-                widget.value = [value for value in widget.value if value in options[key]]
-        finally:
-            self._rewriting_filter_options = False
+        return f"{lead} **{settled}** of {total} {noun}(s): " f"**{confirmed}** {holds} fiber photometry.{unreadable}"
 
     def apply_filters(self, event: object = None) -> None:
-        """Narrow the catalog by the current filter values and redraw the table.
+        """Redraw the table from the current results and whatever has been verified.
 
         Parameters
         ----------
         event : object, optional
             The Panel value-change event; unused.
         """
-        if self._rewriting_filter_options:
-            return
-        # The query box searches the archive itself when the photometry catalog is switched
-        # off, so filtering on it locally as well would hide rows the archive matched on
-        # fields the summary does not carry.
-        local_query = self.query_input.value if self.photometry_only.value else ""
         listed = self.summaries
-        if self.verified_only.value and self.verdicts:
+        if self.verify_listed.value and self.verdicts:
             listed = [summary for summary in listed if self.verdicts.get(summary.identifier)]
-        self.visible_summaries = filter_dandisets(
-            listed,
-            query=local_query,
-            species=self.species_filter.value,
-            brain_regions=self.brain_region_filter.value,
-            indicators=self.indicator_filter.value,
-            approaches=self.approach_filter.value,
-            minimum_subjects=self.minimum_subjects.value,
-            minimum_files=self.minimum_files.value,
-            published_only=self.published_only.value,
-        )
+        self.visible_summaries = listed
         self.results_table.value = catalog_dataframe(self.visible_summaries)
         self.results_table.selection = []
         self._clear_selection()
-        scanned = (
-            "" if not self.verdicts else f" {sum(1 for holds in self.verdicts.values() if holds)} read and confirmed."
-        )
-        self.status.object = (
-            f"Showing **{len(self.visible_summaries)}** of {len(self.summaries)} dandiset(s)."
-            f"{scanned} Select a row to see its metadata."
-        )
+        if self._verification.get("running"):
+            return
+        shown, total = len(self.visible_summaries), len(self.summaries)
+        scope = f"**{shown}** dandiset(s)" if shown == total else f"**{shown}** of {total} dandiset(s)"
+        self.status.object = f"{scope}. Select one to see its metadata."
 
     # ------------------------------------------------------------------------------------
-    # Selection and preview
+    # Selection
     # ------------------------------------------------------------------------------------
 
     @property
@@ -817,56 +715,18 @@ class DandiBrowser:
 
     def _clear_selection(self) -> None:
         self.dandiset_details.object = ""
-        self.action_row.visible = False
-        self.preview_pane.clear()
 
     def _on_row_selected(self, event: object) -> None:
         summary = self.selected_summary
         if summary is None:
-            self._clear_selection()
             return
-        self.dandiset_details.object = describe_dandiset(summary)
-        self.action_row.visible = True
-        self.preview_pane.clear()
+        self._show_dandiset(summary)
 
     def _on_use_clicked(self, event: object = None) -> None:
         summary = self.selected_summary
         if summary is None:
-            self.status.object = "⚠️ Select a dandiset row first."
+            self.status.object = "⚠️ Select a dandiset first."
             return
         logger.info("DANDI browser: dandiset %s chosen for analysis", summary.identifier)
         if self.on_dandiset_selected is not None:
             self.on_dandiset_selected(summary.identifier)
-
-    def inspect_selected_dandiset(self, event: object = None) -> None:
-        """Stream the selected dandiset's largest NWB file and preview what it holds.
-
-        The largest file is the representative one: within a dandiset the recordings dwarf
-        the behavior-only files, so the biggest asset is the one that carries traces.
-
-        Parameters
-        ----------
-        event : object, optional
-            The Panel click event; unused.
-        """
-        summary = self.selected_summary
-        if summary is None:
-            self.status.object = "⚠️ Select a dandiset row first."
-            return
-        # Assets are listed from the draft version, which is the version GuPPy streams from.
-        assets = self.list_assets_function(dandiset_id=summary.identifier)
-        if not assets:
-            self.status.object = f"⚠️ Dandiset {summary.identifier} holds no NWB assets."
-            self.preview_pane.clear()
-            return
-        largest = max(assets, key=lambda asset: asset.size_in_bytes)
-        self.status.object = (
-            f"Streaming `{largest.path}` ({format_byte_size(largest.size_in_bytes)}) "
-            f"from dandiset {summary.identifier}…"
-        )
-        preview = self.preview_function(dandiset_id=summary.identifier, asset_path=largest.path)
-        self.preview_pane.show(preview=preview)
-        self.status.object = (
-            f"Inspected `{largest.path}`, the largest of {len(assets)} NWB asset(s) in dandiset "
-            f"{summary.identifier}."
-        )

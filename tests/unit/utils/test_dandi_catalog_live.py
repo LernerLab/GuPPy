@@ -19,9 +19,7 @@ import pytest
 from guppy.utils.dandi_catalog import (
     PHOTOMETRY_SEARCH_TERMS,
     DandisetReference,
-    list_dandiset_references,
     list_nwb_assets,
-    order_for_crawl,
     preview_asset,
     scan_assets_for_photometry,
     search_dandisets,
@@ -105,16 +103,11 @@ class TestLiveDandisetVerification:
         reference = DandisetReference(identifier="000251", version="draft", asset_count=513)
         assert verify_dandisets([reference]) == {"000251": False}
 
-    def test_the_archive_listing_covers_far_more_than_the_text_search(self):
-        references = list_dandiset_references()
-        assert len(references) > 500
-        assert all(reference.asset_count > 0 for reference in references)
-        assert DANDISET_ID in {reference.identifier for reference in references}
-
-    def test_the_crawl_visits_the_text_search_hits_first(self):
-        references = list_dandiset_references()
-        ordered = order_for_crawl(references, first=(DANDISET_ID,))
-        assert ordered[0].identifier == DANDISET_ID
+    def test_a_dandiset_whose_photometry_is_not_its_largest_asset_is_still_found(self):
+        # 000689's photometry files are about 5 MB against 19 GB of electrophysiology, so
+        # reading largest-first alone would not reach them.
+        reference = DandisetReference(identifier="000689", version="draft", asset_count=85)
+        assert verify_dandisets([reference]) == {"000689": True}
 
 
 @pytest.mark.dandi_live

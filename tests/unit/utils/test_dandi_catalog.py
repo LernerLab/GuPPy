@@ -34,10 +34,11 @@ from guppy.utils.dandi_catalog import (
     find_vocabulary_terms,
     format_byte_size,
     list_nwb_assets,
-    order_for_crawl,
+    order_for_verification,
     probe_photometry,
     read_example_traces,
     scan_assets_for_photometry,
+    scan_order,
     search_dandisets,
     verify_dandisets,
 )
@@ -851,15 +852,15 @@ class TestAssetHoldsPhotometry:
             file.create_group("general/fiber_photometry")
         assert asset_holds_photometry(self._asset(byte_server, "untyped.nwb", path)) is False
 
-    def test_an_unreadable_asset_is_reported_as_holding_nothing(self, byte_server, caplog):
+    def test_an_unreadable_asset_has_no_verdict_rather_than_a_negative_one(self, byte_server):
+        # A dropped read reported as False would be indistinguishable from a real answer.
         asset = AssetSummary(
             asset_id="missing",
             path="missing.nwb",
             size_in_bytes=1024,
             content_url=served_url(byte_server, "missing.nwb"),
         )
-        assert asset_holds_photometry(asset) is False
-        assert "missing.nwb" in caplog.text
+        assert asset_holds_photometry(asset) is None
 
 
 class TestScanAssetsForPhotometry:
@@ -944,7 +945,7 @@ class TestPhotometryVerdictCache:
         assert "corrupt.json" in caplog.text
 
 
-class TestOrderForCrawl:
+class TestOrderForVerification:
     @pytest.fixture
     def references(self):
         return [
@@ -953,20 +954,51 @@ class TestOrderForCrawl:
             DandisetReference(identifier="000003", version="draft", asset_count=200),
         ]
 
-    def test_smallest_first_when_nothing_is_prioritized(self, references):
-        assert [r.identifier for r in order_for_crawl(references)] == [
+    def test_smallest_dandisets_are_read_first(self, references):
+        ordered = order_for_verification(references)
+        assert [reference.identifier for reference in ordered] == [
             "000002",
             "000003",
             "000001",
         ]
 
-    def test_prioritized_identifiers_lead_in_their_own_order(self, references):
-        ordered = order_for_crawl(references, first=("000001", "000003"))
-        assert [r.identifier for r in ordered] == ["000001", "000003", "000002"]
+    def test_ordering_keeps_every_reference(self, references):
+        assert sorted(order_for_verification(references), key=lambda r: r.identifier) == sorted(
+            references, key=lambda r: r.identifier
+        )
 
-    def test_a_prioritized_identifier_that_is_absent_changes_nothing(self, references):
-        ordered = order_for_crawl(references, first=("999999",))
-        assert [r.identifier for r in ordered] == ["000002", "000003", "000001"]
+    def test_ordering_nothing_returns_nothing(self):
+        assert order_for_verification([]) == []
+
+
+class TestScanOrder:
+    def _assets(self, sizes):
+        return [
+            AssetSummary(
+                asset_id=str(size),
+                path=f"{size}.nwb",
+                size_in_bytes=size,
+                content_url="u",
+            )
+            for size in sizes
+        ]
+
+    def test_the_ends_come_first_then_the_middle(self):
+        ordered = scan_order(self._assets([10, 20, 30, 40, 50]))
+        # Sorted largest-first that is 50, 40, 30, 20, 10; the walk takes both ends, then
+        # bisects what is left.
+        assert [asset.size_in_bytes for asset in ordered] == [50, 10, 30, 40, 20]
+
+    def test_every_asset_is_visited_exactly_once(self):
+        sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        ordered = scan_order(self._assets(sizes))
+        assert sorted(asset.size_in_bytes for asset in ordered) == sizes
+
+    def test_a_dandiset_of_one_asset_is_ordered(self):
+        assert [asset.size_in_bytes for asset in scan_order(self._assets([7]))] == [7]
+
+    def test_ordering_nothing_returns_nothing(self):
+        assert scan_order([]) == []
 
 
 class TestVerifyDandisets:
@@ -1035,13 +1067,51 @@ class TestVerifyDandisets:
         )
         assert verdicts == {}
 
-    def test_a_dandiset_that_cannot_be_listed_holds_nothing(self, references, caplog):
+    def test_a_dandiset_that_cannot_be_listed_is_unresolved(self, references, caplog):
         def refuse(dandiset_id, version=None):
             raise RuntimeError("archive said no")
 
         verdicts = verify_dandisets(references, list_assets_function=refuse, process_count=2)
-        assert verdicts == {"000001": False, "000002": False}
+        assert verdicts == {"000001": None, "000002": None}
         assert "archive said no" in caplog.text
+
+    def test_a_dandiset_with_an_unreadable_asset_is_unresolved_not_empty(
+        self, references, archive_assets, byte_server, tmp_path
+    ):
+        # 000002's only asset is served from a URL with nothing behind it, so no read of it
+        # ever answers and the dandiset cannot honestly be called empty.
+        archive_assets["000002"] = [
+            AssetSummary(
+                asset_id="gone",
+                path="gone.nwb",
+                size_in_bytes=1024,
+                content_url=served_url(byte_server, "gone.nwb"),
+            )
+        ]
+        verdicts = verify_dandisets(
+            references,
+            list_assets_function=lambda dandiset_id, version=None: list(archive_assets[dandiset_id]),
+            process_count=2,
+        )
+        assert verdicts == {"000001": True, "000002": None}
+
+    def test_an_unresolved_dandiset_is_not_remembered(self, references, archive_assets, byte_server, tmp_path):
+        archive_assets["000002"] = [
+            AssetSummary(
+                asset_id="gone",
+                path="gone.nwb",
+                size_in_bytes=1024,
+                content_url=served_url(byte_server, "gone.nwb"),
+            )
+        ]
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        listing = lambda dandiset_id, version=None: list(archive_assets[dandiset_id])  # noqa: E731
+        verify_dandisets(references, list_assets_function=listing, cache=cache, process_count=2)
+
+        reloaded = PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+        assert reloaded.dandiset_verdict(references[0]) is True
+        # Nothing is remembered about the one that never answered, so it is read again.
+        assert reloaded.dandiset_verdict(references[1]) is None
 
     def test_verifying_nothing_asks_the_archive_nothing(self):
         assert verify_dandisets([]) == {}

@@ -113,12 +113,22 @@ The same reading answers a second question one level up: which *dandisets* hold 
 all. DANDI's structured metadata cannot say — there is no measurement technique or approach for
 fiber photometry, because those are derived from the core NWB types dandi-cli recognizes and the
 photometry types are an extension. So the catalog's free-text search proposes candidates and
-`verify_dandisets` reads them, stopping at the first asset that answers yes. That asymmetry shapes
-the UI: confirming a dandiset is usually one file, while ruling one out means reading every asset
-it has, so rows appear quickly and the run finishes slowly. `order_for_crawl` exploits it by
-visiting the search's hits first and then everything else smallest-first, and
-`PhotometryVerdictCache` keys verdicts to immutable asset IDs so the archive-wide crawl is a
-one-time cost that the catalog's own verification shortens, and vice versa.
+`verify_dandisets` reads them, stopping at the first asset that answers yes.
+
+That asymmetry shapes the UI. Confirming a dandiset is usually one file, while ruling one out
+means reading every asset it has, so the answer fills in quickly and then slows — which is why
+searching and verifying are separate actions rather than one, and why the verify option is off by
+default. `order_for_verification` reads the smallest dandisets first, so the slowest datasets
+delay nothing, and `PhotometryVerdictCache` remembers both asset verdicts (keyed by immutable
+asset ID) and whole-dandiset verdicts (keyed by identifier and the asset count they were reached
+at, so a negative expires when the dandiset grows). A repeat therefore costs no requests at all.
+
+`asset_holds_photometry` answers `True`, `False` or `None`, and the third value is load-bearing: a
+read that failed is not evidence of absence, and recording it as one would let a dropped
+connection turn a photometry dandiset into a behavior-only one. Unreadable assets are retried, and
+only when heading for a negative — one asset holding photometry settles the dandiset whatever the
+others did. A dandiset whose assets cannot all be read stays unresolved rather than empty, and
+nothing about it is cached.
 
 The scan is what makes a large dandiset navigable, and it is shaped by what that reading costs.
 Answering the question for one file touches about five kilobytes, but h5py finds them by
@@ -128,6 +138,12 @@ out of them, which covers any file written in a single `io.write()` — a read t
 windows still works, at one request apiece. The scan runs in a process pool rather than a thread
 pool because h5py serializes on a global lock, which would otherwise collapse the concurrency to
 roughly one file at a time.
+
+Within a dandiset, `scan_order` walks the assets from both ends of the size range inward rather
+than largest-first. Which asset carries the photometry depends on what else the dandiset carries:
+where the recordings are the bulk of it they are the largest files, but where photometry
+accompanies electrophysiology it is the other way round — in dandiset 000689 the photometry files
+are 5 MB against 19 GB of ephys, and rank 33rd of 53 by size.
 
 ### `testing/`
 

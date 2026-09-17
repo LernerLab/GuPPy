@@ -649,6 +649,10 @@ class ParameterForm:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
         self.dandi_selector.panel.visible = is_dandi
+        if is_dandi:
+            # The catalog runs its default search the first time it is looked at, so that a
+            # local-mode session never reaches the archive.
+            self.dandi_selector.open_catalog()
         self._run_selection_by_source_mode[event.old] = (
             list(self.outputs_selector.value or []),
             list(self.run_names_for_all_sessions.value),
