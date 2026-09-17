@@ -109,10 +109,14 @@ Unticking the checkbox brings the whole listing back.
 
 ### Reading what is inside a file
 
-**Preview selected file** streams the header of the file you selected and reports
-what it holds. It is the fastest way to understand a dandiset you have not worked
-with before, since everything it shows is GuPPy-specific and is not on
-dandiarchive.org.
+**Preview selected file** streams a file's header and reports what it holds. It is
+the fastest way to understand a dandiset you have not worked with before, since
+everything it shows is GuPPy-specific and is not on dandiarchive.org.
+
+A preview is of one file, while the pipeline runs on every file you selected, so
+**File to preview** beside the button lists the files you have selected and
+chooses which of them to read. Picking a different one there leaves your
+selection alone, so you can look through a batch before analyzing it.
 
 ```{image} ../_static/images/dandi_dataset_preview.png
 :alt: The preview of sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb, listing one response series of 4 channels at 1017.25 Hz over 61.6 minutes, the session's event objects and subject, a table of four channels giving their brain regions, indicator and wavelengths, and an overlay plotting the first 60 seconds of all four channels

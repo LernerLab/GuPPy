@@ -81,8 +81,8 @@ class DandiSelector:
     zero-byte placeholders under the system temp dir, which a ``pn.widgets.FileSelector``
     points at. That matches the local-mode experience exactly: hierarchical navigation,
     click-to-descend, native multi-select. **Scan for fiber photometry** reads the listed
-    files and can hide the ones GuPPy cannot read, and a selected file can be previewed to
-    report its channels before it is analyzed.
+    files and can hide the ones GuPPy cannot read, and any one of the selected files can be
+    previewed to report its channels before it is analyzed.
 
     Selected absolute paths are translated back to ``dandi://`` URIs via ``selected_uris``.
 
@@ -184,10 +184,22 @@ class DandiSelector:
         self.asset_file_selector = self._make_asset_file_selector(self._mirror_parent)
         self._asset_file_selector_slot = pn.Column(self.asset_file_selector)
 
-        self.preview_button = pn.widgets.Button(name="Preview selected file", button_type="primary", width=260)
+        # Selecting files and inspecting one are different questions asked of the same tree:
+        # the pipeline takes the whole selection, while a preview is of one file. This names
+        # which of the selected files the preview is of, rather than picking one unannounced.
+        self.preview_select = pn.widgets.Select(name="File to preview", options=[], width=520)
+        self.attach_asset_selection_watcher(callback=self._refresh_preview_options)
+
+        self.preview_button = pn.widgets.Button(
+            name="Preview selected file", button_type="primary", width=260, align="end"
+        )
         self.preview_button.on_click(self.preview_selected_asset)
         self.hide_preview_button = pn.widgets.Button(
-            name="Hide preview", width=140, visible=False, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
+            name="Hide preview",
+            width=140,
+            visible=False,
+            align="end",
+            stylesheets=[SECONDARY_BUTTON_STYLESHEET],
         )
         self.hide_preview_button.on_click(self.hide_preview)
         self.asset_preview_pane = PhotometryPreviewPane(preview_function=preview_function, width=BROWSER_WIDTH)
@@ -228,14 +240,15 @@ class DandiSelector:
                 "multi-select. **Scan for fiber photometry** reads every listed file and lets "
                 "you hide the ones that hold none. **Preview selected file** reports the "
                 "channels a file holds, their brain regions, indicators and wavelengths, and "
-                "the store labels Label Stores will ask you for.",
+                "the store labels Label Stores will ask you for — **File to preview** picks "
+                "which of the selected files it reads, without changing the selection.",
                 width=950,
             ),
             pn.Row(self.scan_button, self.photometry_only),
             self.scan_progress,
             self.asset_status,
             self._asset_file_selector_slot,
-            pn.Row(self.preview_button, self.hide_preview_button),
+            pn.Row(self.preview_select, self.preview_button, self.hide_preview_button),
             self.asset_preview_pane.panel,
             pn.pane.Markdown(
                 "Choose a local directory where pipeline outputs will be written. One "
@@ -469,20 +482,35 @@ class DandiSelector:
             selected.append(relative.replace(os.sep, "/"))
         return selected
 
+    def _refresh_preview_options(self, event: object = None) -> None:
+        """Offer the currently selected files for preview, keeping the chosen one if it stays.
+
+        Listed in path order rather than the order the tree happened to hand them over, so
+        which file the picker opens on is the same every time for the same selection.
+
+        Parameters
+        ----------
+        event : object, optional
+            The Panel ``value`` change event, or None when the tree was rebuilt; unused.
+        """
+        asset_paths = sorted(self._selected_relative_paths())
+        chosen = self.preview_select.value
+        self.preview_select.options = asset_paths
+        self.preview_select.value = chosen if chosen in asset_paths else (asset_paths[0] if asset_paths else None)
+
     def preview_selected_asset(self, event: object = None) -> None:
-        """Stream the first selected asset's header and show what it holds.
+        """Stream the header of the file the preview picker names and show what it holds.
 
         Parameters
         ----------
         event : object, optional
             The Panel click event; unused.
         """
-        asset_paths = self._selected_relative_paths()
-        if not asset_paths:
+        asset_path = self.preview_select.value
+        if not asset_path:
             self.asset_status.object = "⚠️ Select an NWB file in the tree above first."
             return
         dandiset_id = self._dandiset_id
-        asset_path = asset_paths[0]
         self.asset_status.object = f"Streaming `{asset_path}`..."
         preview = self.preview_function(dandiset_id=dandiset_id, asset_path=asset_path)
         self.asset_preview_pane.show(preview=preview)

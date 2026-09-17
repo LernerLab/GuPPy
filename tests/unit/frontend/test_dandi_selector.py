@@ -357,8 +357,99 @@ class TestDandiSelectorPhotometryScan:
         assert selector.scan_button.disabled
 
 
+class TestDandiSelectorPreviewPicker:
+    def test_the_picker_offers_the_selected_files_in_path_order(self, selector):
+        selector.load_dandiset("000971")
+        mirror_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [
+            str(mirror_root / "sub-02" / "ses-1_behavior.nwb"),
+            str(mirror_root / "sub-01" / "ses-1_behavior.nwb"),
+        ]
+
+        assert selector.preview_select.options == [
+            "sub-01/ses-1_behavior.nwb",
+            "sub-02/ses-1_behavior.nwb",
+        ]
+        assert selector.preview_select.value == "sub-01/ses-1_behavior.nwb"
+
+    def test_the_picker_decides_which_file_is_streamed(self, selector):
+        selector.load_dandiset("000971")
+        mirror_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [
+            str(mirror_root / "sub-01" / "ses-1_behavior.nwb"),
+            str(mirror_root / "sub-02" / "ses-1_behavior.nwb"),
+        ]
+        selector.preview_select.value = "sub-02/ses-1_behavior.nwb"
+
+        selector.preview_selected_asset()
+
+        assert selector.preview_function.calls == [
+            {
+                "dandiset_id": "000971",
+                "asset_path": "sub-02/ses-1_behavior.nwb",
+                "series_name": None,
+            }
+        ]
+
+    def test_a_still_selected_file_stays_chosen_when_the_selection_grows(self, selector):
+        selector.load_dandiset("000971")
+        mirror_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [str(mirror_root / "sub-02" / "ses-1_behavior.nwb")]
+        assert selector.preview_select.value == "sub-02/ses-1_behavior.nwb"
+
+        selector.asset_file_selector.value = [
+            str(mirror_root / "sub-01" / "ses-1_behavior.nwb"),
+            str(mirror_root / "sub-02" / "ses-1_behavior.nwb"),
+        ]
+
+        assert selector.preview_select.value == "sub-02/ses-1_behavior.nwb"
+
+    def test_deselecting_the_chosen_file_falls_back_to_the_first(self, selector):
+        selector.load_dandiset("000971")
+        mirror_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [
+            str(mirror_root / "sub-01" / "ses-1_behavior.nwb"),
+            str(mirror_root / "sub-02" / "ses-1_behavior.nwb"),
+        ]
+        selector.preview_select.value = "sub-02/ses-1_behavior.nwb"
+
+        selector.asset_file_selector.value = [str(mirror_root / "sub-01" / "ses-1_behavior.nwb")]
+
+        assert selector.preview_select.options == ["sub-01/ses-1_behavior.nwb"]
+        assert selector.preview_select.value == "sub-01/ses-1_behavior.nwb"
+
+    def test_the_picker_empties_when_the_dandiset_changes(self, selector):
+        selector.load_dandiset("000971")
+        mirror_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [str(mirror_root / "sub-01" / "ses-1_behavior.nwb")]
+
+        selector.load_dandiset("000001")
+
+        assert selector.preview_select.options == []
+        assert selector.preview_select.value is None
+
+    def test_the_picker_follows_the_tree_rebuilt_by_the_photometry_filter(self, selector):
+        # The FileSelector is rebuilt whenever the filter is toggled, so a picker watching the
+        # widget rather than the selector would go stale here without raising anything. The
+        # scan leaves the filter on, so unticking it is what rebuilds the tree.
+        selector.load_dandiset("000971")
+        run_scan(selector)
+        mirror_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [str(mirror_root / "sub-01" / "ses-2_behavior.nwb")]
+        assert selector.preview_select.options == ["sub-01/ses-2_behavior.nwb"]
+
+        selector.photometry_only.value = False
+
+        assert selector.preview_select.options == []
+        assert selector.preview_select.value is None
+
+        new_root = Path(selector._current_mirror_root)
+        selector.asset_file_selector.value = [str(new_root / "sub-02" / "ses-1_behavior.nwb")]
+        assert selector.preview_select.options == ["sub-02/ses-1_behavior.nwb"]
+
+
 class TestDandiSelectorAssetPreview:
-    def test_preview_streams_the_first_selected_asset(self, selector):
+    def test_preview_streams_the_selected_asset(self, selector):
         selector.load_dandiset("000971")
         mirror_root = selector._current_mirror_root
         selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "ses-2_behavior.nwb")]
