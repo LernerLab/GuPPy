@@ -139,6 +139,13 @@ windows still works, at one request apiece. The scan runs in a process pool rath
 pool because h5py serializes on a global lock, which would otherwise collapse the concurrency to
 roughly one file at a time.
 
+That cost model is why reading one file runs in two stages. The `FiberPhotometry` container under
+`/general` settles most files out of the prefetched window alone, since a file without one holds no
+photometry. Only a file that has the container is walked for the `FiberPhotometryResponseSeries`
+GuPPy reads its traces from, which reaches object headers the windows do not cover. The container
+accompanies the extension's metadata table, and a file can write that table while storing its
+traces as some other series type, so having it is a candidate rather than an answer.
+
 Within a dandiset, `scan_order` walks the assets from both ends of the size range inward rather
 than largest-first. Which asset carries the photometry depends on what else the dandiset carries:
 where the recordings are the bulk of it they are the largest files, but where photometry

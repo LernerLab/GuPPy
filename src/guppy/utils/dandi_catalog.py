@@ -606,11 +606,13 @@ def asset_content_url(*, dandiset_id: str, asset_path: str, version: str = "draf
 
 # The container ndx-fiber-photometry writes its FiberPhotometryTable into, as a neurodata
 # type rather than a name: the name is whichever one the file's author passed, and differs
-# between writers. Every FiberPhotometryResponseSeries references a region of that table, so
-# the container's presence under /general is equivalent to the file holding photometry, and
-# costs an attribute read per child of /general -- all of them served out of the prefetched
-# tail window, where walking acquisition and the processing modules instead would reach the
-# series' own object headers, which sit beside their data in the middle of the file.
+# between writers. Every FiberPhotometryResponseSeries references a region of that table, so a
+# file without the container holds no photometry, which is what makes it the scan's cheap
+# first stage: an attribute read per child of /general, all served out of the prefetched tail
+# window. The converse does not hold. The container travels with the metadata table, and a
+# file can write that table while storing its traces as some other series type, so a file that
+# has it is walked for the series itself before it counts as photometry -- reaching the series'
+# own object headers, which sit beside their data in the middle of the file.
 #
 # The cached extension namespaces under /specifications are NOT a usable signal: they record
 # which extensions the conversion session had loaded, not which types it wrote, so a
@@ -738,7 +740,12 @@ class PrefetchedRemoteFile(io.RawIOBase):
 
 
 def asset_holds_photometry(asset: AssetSummary) -> bool | None:
-    """Report whether one remote asset holds fiber photometry, without downloading it.
+    """Report whether one remote asset holds a trace GuPPy can read, without downloading it.
+
+    Answers in two stages off a single open file. A file with no ``FiberPhotometry`` container
+    under ``/general`` holds no photometry and is answered from the prefetched window alone.
+    One that has the container is then walked for the ``FiberPhotometryResponseSeries`` GuPPy
+    reads its traces from, at the cost of a few range requests of its own.
 
     Runs in a worker process, so it takes and returns only picklable values, and it answers
     once rather than retrying: whether a failed read is worth repeating depends on what the
@@ -752,14 +759,16 @@ def asset_holds_photometry(asset: AssetSummary) -> bool | None:
     Returns
     -------
     bool or None
-        Whether the file declares a fiber photometry table, or None when it could not be
-        read. A read that fails is not an answer: reporting it as False would let a dropped
+        Whether the file holds a fiber photometry response series, or None when it could not
+        be read. A read that fails is not an answer: reporting it as False would let a dropped
         connection quietly turn a photometry dandiset into a behavior-only one.
     """
     try:
         reader = PrefetchedRemoteFile(content_url=asset.content_url, size_in_bytes=asset.size_in_bytes)
         with h5py.File(reader, mode="r") as file:
-            return _find_fiber_photometry_container(file) is not None
+            if _find_fiber_photometry_container(file) is None:
+                return False
+            return bool(_find_photometry_series(file))
     except Exception as error:
         logger.debug("Could not read %s: %s", asset.path, error)
         return None

@@ -100,8 +100,8 @@ is which. In `000971`, 63 of 4139 assets carry traces, and they sit in 40 of its
 168 subject folders.
 
 **Scan for fiber photometry** answers that for the files. It reads the header of
-every listed file straight from the archive and reports which hold a fiber
-photometry table, then ticks **Show only files GuPPy can read** so the tree holds
+every listed file straight from the archive and reports which hold a trace GuPPy
+can read, then ticks **Show only files GuPPy can read** so the tree holds
 just those. The scan takes a couple of seconds for a typical dandiset and well
 under a minute for one the size of `000971`. Nothing is downloaded: it reads a
 few hundred kilobytes per file, enough to answer the question and no more.

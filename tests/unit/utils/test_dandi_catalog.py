@@ -844,7 +844,29 @@ class TestAssetHoldsPhotometry:
         with h5py.File(path, "w") as file:
             container = file.create_group("general/FiberPhotometry")
             container.attrs["neurodata_type"] = "FiberPhotometry"
+            series = file.create_group("acquisition/Traces")
+            series.attrs["neurodata_type"] = "FiberPhotometryResponseSeries"
         assert asset_holds_photometry(self._asset(byte_server, "camel_case.nwb", path)) is True
+
+    def test_a_response_series_in_a_processing_module_counts(self, byte_server, tmp_path):
+        path = tmp_path / "processed.nwb"
+        with h5py.File(path, "w") as file:
+            container = file.create_group("general/fiber_photometry")
+            container.attrs["neurodata_type"] = "FiberPhotometry"
+            series = file.create_group("processing/ophys/Traces")
+            series.attrs["neurodata_type"] = "FiberPhotometryResponseSeries"
+        assert asset_holds_photometry(self._asset(byte_server, "processed.nwb", path)) is True
+
+    def test_the_container_without_a_response_series_is_not_photometry(self, byte_server, tmp_path):
+        # Dandiset 000689 writes the extension's metadata table but stores its traces as
+        # RoiResponseSeries, which GuPPy's reader does not pick up.
+        path = tmp_path / "roi_series.nwb"
+        with h5py.File(path, "w") as file:
+            container = file.create_group("general/fiber_photometry")
+            container.attrs["neurodata_type"] = "FiberPhotometry"
+            series = file.create_group("acquisition/RoiResponseSeriesRegion0G")
+            series.attrs["neurodata_type"] = "RoiResponseSeries"
+        assert asset_holds_photometry(self._asset(byte_server, "roi_series.nwb", path)) is False
 
     def test_a_group_named_like_the_container_but_untyped_is_not_one(self, byte_server, tmp_path):
         path = tmp_path / "untyped.nwb"
