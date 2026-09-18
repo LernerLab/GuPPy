@@ -72,10 +72,8 @@ in hand.
 
 Selecting a row opens that dandiset's page: its citation details, license,
 species, subject and file counts, size, keywords and abstract, with a link to
-its page on dandiarchive.org. The recording sites and indicators are not shown
-here — DANDI does not record them, so they come from a file, and you see them
-when you preview one. **← Back to results** returns to the list with your search
-intact.
+its page on dandiarchive.org. **← Back to results** returns to the list with
+your search intact.
 
 **Analyze this dandiset** opens its files.
 
