@@ -131,25 +131,25 @@ python -c "from guppy.utils.dandi_filter import default_verdict_cache_path; defa
 
 ## Panels
 
-Three Panel components mirror the three questions, in `frontend/`. `DandiFilePanel` is the outer
-one: `input_parameters.py` builds it, and it owns one of each of the others.
+`input_parameters.py` builds one `DandiFilePanel`, which owns a `DandiSearchPanel` and a
+`DandiPreviewPanel` and swaps between the catalog view and the files view. The nesting runs opposite
+to the names: the file screen is the outer component, and the search screen is something it opens.
 
-| Panel | Screen |
-| --- | --- |
-| [`dandi_search_panel.py`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/frontend/dandi_search_panel.py) | Find a dandiset: the search box, the results table, and one dandiset's page |
-| [`dandi_file_panel.py`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/frontend/dandi_file_panel.py) | Pick files from it, and hand `dandi://` URIs to the pipeline |
-| [`dandi_preview_panel.py`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/frontend/dandi_preview_panel.py) | Render one `AssetPreview` |
+The files view is a `pn.widgets.FileSelector` pointed at a fabricated filesystem. `FileSelector`
+browses a directory tree and nothing else, so `_build_dandiset_mirror` writes one under the system
+temp directory — a zero-byte placeholder per asset, in the dandiset's own layout — and
+`selected_uris` translates the selection back to `dandi://` URIs. What that buys is that choosing
+remote assets is the same gesture as choosing local ones — the same widget, the same
+click-to-descend, the same multi-select — which is why the how-to can say navigation works as it
+does in local mode and leave it there. What it costs is that `FileSelector` caches its listing at construction, so every
+dandiset change and filter toggle rebuilds the widget rather than mutating it, and
+`attach_asset_selection_watcher` exists to re-bind the selection watchers to each new one.
 
-The dependency is one-way: `DandiFilePanel` binds its own `load_dandiset` to the search panel's
-`on_dandiset_selected` callback, and the search panel reads nothing back. The preview panel keeps no
-state beyond the `AssetPreview` it is handed, which is what lets both screens drive one renderer.
+The scan and the verification each run on a worker thread, with progress polled back onto the
+server IOLoop by `pn.state.add_periodic_callback`. Panel's own callbacks run on that loop, so
+minutes of reading on it would freeze the page: the thread owns the work and the poller owns the
+widgets. It is also what makes **Stop** possible: the button handler sets a flag on the shared
+verification state, and the worker checks it before each dandiset.
 
-The file screen inherits two constraints from Panel's `FileSelector`. It browses a filesystem and
-nothing else, so `_build_dandiset_mirror` fabricates a local tree of zero-byte placeholders matching
-the dandiset's asset layout, points the widget at that, and `selected_uris` translates the selection
-back to `dandi://` URIs. And it caches its listing at construction, so every dandiset change and
-filter toggle rebuilds the widget rather than mutating it, which is why
-`attach_asset_selection_watcher` exists — watchers are re-bound to each new widget.
-
-Both the scan and the verification run on a worker thread polled back onto the server IOLoop by
-`pn.state.add_periodic_callback`, since either can take minutes and neither may block the browser.
+`DandiPreviewPanel` holds no state beyond the `AssetPreview` it is handed, which is what lets both
+screens drive one renderer rather than each growing its own.
