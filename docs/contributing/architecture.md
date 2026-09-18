@@ -82,8 +82,9 @@ full-length recordings plottable.
 ### `frontend/`
 
 The Panel widget components: the sidebar, the folder and run selectors, the parameter form, the
-store-label configuration page, the artifact-window editor, the DANDI catalog browser, and the
-visualization dashboard. Each is a class that builds its own widgets and exposes their values.
+store-label configuration page, the artifact-window editor, the three DANDI panels (see [How the
+DANDI browser works](dandi.md)), and the visualization dashboard. Each is a class that builds its
+own widgets and exposes their values.
 
 Validation at this layer covers only what the form can judge by itself — a required folder that was
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
@@ -101,58 +102,14 @@ handles run-folder discovery and naming; `progress.py` provides the step progres
 validation helpers reused across layers (`validate_window_bounds`, `validate_peak_windows`,
 `validate_required_folder_selection`, and friends).
 
-Three DANDI modules sit here too, as the archive-side counterpart to the DANDI extractor, and they
-form a pipeline in which each uses the one before it. `dandi_search.py` searches the DANDI REST API
-and reduces each hit to a `DandisetSummary` the search panel can tabulate, and lists a dandiset's
-NWB assets with the URLs their bytes are readable from. `dandi_filter.py` reads those bytes to
-decide which assets, and which whole dandisets, hold photometry GuPPy can read. `dandi_preview.py`
-opens one asset's HDF5 header and reports what it holds in detail — the channels, their sites and
-indicators, the events a PSTH could align to, and a decimated slice of every trace.
-
-The split is forced by the archive. DANDI's structured metadata carries no notion of fiber
-photometry: there is no measurement technique or approach for it, because those are derived from
-the core NWB types dandi-cli recognizes and the photometry types are an extension. So the search
-can only match free text, which proposes candidates, and anything authoritative has to be read out
-of the files — which is what the other two modules do. `verify_dandisets` reads a dandiset's assets
-and stops at the first one that answers yes.
-
-That asymmetry shapes the UI. Confirming a dandiset is usually one file, while ruling one out
-means reading every asset it has, so the answer fills in quickly and then slows — which is why
-searching and verifying are separate actions rather than one, and why the verify option is off by
-default. `order_for_verification` reads the smallest dandisets first, so the slowest datasets
-delay nothing, and `PhotometryVerdictCache` remembers both asset verdicts (keyed by immutable
-asset ID) and whole-dandiset verdicts (keyed by identifier and the asset count they were reached
-at, so a negative expires when the dandiset grows). A repeat therefore costs no requests at all.
-
-`asset_holds_photometry` answers `True`, `False` or `None`, and the third value is load-bearing: a
-read that failed is not evidence of absence, and recording it as one would let a dropped
-connection turn a photometry dandiset into a behavior-only one. Unreadable assets are retried, and
-only when heading for a negative — one asset holding photometry settles the dandiset whatever the
-others did. A dandiset whose assets cannot all be read stays unresolved rather than empty, and
-nothing about it is cached.
-
-The scan is what makes a large dandiset navigable, and it is shaped by what that reading costs.
-Answering the question for one file touches about five kilobytes, but h5py finds them by
-pointer-chasing through the superblock and object headers, so the cost is round trips rather than
-bytes. `PrefetchedRemoteFile` fetches a head and a tail window in parallel and serves h5py's reads
-out of them, which covers any file written in a single `io.write()` — a read that falls between the
-windows still works, at one request apiece. The scan runs in a process pool rather than a thread
-pool because h5py serializes on a global lock, which would otherwise collapse the concurrency to
-roughly one file at a time.
-
-That cost model is why reading one file runs in two stages. The `FiberPhotometry` container under
-`/general` settles most files out of the prefetched window alone, since a file without one holds no
-photometry. Only a file that has the container is walked for the `FiberPhotometryResponseSeries`
-GuPPy reads its traces from, which reaches object headers the windows do not cover. The container
-accompanies the extension's metadata table, and a file can write that table while storing its
-traces as some other series type, so having it is a candidate rather than an answer.
-
-Within a dandiset, `scan_order` walks the assets from both ends of the size range inward rather
-than largest-first. Which asset carries the photometry depends on what else the dandiset carries:
-where the recordings are the bulk of it they are the largest files, but where photometry
-accompanies electrophysiology it is the other way round. Dandiset 000689 is that second layout —
-its photometry files are 5 MB against 19 GB of ephys, ranking 33rd of 53 by size — so reading from
-either end alone would miss one of the two arrangements entirely.
+Three DANDI modules sit here too, as the archive-side counterpart to the DANDI extractor, forming
+a pipeline in which each imports only the one before it. `dandi_search.py` reports what the archive
+says about dandisets and their assets; `dandi_filter.py` reads those assets' bytes to decide which
+of them, and which whole dandisets, hold photometry GuPPy can read; `dandi_preview.py` opens one
+asset and reports what it holds in detail. The split is forced by the archive: DANDI's structured
+metadata carries no notion of fiber photometry, so the search can only propose candidates and
+anything authoritative has to be read out of the files. See [How the DANDI browser works](dandi.md)
+for the reading strategy that makes that affordable.
 
 ### `testing/`
 

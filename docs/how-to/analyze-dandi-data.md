@@ -55,18 +55,15 @@ to go straight to one dandiset. Clicking a column header sorts the table.
 
 Mentioning photometry is not the same as holding photometry GuPPy can read.
 **Filter dandisets for GuPPy-readable fiber photometry** settles that by reading
-the listed dandisets' NWB files and dropping the ones without a
-`FiberPhotometryResponseSeries`, which is the type GuPPy reads. A dataset can
-record real fiber photometry and still be dropped, if it stores its traces as
-plain time series rather than as that type.
+the listed dandisets' NWB files. A dataset can record real fiber photometry and
+still be dropped, if it stores its traces as a type GuPPy does not read, so treat
+a filtered list as a floor rather than the whole truth.
 
 Reading files takes minutes where the search takes seconds, which is why it is
-off by default. Confirming a dandiset usually takes a single file, while ruling
-one out means reading every asset it has, so the list narrows quickly at first
-and then slows. A progress bar tracks it and **Stop** ends it early. Verdicts
-are remembered between sessions, so filtering the same datasets again is
-immediate. Narrowing the search first narrows the work: filtering one search
-result is seconds where filtering twenty is minutes.
+off by default. A progress bar tracks it and **Stop** ends it early. Verdicts are
+remembered between sessions, so filtering the same datasets again is immediate.
+Narrowing the search first narrows the work: filtering one search result is
+seconds where filtering twenty is minutes.
 
 Unticking the checkbox brings the unread dandisets back, with the verdicts still
 in hand.
@@ -93,26 +90,20 @@ multi-select. Only `.nwb` assets are listed.
 :width: 100%
 ```
 
-Most dandisets hold far more assets than they hold recordings. Many of them
-store each session's behavioral events in a small NWB file of its own beside
-the recording, so a dandiset of a few thousand assets may carry only a few dozen
-photometry sessions, scattered across subject folders that give no sign of which
-is which. In `000971`, 63 of 4139 assets carry traces, and they sit in 40 of its
-168 subject folders.
+A dandiset usually holds far more assets than recordings, and the folder names
+give no sign of which is which: in `000971`, 63 of 4139 assets carry traces,
+spread across 40 of its 168 subject folders.
 
-**Scan for fiber photometry** answers that for the files. It reads the header of
-every listed file straight from the archive and reports which hold a trace GuPPy
-can read, then ticks **Show only files GuPPy can read** so the tree holds
-just those. The scan takes a couple of seconds for a typical dandiset and well
-under a minute for one the size of `000971`. Nothing is downloaded: it reads a
-few hundred kilobytes per file, enough to answer the question and no more.
-Unticking the checkbox brings the whole listing back.
+**Scan for fiber photometry** answers that for the files. It reads every listed
+file's header straight from the archive, then ticks **Show only files GuPPy can
+read** so the tree holds just those. The scan takes a couple of seconds for a
+typical dandiset and well under a minute for one the size of `000971`. Unticking
+the checkbox brings the whole listing back.
 
 ### Reading what is inside a file
 
-**Preview selected file** streams a file's header and reports what it holds. It is
-the fastest way to understand a dandiset you have not worked with before, since
-everything it shows is GuPPy-specific and is not on dandiarchive.org.
+**Preview selected file** streams a file's header and reports what it holds,
+none of which is on the dandiset's page on dandiarchive.org.
 
 A preview is of one file, while the pipeline runs on every file you selected, so
 **File to preview** beside the button lists the files you have selected and
