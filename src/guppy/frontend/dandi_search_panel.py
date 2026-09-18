@@ -42,9 +42,7 @@ CATALOG_COLUMNS = (
 )
 # Widths summing under the table's own, so the last column ends inside the card rather than
 # under its edge. Name takes whatever the others do not need, since a dandiset's title is the
-# one cell that is routinely a sentence long. Brain regions and indicators are not columns:
-# they are scraped from free prose, so they are blank as often as not, and the dandiset's own
-# page has room to show them properly.
+# one cell that is routinely a sentence long.
 CATALOG_COLUMN_WIDTHS = {
     "Dandiset": 110,
     "Name": 375,
@@ -93,8 +91,8 @@ def describe_dandiset(summary: DandisetSummary) -> str:
     Returns
     -------
     str
-        Markdown giving the dandiset's identity, scale, detected regions and indicators,
-        keywords, credits and abstract.
+        Markdown giving the dandiset's identity, scale, approaches, keywords, credits and
+        abstract.
     """
     contributors = ", ".join(summary.contributors[:4])
     if len(summary.contributors) > 4:
@@ -107,8 +105,6 @@ def describe_dandiset(summary: DandisetSummary) -> str:
         f" · {licenses or 'license not stated'}",
         f"**Species:** {', '.join(summary.species) or '—'} · **Subjects:** {summary.subject_count or '—'}"
         f" · **Files:** {summary.file_count} · **Size:** {format_byte_size(summary.size_in_bytes)}",
-        f"**Brain regions:** {', '.join(summary.brain_regions) or '—'}",
-        f"**Indicators:** {', '.join(summary.indicators) or '—'}",
         f"**Approaches:** {', '.join(summary.approaches) or '—'}",
         f"**Keywords:** {', '.join(summary.keywords) or '—'}",
         f"**Contributors:** {contributors or '—'}",

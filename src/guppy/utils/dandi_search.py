@@ -1,19 +1,19 @@
 """Search the DANDI Archive for fiber photometry datasets and list their NWB assets.
 
 Everything here talks to the DANDI REST API. It runs the archive's full-text search, pulls each
-hit's dandiset metadata and reduces it to a :class:`DandisetSummary` the search panel can tabulate
-and filter, and it lists a dandiset's NWB assets with the URLs their bytes are readable from.
+hit's dandiset metadata and reduces it to a :class:`DandisetSummary` the search panel can
+tabulate, and it lists a dandiset's NWB assets with the URLs their bytes are readable from.
 
 The search can only go through free text, because DANDI's structured metadata does not describe
 fiber photometry: ``assetsSummary.variableMeasured`` is built by dandi-cli from the core NWB types
 it knows, and ``FiberPhotometryResponseSeries`` is not among them, so no dandiset in the archive
-lists it. Anything authoritative -- which files carry photometry, from which sites, with which
-indicator -- has to come from the files themselves, which is what :mod:`guppy.utils.dandi_filter`
-and :mod:`guppy.utils.dandi_preview` read.
+lists it. A summary therefore reports only what DANDI itself asserts -- title, abstract, keywords,
+species, approaches and totals. Anything authoritative, including which files carry photometry and
+from which site with which indicator, has to come from the files themselves, which is what
+:mod:`guppy.utils.dandi_filter` and :mod:`guppy.utils.dandi_preview` read.
 """
 
 import logging
-import re
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -29,134 +29,6 @@ logger = logging.getLogger(__name__)
 # imaging datasets that GuPPy cannot read. What the search misses is recovered by the crawl
 # rather than by more terms.
 PHOTOMETRY_SEARCH_TERMS = ("photometry",)
-
-# Canonical brain region -> the spellings and abbreviations searched for in a dandiset's free
-# text. Every pattern is matched on word boundaries, so "LH" does not fire inside "LHb".
-BRAIN_REGION_VOCABULARY: dict[str, tuple[str, ...]] = {
-    "Dorsal striatum": (
-        "dorsal striatum",
-        "dorsomedial striatum",
-        "dorsolateral striatum",
-        "dms",
-        "dls",
-    ),
-    "Ventral striatum": (
-        "ventral striatum",
-        "nucleus accumbens",
-        "nac",
-        "nacc",
-        "accumbens",
-    ),
-    "Striatum": ("striatum", "striatal"),
-    "Substantia nigra": ("substantia nigra", "snc", "snr"),
-    "Ventral tegmental area": ("ventral tegmental area", "vta"),
-    "Prefrontal cortex": (
-        "prefrontal cortex",
-        "mpfc",
-        "pfc",
-        "prelimbic",
-        "infralimbic",
-    ),
-    "Orbitofrontal cortex": ("orbitofrontal cortex", "ofc"),
-    "Anterior cingulate cortex": ("anterior cingulate", "acc"),
-    "Motor cortex": ("motor cortex", "m1", "m2"),
-    "Somatosensory cortex": ("somatosensory cortex", "barrel cortex", "s1"),
-    "Visual cortex": ("visual cortex", "v1"),
-    "Auditory cortex": ("auditory cortex", "a1"),
-    "Insular cortex": ("insular cortex", "insula"),
-    "Hippocampus": ("hippocampus", "hippocampal", "ca1", "ca3", "dentate gyrus"),
-    "Entorhinal cortex": ("entorhinal",),
-    "Amygdala": ("amygdala", "bla", "cea", "basolateral amygdala", "central amygdala"),
-    "Bed nucleus of the stria terminalis": (
-        "bed nucleus of the stria terminalis",
-        "bnst",
-    ),
-    "Septum": ("septum", "septal"),
-    "Basal forebrain": ("basal forebrain",),
-    "Globus pallidus": ("globus pallidus", "gpe", "gpi"),
-    "Subthalamic nucleus": ("subthalamic nucleus", "stn"),
-    "Pedunculopontine nucleus": ("pedunculopontine", "ppn", "ppt"),
-    "Thalamus": ("thalamus", "thalamic", "mediodorsal thalamus"),
-    "Habenula": ("habenula", "lhb", "mhb"),
-    "Hypothalamus": (
-        "hypothalamus",
-        "hypothalamic",
-        "lateral hypothalamus",
-        "pvn",
-        "arcuate",
-        "vmh",
-    ),
-    "Locus coeruleus": ("locus coeruleus", "lc"),
-    "Dorsal raphe": ("dorsal raphe", "raphe", "drn"),
-    "Periaqueductal gray": ("periaqueductal", "pag"),
-    "Superior colliculus": ("superior colliculus",),
-    "Parabrachial nucleus": ("parabrachial",),
-    "Cerebellum": ("cerebellum", "cerebellar", "purkinje"),
-    "Olfactory bulb": ("olfactory bulb",),
-    "Zona incerta": ("zona incerta",),
-    "Spinal cord": ("spinal cord",),
-}
-
-# Canonical indicator -> the spellings searched for in a dandiset's free text. GuPPy's users
-# choose datasets by sensor as much as by region, and the sensor is almost never in DANDI's
-# structured metadata.
-INDICATOR_VOCABULARY: dict[str, tuple[str, ...]] = {
-    "GCaMP": ("gcamp", "jgcamp"),
-    "dLight": ("dlight", "rdlight"),
-    "GRAB-DA": ("grab-da", "grabda", "grab_da", "grab da", "grabda2m", "grabda3h"),
-    "GRAB-ACh": ("grab-ach", "grabach", "grab ach", "ach3.0", "ach 3.0", "gach"),
-    "GRAB-NE": ("grab-ne", "grabne", "grab ne", "nlight", "grabnE2h"),
-    "GRAB-5HT": ("grab-5ht", "grab5ht", "grab 5ht"),
-    "GRAB-eCB": ("grab-ecb", "grabecb", "ecb2.0"),
-    "iGluSnFR": ("iglusnfr",),
-    "iAChSnFR": ("iachsnfr",),
-    "iSeroSnFR": ("iserosnfr",),
-    "jRGECO": ("jrgeco",),
-    "RCaMP": ("rcamp",),
-    "GFP": ("gfp", "eyfp"),
-    "tdTomato": ("tdtomato",),
-}
-
-
-def _compile_vocabulary(
-    vocabulary: dict[str, tuple[str, ...]], *, allow_suffix: bool = False
-) -> dict[str, re.Pattern[str]]:
-    """Compile one alternation per canonical term in ``vocabulary``.
-
-    Every pattern is anchored on its left at a word boundary. ``allow_suffix`` leaves the
-    right end open, which is what indicator names need: a sensor is named by its family plus
-    a variant suffix ("GCaMP6f", "dLight1.3b", "GRAB-DA2m") that the family term must still
-    match. Region abbreviations need the closing boundary, so that "LH" does not fire on the
-    habenula's "LHb".
-    """
-    compiled = {}
-    trailing = "" if allow_suffix else r"(?![\w-])"
-    for canonical, patterns in vocabulary.items():
-        alternation = "|".join(re.escape(pattern) for pattern in patterns)
-        compiled[canonical] = re.compile(rf"(?<![\w-])({alternation}){trailing}", re.IGNORECASE)
-    return compiled
-
-
-_BRAIN_REGION_PATTERNS = _compile_vocabulary(BRAIN_REGION_VOCABULARY)
-_INDICATOR_PATTERNS = _compile_vocabulary(INDICATOR_VOCABULARY, allow_suffix=True)
-
-
-def find_vocabulary_terms(*, text: str, vocabulary: dict[str, re.Pattern[str]]) -> tuple[str, ...]:
-    """Return every canonical term in ``vocabulary`` whose pattern appears in ``text``.
-
-    Parameters
-    ----------
-    text : str
-        Free text to scan.
-    vocabulary : dict of {str: re.Pattern}
-        Canonical term to the compiled pattern that recognizes it.
-
-    Returns
-    -------
-    tuple of str
-        The matching canonical terms, in the vocabulary's own order.
-    """
-    return tuple(canonical for canonical, pattern in vocabulary.items() if pattern.search(text))
 
 
 @dataclass(frozen=True)
@@ -179,10 +51,6 @@ class DandisetSummary:
         Experimental approaches and measurement techniques from ``assetsSummary``.
     keywords : tuple of str
         Submitter-supplied keywords.
-    brain_regions : tuple of str
-        Canonical regions recognized in the dandiset's free text.
-    indicators : tuple of str
-        Canonical indicators recognized in the dandiset's free text.
     subject_count, file_count, size_in_bytes : int
         Totals from ``assetsSummary``; ``0`` for a dandiset whose summary is still empty.
     contributors : tuple of str
@@ -193,8 +61,6 @@ class DandisetSummary:
         Landing page on dandiarchive.org.
     is_published : bool
         Whether a published version exists, as opposed to a draft-only dandiset.
-    searchable_text : str
-        Lowercased concatenation of every text field, for local free-text filtering.
     """
 
     identifier: str
@@ -204,8 +70,6 @@ class DandisetSummary:
     species: tuple[str, ...]
     approaches: tuple[str, ...]
     keywords: tuple[str, ...]
-    brain_regions: tuple[str, ...]
-    indicators: tuple[str, ...]
     subject_count: int
     file_count: int
     size_in_bytes: int
@@ -213,7 +77,6 @@ class DandisetSummary:
     license_terms: tuple[str, ...]
     url: str
     is_published: bool
-    searchable_text: str
 
 
 def _names(entries: Iterable[object]) -> tuple[str, ...]:
@@ -242,22 +105,8 @@ def _summarize_dandiset(
     """
     assets_summary = metadata.get("assetsSummary") or {}
     keywords = tuple(metadata.get("keywords") or ())
-    study_targets = tuple(metadata.get("studyTarget") or ())
-    about = _names(metadata.get("about") or ())
     name = metadata.get("name") or ""
     description = metadata.get("description") or ""
-    # Everything a submitter wrote about the dataset, in one blob: what the vocabularies are
-    # scanned against and what the browser's free-text filter searches.
-    searchable_text = " ".join(
-        (
-            name,
-            description,
-            " ".join(keywords),
-            " ".join(study_targets),
-            " ".join(about),
-            identifier,
-        )
-    ).lower()
 
     return DandisetSummary(
         identifier=identifier,
@@ -268,8 +117,6 @@ def _summarize_dandiset(
         approaches=_names(assets_summary.get("approach") or ())
         + _names(assets_summary.get("measurementTechnique") or ()),
         keywords=keywords,
-        brain_regions=find_vocabulary_terms(text=searchable_text, vocabulary=_BRAIN_REGION_PATTERNS),
-        indicators=find_vocabulary_terms(text=searchable_text, vocabulary=_INDICATOR_PATTERNS),
         subject_count=int(assets_summary.get("numberOfSubjects") or 0),
         file_count=int(file_count if file_count is not None else (assets_summary.get("numberOfFiles") or 0)),
         size_in_bytes=int(size_in_bytes if size_in_bytes is not None else (assets_summary.get("numberOfBytes") or 0)),
@@ -277,7 +124,6 @@ def _summarize_dandiset(
         license_terms=tuple(metadata.get("license") or ()),
         url=metadata.get("url") or f"https://dandiarchive.org/dandiset/{identifier}",
         is_published=version != "draft",
-        searchable_text=searchable_text,
     )
 
 
@@ -320,8 +166,8 @@ def search_dandisets(
 
     Each term is run through the archive's full-text search over dandiset metadata and the
     results are unioned. Every hit's full metadata is then fetched -- the search endpoint
-    returns only a name and an asset count -- which is what the catalog's columns and filters
-    read.
+    returns only a name and an asset count -- which is what the catalog's columns and the
+    dandiset page read.
 
     Parameters
     ----------
@@ -348,95 +194,6 @@ def search_dandisets(
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             summaries = list(executor.map(summarize, rows))
     return sorted(summaries, key=lambda summary: summary.identifier)
-
-
-def filter_dandisets(
-    summaries: Sequence[DandisetSummary],
-    *,
-    query: str = "",
-    species: Sequence[str] = (),
-    brain_regions: Sequence[str] = (),
-    indicators: Sequence[str] = (),
-    approaches: Sequence[str] = (),
-    minimum_subjects: int = 0,
-    minimum_files: int = 0,
-    published_only: bool = False,
-) -> list[DandisetSummary]:
-    """Narrow a catalog locally, without going back to the archive.
-
-    Every criterion is a conjunction; within one criterion, a summary matches when it holds
-    *any* of the requested values. ``query`` is matched as a substring against the summary's
-    whole text blob, so it finds terms the vocabularies do not know.
-
-    Parameters
-    ----------
-    summaries : sequence of DandisetSummary
-        The catalog to narrow.
-    query : str, optional
-        Free text. Every whitespace-separated word must appear somewhere in the summary.
-    species, brain_regions, indicators, approaches : sequence of str, optional
-        Values to keep. An empty sequence disables that criterion.
-    minimum_subjects, minimum_files : int, optional
-        Lower bounds on the dandiset's subject and file counts.
-    published_only : bool, optional
-        Keep only dandisets that have a published version.
-
-    Returns
-    -------
-    list of DandisetSummary
-        The matching summaries, in their original order.
-    """
-    words = query.lower().split()
-
-    def matches(summary: DandisetSummary) -> bool:
-        if any(word not in summary.searchable_text for word in words):
-            return False
-        for requested, available in (
-            (species, summary.species),
-            (brain_regions, summary.brain_regions),
-            (indicators, summary.indicators),
-            (approaches, summary.approaches),
-        ):
-            if requested and not set(requested) & set(available):
-                return False
-        if summary.subject_count < minimum_subjects or summary.file_count < minimum_files:
-            return False
-        return not (published_only and not summary.is_published)
-
-    return [summary for summary in summaries if matches(summary)]
-
-
-def collect_filter_options(
-    summaries: Sequence[DandisetSummary],
-) -> dict[str, list[str]]:
-    """Return the values each categorical filter can take across ``summaries``.
-
-    Offering only values that are present keeps every option in the browser's dropdowns a
-    choice that narrows the table rather than emptying it.
-
-    Parameters
-    ----------
-    summaries : sequence of DandisetSummary
-        The catalog the options are drawn from.
-
-    Returns
-    -------
-    dict of {str: list of str}
-        Sorted option lists keyed ``"species"``, ``"brain_regions"``, ``"indicators"`` and
-        ``"approaches"``.
-    """
-    options: dict[str, list[str]] = {}
-    for key, attribute in (
-        ("species", "species"),
-        ("brain_regions", "brain_regions"),
-        ("indicators", "indicators"),
-        ("approaches", "approaches"),
-    ):
-        values: set[str] = set()
-        for summary in summaries:
-            values.update(getattr(summary, attribute))
-        options[key] = sorted(values)
-    return options
 
 
 @dataclass(frozen=True)

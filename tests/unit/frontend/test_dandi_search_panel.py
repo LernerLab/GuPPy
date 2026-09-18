@@ -30,8 +30,6 @@ def make_summary(**overrides):
         "species": ("Mus musculus",),
         "approaches": ("behavioral approach",),
         "keywords": ("fiber photometry",),
-        "brain_regions": ("Dorsal striatum",),
-        "indicators": ("GCaMP",),
         "subject_count": 10,
         "file_count": 100,
         "size_in_bytes": 60_000_000,
@@ -39,7 +37,6 @@ def make_summary(**overrides):
         "license_terms": ("spdx:CC-BY-4.0",),
         "url": "https://dandiarchive.org/dandiset/000001",
         "is_published": True,
-        "searchable_text": "dorsomedial striatum dopamine gcamp7b recordings in the dms",
     }
     fields.update(overrides)
     return DandisetSummary(**fields)
@@ -52,13 +49,10 @@ SUMMARIES = [
         name="Ventral tegmental area dLight",
         version="draft",
         species=("Rattus norvegicus",),
-        brain_regions=("Ventral tegmental area",),
-        indicators=("dLight",),
         approaches=("optogenetic approach",),
         subject_count=2,
         file_count=5,
         is_published=False,
-        searchable_text="ventral tegmental area dlight",
     ),
 ]
 
@@ -83,8 +77,6 @@ class TestDescribeDandiset:
         assert "https://dandiarchive.org/dandiset/000001" in text
         assert "**Species:** Mus musculus" in text
         assert "**Subjects:** 10" in text
-        assert "**Brain regions:** Dorsal striatum" in text
-        assert "**Indicators:** GCaMP" in text
         assert "GCaMP7b recordings in the DMS." in text
 
     def test_spdx_prefix_is_stripped_from_the_license(self):
@@ -92,9 +84,9 @@ class TestDescribeDandiset:
         assert "spdx:" not in describe_dandiset(make_summary())
 
     def test_absent_fields_render_as_a_dash(self):
-        text = describe_dandiset(make_summary(species=(), indicators=(), keywords=(), license_terms=()))
+        text = describe_dandiset(make_summary(species=(), keywords=(), license_terms=()))
         assert "**Species:** —" in text
-        assert "**Indicators:** —" in text
+        assert "**Keywords:** —" in text
         assert "license not stated" in text
 
     def test_long_contributor_list_is_abbreviated(self):

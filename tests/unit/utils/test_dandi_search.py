@@ -12,11 +12,7 @@ from dandi.exceptions import NotFoundError
 
 from guppy.utils import dandi_search
 from guppy.utils.dandi_search import (
-    DandisetSummary,
     _direct_content_url,
-    collect_filter_options,
-    filter_dandisets,
-    find_vocabulary_terms,
     format_byte_size,
     list_nwb_assets,
     search_dandisets,
@@ -177,33 +173,6 @@ def archive(monkeypatch):
     return FakeDandiAPIClient
 
 
-class TestFindVocabularyTerms:
-    def test_matches_full_names_and_abbreviations(self):
-        text = "recordings in the dms and the nucleus accumbens with gcamp6f"
-        regions = find_vocabulary_terms(text=text, vocabulary=dandi_search._BRAIN_REGION_PATTERNS)
-        indicators = find_vocabulary_terms(text=text, vocabulary=dandi_search._INDICATOR_PATTERNS)
-        assert regions == ("Dorsal striatum", "Ventral striatum")
-        # "gcamp6f" names the GCaMP family plus a variant suffix, which the family term matches.
-        assert indicators == ("GCaMP",)
-
-    def test_a_subregion_also_matches_the_region_that_contains_it(self):
-        # A study of the DMS is a study of the striatum, so filtering on either finds it.
-        terms = find_vocabulary_terms(
-            text="dopamine in the dorsomedial striatum",
-            vocabulary=dandi_search._BRAIN_REGION_PATTERNS,
-        )
-        assert terms == ("Dorsal striatum", "Striatum")
-
-    def test_abbreviation_does_not_match_inside_a_longer_word(self):
-        # "LHb" is the habenula, not the lateral hypothalamus; "dmso" is neither.
-        text = "fibers in lhb and a dmso vehicle"
-        regions = find_vocabulary_terms(text=text, vocabulary=dandi_search._BRAIN_REGION_PATTERNS)
-        assert regions == ("Habenula",)
-
-    def test_no_match_returns_empty(self):
-        assert find_vocabulary_terms(text="a study of nothing", vocabulary=dandi_search._INDICATOR_PATTERNS) == ()
-
-
 class TestFormatByteSize:
     @pytest.mark.parametrize(
         ("size_in_bytes", "expected"),
@@ -244,14 +213,6 @@ class TestSearchDandisets:
         assert summary.contributors == ("Lerner, Talia",)
         assert summary.license_terms == ("spdx:CC-BY-4.0",)
 
-    def test_regions_and_indicators_come_from_the_free_text(self, archive):
-        by_id = {summary.identifier: summary for summary in search_dandisets(terms=("photometry", "dLight"))}
-        assert by_id["000001"].brain_regions == ("Dorsal striatum", "Striatum")
-        assert by_id["000001"].indicators == ("GCaMP",)
-        assert by_id["000002"].brain_regions == ("Ventral tegmental area",)
-        assert by_id["000002"].indicators == ("dLight",)
-        assert by_id["000003"].brain_regions == ()
-
     def test_file_count_and_size_come_from_the_version_record(self, archive):
         # assetsSummary carries neither, and a draft-only dandiset leaves them at zero.
         by_id = {summary.identifier: summary for summary in search_dandisets(terms=("photometry",))}
@@ -277,84 +238,6 @@ class TestSearchDandisets:
         summaries = search_dandisets(terms=("photometry", "dLight"), max_results=1)
         assert len(summaries) == 1
         assert sum(1 for path, _ in archive.requested_paths if path.endswith("/info/")) == 1
-
-
-def _summary(**overrides):
-    """Build a DandisetSummary with every field set, for the filter tests."""
-    fields = {
-        "identifier": "000001",
-        "version": "draft",
-        "name": "Study",
-        "description": "",
-        "species": ("Mus musculus",),
-        "approaches": ("behavioral approach",),
-        "keywords": (),
-        "brain_regions": ("Dorsal striatum",),
-        "indicators": ("GCaMP",),
-        "subject_count": 10,
-        "file_count": 100,
-        "size_in_bytes": 1000,
-        "contributors": (),
-        "license_terms": (),
-        "url": "",
-        "is_published": False,
-        "searchable_text": "study of dopamine in the dorsomedial striatum",
-    }
-    fields.update(overrides)
-    return DandisetSummary(**fields)
-
-
-class TestFilterDandisets:
-    @pytest.fixture
-    def summaries(self):
-        return [
-            _summary(identifier="000001"),
-            _summary(
-                identifier="000002",
-                species=("Rattus norvegicus",),
-                brain_regions=("Ventral tegmental area",),
-                indicators=("dLight",),
-                approaches=("optogenetic approach",),
-                subject_count=2,
-                file_count=5,
-                is_published=True,
-                searchable_text="dlight in the vta",
-            ),
-        ]
-
-    def test_no_criteria_keeps_everything(self, summaries):
-        assert filter_dandisets(summaries) == summaries
-
-    def test_query_matches_every_word_against_the_text_blob(self, summaries):
-        assert [s.identifier for s in filter_dandisets(summaries, query="dopamine striatum")] == ["000001"]
-        assert filter_dandisets(summaries, query="dopamine vta") == []
-
-    def test_categorical_criteria_keep_any_requested_value(self, summaries):
-        assert [s.identifier for s in filter_dandisets(summaries, species=["Rattus norvegicus"])] == ["000002"]
-        assert (
-            len(
-                filter_dandisets(
-                    summaries,
-                    brain_regions=["Dorsal striatum", "Ventral tegmental area"],
-                )
-            )
-            == 2
-        )
-
-    def test_criteria_are_conjunctive(self, summaries):
-        assert filter_dandisets(summaries, species=["Mus musculus"], indicators=["dLight"]) == []
-
-    def test_scale_bounds_and_published_only(self, summaries):
-        assert [s.identifier for s in filter_dandisets(summaries, minimum_subjects=5)] == ["000001"]
-        assert [s.identifier for s in filter_dandisets(summaries, minimum_files=50)] == ["000001"]
-        assert [s.identifier for s in filter_dandisets(summaries, published_only=True)] == ["000002"]
-
-    def test_collect_filter_options_reports_the_present_values_sorted(self, summaries):
-        options = collect_filter_options(summaries)
-        assert options["species"] == ["Mus musculus", "Rattus norvegicus"]
-        assert options["brain_regions"] == ["Dorsal striatum", "Ventral tegmental area"]
-        assert options["indicators"] == ["GCaMP", "dLight"]
-        assert options["approaches"] == ["behavioral approach", "optogenetic approach"]
 
 
 class TestListNwbAssets:
