@@ -26,9 +26,8 @@ it.
 
 `dandi_search` can only match free text — a dataset's title, abstract and keywords — which proposes
 candidates. Everything authoritative has to be read out of the files, which is what the other two
-do. A `DandisetSummary` therefore reports only what DANDI itself asserts; it does not guess at the
-recording site or indicator from the prose, because those are in the file's own fiber photometry
-table and `dandi_preview` reads them there.
+do. A `DandisetSummary` reports what DANDI itself asserts. The recording site and indicator come
+from the file's own fiber photometry table, which `dandi_preview` reads.
 
 ## Deciding whether one file holds photometry
 
@@ -39,27 +38,21 @@ metadata table into. It is checked as a neurodata type rather than by name, sinc
 whichever one the file's author passed and differs between writers. A file without the container
 holds no photometry, and that settles most files out of the prefetched window alone.
 
-The converse does not hold, which is why there is a second stage. The container travels with the
-metadata table, and a file can write that table while storing its traces as some other series type
-— dandiset 000689 writes `RoiResponseSeries` — so a file that has the container is walked for the
-`FiberPhotometryResponseSeries` GuPPy actually reads traces from. That walk reaches the series' own
-object headers, which sit beside their data in the middle of the file and cost a few range requests
-of their own.
+The second stage walks a file that has the container for the `FiberPhotometryResponseSeries` GuPPy
+reads traces from. The container travels with the metadata table, and a file can write that table
+while storing its traces as some other series type — dandiset 000689 writes `RoiResponseSeries` — so
+the series itself is what settles the question. That walk reaches the series' own object headers,
+which sit beside their data in the middle of the file and cost a few range requests of their own.
 
-The cached extension namespaces under `/specifications` are not a usable signal for either stage:
-they record which extensions the conversion session had loaded, not which types it wrote, so a
-behavior-only file written by a photometry pipeline still declares ndx-fiber-photometry.
+### The three-valued verdict
 
-### Why the verdict has three values
+`asset_holds_photometry` returns `True`, `False` or `None`. `None` means the file could not be read,
+which is a distinct answer from an absence of photometry.
 
-`asset_holds_photometry` returns `True`, `False` or `None`, and the third is load-bearing. A read
-that failed is not evidence of absence, and recording it as one would let a dropped connection turn
-a photometry dandiset into a behavior-only one.
-
-Unreadable assets are therefore retried, but only on the way to a negative: one asset holding
-photometry settles its dandiset whatever the others did, so a retry is only ever needed when
-nothing has been found and some reads failed. A dandiset whose assets cannot all be read stays
-unresolved rather than empty, and nothing about it is cached.
+Unreadable assets are retried on the way to a negative: one asset holding photometry settles its
+dandiset whatever the others did, so a retry matters only when nothing has been found and some reads
+failed. A dandiset whose assets cannot all be read stays unresolved, and nothing about it is
+cached.
 
 ## What a read costs
 
@@ -73,11 +66,10 @@ the end of the file when they were last written, so the two windows cover any fi
 single session — which is what a one-shot conversion produces. A read that falls between the
 windows still works, at one range request apiece.
 
-The scan runs in a `ProcessPoolExecutor` rather than a thread pool because h5py serializes on a
-global lock, which would otherwise collapse the concurrency to roughly one file at a time. That
-constrains what crosses the boundary: `asset_holds_photometry` takes and returns only picklable
-values, and it answers once rather than retrying, because whether a failed read is worth repeating
-depends on what the dandiset's other assets said — which only the caller knows.
+The scan runs in a `ProcessPoolExecutor`, because h5py serializes on a global lock that holds
+concurrent readers to roughly one file at a time. Crossing that process boundary constrains
+`asset_holds_photometry`: it takes and returns only picklable values, and it answers once, leaving
+retries to the caller, which is the only side that knows what the dandiset's other assets said.
 
 ## Which assets to read first
 
@@ -85,21 +77,18 @@ Reading is what everything costs, so the orderings exist to reach an answer in a
 possible.
 
 **Within a dandiset,** `scan_order` sorts by size and then walks both ends inward, repeatedly
-bisecting what is left, so any prefix of the order spans the whole size range. Which asset carries
-the photometry depends on what else the dandiset carries: where the recordings are the bulk of it
-they are the largest files and the behavior-only sidecars the smallest, but where photometry
-accompanies electrophysiology it is the other way round. Dandiset 000689 is that second
-arrangement — its photometry files are 5 MB against 19 GB of ephys, ranking 33rd of 53 by size — so
-reading from either end alone would miss one of the two layouts entirely.
+bisecting what is left, so any prefix of the order spans the whole size range. That covers both
+arrangements photometry appears in: where the recordings are the bulk of a dandiset they are its
+largest files and the behavior-only sidecars its smallest, and where photometry accompanies
+electrophysiology it is the other way round — in dandiset 000689 the photometry files are 5 MB
+against 19 GB of ephys, ranking 33rd of 53 by size.
 
 **Across dandisets,** `order_for_verification` reads the smallest first. Confirming a dandiset takes
 one file, but ruling one out means reading every asset it has, so the largest dandisets are the
-slowest to settle either way. Reading them last means the answer fills in steadily from the start
-rather than stalling on one dataset of thousands of files.
+slowest to settle either way. Reading them last lets the answer fill in steadily from the start.
 
-That same asymmetry is why the UI separates searching from verifying and leaves verification off by
-default: the list narrows quickly at first and then slows, which is a poor thing to make someone
-wait through before they have seen any results at all.
+That same asymmetry shapes the UI: searching and verifying are separate actions, and verification
+is off until asked for, so results are on screen before any reading starts.
 
 ## What is remembered
 
