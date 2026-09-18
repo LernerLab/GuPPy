@@ -35,6 +35,23 @@ Markers are declared in
 [`pyproject.toml`](https://github.com/LernerLab/GuPPy/blob/main/pyproject.toml) under
 `[tool.pytest.ini_options]`.
 
+### What belongs behind `dandi_live`
+
+Offline tests own GuPPy's behavior; live tests own GuPPy's assumptions about the archive. A test
+that would still pass if DANDI vanished and were replaced by a fixture belongs offline, and the
+offline suites go to some length to make that possible — `dandi_filter` is tested against a local
+HTTP server answering real byte ranges over real NWB files, so the only thing it does not exercise
+is the address. What a live run adds is the two things a substitute cannot vouch for: that the
+archive's responses still have the shape we map onto our dataclasses, and that files written by
+other people's conversions still match the layouts our mocks assume.
+
+So each DANDI module that crosses that boundary has its contract written once, in a
+`*_test_mixin.py` beside its tests, and bound twice — to a stand-in in `test_<module>.py` and to
+the archive in `test_<module>_live.py`. The live class inherits its assertions rather than
+authoring them, which is what keeps the two from drifting apart unnoticed, since only the offline
+binding runs in CI. Anything with no outside world to check — ordering, caching, formatting, the
+pure helpers — stays an ordinary offline test with no twin.
+
 ## Test data
 
 `stubbed_testing_data/` and `testing_data/` sound similar but serve different purposes:

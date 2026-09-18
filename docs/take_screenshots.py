@@ -9,9 +9,10 @@ Re-run this script whenever the GUI changes.
 Playwright browser binaries must be installed:
     uv run --group test playwright install chromium
 
-The DANDI screenshots query the live DANDI Archive for the demo dandiset's asset
-list, so this script needs network access. No API token is required: browsing a
-public dandiset is unauthenticated (only streaming an asset's data authenticates).
+The DANDI screenshots query the live DANDI Archive for the photometry catalog, the demo
+dandiset's asset list, and the header and opening seconds of the demo asset, so this script
+needs network access. No API token is required: browsing a public dandiset and reading an
+asset's header are unauthenticated (only streaming an asset's bulk data authenticates).
 """
 
 from __future__ import annotations
@@ -31,7 +32,9 @@ from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.covariate_correlation_view import build_covariate_correlation_view
 from guppy.frontend.custom_events_config import CustomEventsConfig
-from guppy.frontend.dandi_selector import DandiSelector
+from guppy.frontend.dandi_file_panel import DandiFilePanel
+from guppy.frontend.dandi_preview_panel import DandiPreviewPanel
+from guppy.frontend.dandi_search_panel import DandiSearchPanel
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
@@ -45,6 +48,7 @@ from guppy.orchestration.store_labeling import build_store_labeling_template
 from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
+from guppy.utils.dandi_preview import preview_asset
 from guppy.utils.nwb_metadata import (
     Channel,
     build_metadata_dict,
@@ -155,7 +159,9 @@ def screenshot_select_artifact_windows_button(page: Page) -> None:
     pn.state.kill_all_servers()
 
 
-def _synthetic_pair_traces(*, recording_sites: list[str]) -> dict[str, dict[str, object]]:
+def _synthetic_pair_traces(
+    *, recording_sites: list[str]
+) -> dict[str, dict[str, object]]:
     """Build stand-in control/signal/fit traces containing one obvious artifact.
 
     Mirrors the shape ``load_pair_traces`` returns, so the marking page can be rendered
@@ -169,12 +175,17 @@ def _synthetic_pair_traces(*, recording_sites: list[str]) -> dict[str, dict[str,
 
     pair_traces = {}
     for site in recording_sites:
-        transients = sum(3.0 * np.exp(-(((timestamps - onset) / 0.9) ** 2)) for onset in np.arange(12.0, 300.0, 17.0))
+        transients = sum(
+            3.0 * np.exp(-(((timestamps - onset) / 0.9) ** 2))
+            for onset in np.arange(12.0, 300.0, 17.0)
+        )
         fit = 100.0 + bleaching + dropout
         pair_traces[site] = {
             "x": timestamps,
             "control": fit + random_generator.normal(0.0, 0.6, timestamps.size),
-            "signal": fit + transients + random_generator.normal(0.0, 0.6, timestamps.size),
+            "signal": fit
+            + transients
+            + random_generator.normal(0.0, 0.6, timestamps.size),
             "fit": fit,
             "plot_name": [f"control_{site}", f"signal_{site}", f"cntrl_sig_fit_{site}"],
         }
@@ -190,7 +201,9 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     run_folder = tmp_path / "sample_data_csv_1_output_1"
     run_folder.mkdir(exist_ok=True)
 
-    selector = ArtifactWindowSelector(str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]))
+    selector = ArtifactWindowSelector(
+        str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"])
+    )
     selector.set_windows("DMS", [(128.0, 140.0)])
 
     template = pn.template.BootstrapTemplate(title="GuPPy — Select Artifact Windows")
@@ -215,10 +228,16 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
 
 # Equal-length windows placed inside each phase, clear of the transitions at 60 s and 120 s —
 # the placement the how-to recommends, so the shaded spans read as three separate windows.
-TONIC_EPOCHS = [("baseline", 10.0, 50.0), ("drug", 70.0, 110.0), ("washout", 138.0, 178.0)]
+TONIC_EPOCHS = [
+    ("baseline", 10.0, 50.0),
+    ("drug", 70.0, 110.0),
+    ("washout", 138.0, 178.0),
+]
 
 
-def _synthetic_site_traces(*, recording_sites: list[str]) -> dict[str, dict[str, object]]:
+def _synthetic_site_traces(
+    *, recording_sites: list[str]
+) -> dict[str, dict[str, object]]:
     """Build stand-in z-score / dF/F traces for a bolus-injection recording.
 
     Mirrors the shape ``load_site_traces`` returns, and the three phases of the
@@ -235,7 +254,9 @@ def _synthetic_site_traces(*, recording_sites: list[str]) -> dict[str, dict[str,
     site_traces = {}
     for index, site in enumerate(recording_sites):
         amplitude = 3.0 - index  # sites respond at different magnitudes
-        z_score = amplitude * drug_effect + random_generator.normal(0.0, 0.25, timestamps.size)
+        z_score = amplitude * drug_effect + random_generator.normal(
+            0.0, 0.25, timestamps.size
+        )
         site_traces[site] = {
             "x": timestamps,
             "y_zscore": z_score,
@@ -269,7 +290,9 @@ def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
     run_folder = tmp_path / "sample_data_csv_injection_1_output_1"
     run_folder.mkdir(exist_ok=True)
 
-    config = TonicEpochConfig(str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"]))
+    config = TonicEpochConfig(
+        str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"])
+    )
     config.set_epochs("DMS", TONIC_EPOCHS)
 
     template = pn.template.BootstrapTemplate(title="GuPPy — Tonic Analysis")
@@ -341,7 +364,13 @@ def screenshot_covariate_label_stores(page: Page) -> None:
     ``covariate_<name>`` strings Step 1 writes, which the config parses back into a
     "behavioral covariate" type and a name.
     """
-    store_ids = ["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL", "akinesia", "grooming"]
+    store_ids = [
+        "Sample_Control_Channel",
+        "Sample_Signal_Channel",
+        "Sample_TTL",
+        "akinesia",
+        "grooming",
+    ]
 
     selector = StoreLabelingSelector(allnames=store_ids)
     selector.cross_selector.value = store_ids
@@ -357,7 +386,9 @@ def screenshot_covariate_label_stores(page: Page) -> None:
         }
     )
 
-    template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_covariate_1")
+    template = pn.template.BootstrapTemplate(
+        title="Label Stores GUI - sample_data_csv_covariate_1"
+    )
     template.main.append(selector.widget)
     url = _serve(template)
 
@@ -386,7 +417,10 @@ def screenshot_covariate_correlations(page: Page, tmp_path: Path) -> None:
     base_directory = tmp_path / "covariate_run"
     base_directory.mkdir(exist_ok=True)
     run_folder = run_covariate_session(
-        session_path=REPO_ROOT / "stubbed_testing_data" / "csv" / COVARIATE_SESSION_NAME,
+        session_path=REPO_ROOT
+        / "stubbed_testing_data"
+        / "csv"
+        / COVARIATE_SESSION_NAME,
         base_directory=base_directory,
     )
 
@@ -421,7 +455,9 @@ def screenshot_import_custom_events(page: Page) -> None:
     config.rows[1][0].value = "reward_delivery"
     config.rows[1][1].value = "7.3\n12.1\n18.8"
 
-    template = pn.template.BootstrapTemplate(title="Import Custom Events - sample_data_csv_1")
+    template = pn.template.BootstrapTemplate(
+        title="Import Custom Events - sample_data_csv_1"
+    )
     template.main.append(config.widget)
     url = _serve(template)
 
@@ -506,7 +542,9 @@ def screenshot_parameters(page: Page) -> None:
 
 def screenshot_label_groups_page(page: Page) -> None:
     """How-to: the Label Groups page, showing its member-runs and destination sections."""
-    labeling_page = GroupLabelingPage(start_path=str(SAMPLE_DATA_DIR.parent), selected_group_folders=[])
+    labeling_page = GroupLabelingPage(
+        start_path=str(SAMPLE_DATA_DIR.parent), selected_group_folders=[]
+    )
     url = _serve(labeling_page.build_template())
     # The page lays out two 640px columns side by side, so it needs a wide viewport.
     page.set_viewport_size({"width": 1600, "height": 1300})
@@ -543,7 +581,9 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         random_generator = np.random.default_rng(seed)
         # Rise into the peak just after the event, then an exponential return to baseline.
         response = amplitude * np.exp(-(((timestamps - latency) / 1.4) ** 2))
-        decay = 0.45 * amplitude * np.exp(-np.clip(timestamps - latency, 0.0, None) / 6.0)
+        decay = (
+            0.45 * amplitude * np.exp(-np.clip(timestamps - latency, 0.0, None) / 6.0)
+        )
         decay[timestamps < latency] = 0.0
         return response + decay + random_generator.normal(0.0, 0.16, n_timepoints)
 
@@ -602,7 +642,12 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
     box = plot.bounding_box()
     page.screenshot(
         path=OUTPUT_DIR / "group_psth_plot.png",
-        clip={"x": box["x"] - 60, "y": box["y"] - 20, "width": box["width"] + 90, "height": box["height"] + 60},
+        clip={
+            "x": box["x"] - 60,
+            "y": box["y"] - 20,
+            "width": box["width"] + 90,
+            "height": box["height"] + 60,
+        },
     )
     print("Saved group_psth_plot.png")
     page.set_viewport_size(VIEWPORT)
@@ -634,7 +679,9 @@ def screenshot_sidebar_progress(
     """
     template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
 
-    progress_bars = [w for w in template.sidebar if isinstance(w, pn.indicators.Progress)]
+    progress_bars = [
+        w for w in template.sidebar if isinstance(w, pn.indicators.Progress)
+    ]
     progress_bars[progress_index].value = 60
 
     url = _serve(template)
@@ -642,7 +689,9 @@ def screenshot_sidebar_progress(
     page.goto(url)
     page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
-    page.screenshot(path=OUTPUT_DIR / output_name, clip=_sidebar_clip(page, clip_from_step))
+    page.screenshot(
+        path=OUTPUT_DIR / output_name, clip=_sidebar_clip(page, clip_from_step)
+    )
     print(f"Saved {output_name}")
 
     page.set_viewport_size(VIEWPORT)
@@ -671,14 +720,18 @@ def screenshot_label_stores_configured(page: Page, tmp_path: Path) -> None:
     selector.store_ids = events
     selector.configure_store_ids(store_id_to_store_labels={})
 
-    template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
+    template = pn.template.BootstrapTemplate(
+        title="Label Stores GUI - sample_data_csv_1"
+    )
     template.main.append(selector.widget)
     url = _serve(template)
 
     page.goto(url)
     page.get_by_text("Label Stores").first.wait_for()
     page.wait_for_timeout(1500)
-    page.screenshot(path=OUTPUT_DIR / "02b_label_stores_configured.png", full_page=False)
+    page.screenshot(
+        path=OUTPUT_DIR / "02b_label_stores_configured.png", full_page=False
+    )
     print("Saved 02b_label_stores_configured.png")
 
     pn.state.kill_all_servers()
@@ -689,10 +742,24 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
     events = ["RewardPort"]
     n_timepoints = 30
     timestamps = np.linspace(-10.0, 20.0, n_timepoints)
-    columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    columns = [
+        "trial_1",
+        "trial_2",
+        "trial_3",
+        "bin_1",
+        "timestamps",
+        "mean",
+        "err",
+        "bin_err_1",
+    ]
 
     def make_df() -> pd.DataFrame:
-        return pd.DataFrame({col: (timestamps if col == "timestamps" else np.zeros(n_timepoints)) for col in columns})
+        return pd.DataFrame(
+            {
+                col: (timestamps if col == "timestamps" else np.zeros(n_timepoints))
+                for col in columns
+            }
+        )
 
     df_new = pd.concat([make_df() for _ in events], keys=events, axis=1)
 
@@ -739,8 +806,14 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
     selector = StoreLabelingSelector(allnames=["Sample_Control_Channel"])
     selector.run_name.value = run_name
 
-    template = pn.template.BootstrapTemplate(title="Label Stores GUI - sample_data_csv_1")
-    template.main.append(pn.Column(selector.mark_down_for_overwrite, selector.overwrite_mode, selector.run_name))
+    template = pn.template.BootstrapTemplate(
+        title="Label Stores GUI - sample_data_csv_1"
+    )
+    template.main.append(
+        pn.Column(
+            selector.mark_down_for_overwrite, selector.overwrite_mode, selector.run_name
+        )
+    )
     url = _serve(template)
 
     page.goto(url)
@@ -756,15 +829,12 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
 def screenshot_dandi_source_selection(page: Page) -> None:
     """How-to: Input Folder Selection with the Data Source toggle set to ``dandi``.
 
-    Assigning ``source_mode`` and ``dandiset_input`` fires their param watchers
-    synchronously, so the DANDI panel is swapped in and the dandiset's assets are
-    fetched before the template is served (mirroring screenshot_label_stores_configured).
-    Fetching the asset list touches one zero-byte placeholder per NWB asset under the
-    system temp dir; the tree is reused on subsequent runs.
+    Assigning ``source_mode`` fires its param watcher synchronously, which swaps the DANDI
+    panel in and runs its opening search, so the catalog is populated before the template is
+    served (mirroring screenshot_label_stores_configured).
     """
     template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
     template._widgets["source_mode"].value = "dandi"
-    template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
     url = _serve(template)
 
     page.goto(url)
@@ -772,7 +842,7 @@ def screenshot_dandi_source_selection(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_source_selection.png",
-        clip={"x": 0, "y": 80, "width": 1280, "height": 355},
+        clip={"x": 0, "y": 80, "width": 1280, "height": 465},
     )
     print("Saved dandi_source_selection.png")
 
@@ -788,7 +858,9 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     the Directory field shows a normal session path rather than a temp-dir basename.
     """
     run_names = ("1", "filter_100", "filter_250")
-    run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
+    run_folders = [
+        SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names
+    ]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
 
@@ -826,39 +898,108 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
             run_folder.rmdir()
 
 
-def screenshot_dandi_asset_browser(page: Page) -> None:
-    """How-to: the DANDI asset browser descended into a subject folder, one asset selected.
+def screenshot_dandi_catalog_search(page: Page) -> None:
+    """How-to: the catalog's list screen, as it looks when the DANDI source is opened.
 
-    Built from the component directly rather than the homepage so the browser is not
-    pushed down by the sidebar and card chrome. ``FileSelector`` computes its
-    selected/unselected lists at construction, so the widget is built with ``value``
-    already set and swapped into the selector's slot rather than assigned afterwards.
+    Runs the real opening search against the archive, so the table and the count in shot are
+    the archive's own. The verify checkbox is left off, which is how the panel opens: it reads
+    every listed dandiset's files and takes minutes.
     """
-    selector = DandiSelector()
-    selector.dandiset_input.value = DANDI_DEMO_DANDISET_ID
-    subject_directory = str(Path(selector._current_mirror_root) / DANDI_DEMO_SUBJECT)
+    browser = DandiSearchPanel()
+    browser.open_catalog()
+
+    template = pn.template.BootstrapTemplate(title="Find a fiber photometry dandiset")
+    template.main.append(browser.panel)
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1200})
+    page.goto(url)
+    page.get_by_text("Search the DANDI Archive").first.wait_for()
+    page.wait_for_timeout(2500)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_catalog_search.png",
+        clip={"x": 0, "y": 0, "width": 1030, "height": 890},
+    )
+    print("Saved dandi_catalog_search.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_dandi_dataset_preview(page: Page) -> None:
+    """How-to: the preview of the demo asset — its series, channel table and example traces.
+
+    Streams the same asset the live DANDI test pins, so the channel table in shot is the one
+    the guide's store-label mapping is taken from.
+    """
+    pane = DandiPreviewPanel()
+    pane.show(
+        preview=preview_asset(
+            dandiset_id=DANDI_DEMO_DANDISET_ID,
+            asset_path=f"{DANDI_DEMO_SUBJECT}/{DANDI_DEMO_ASSET}",
+        )
+    )
+
+    template = pn.template.BootstrapTemplate(title="NWB file preview")
+    template.main.append(pn.Card(pane.panel, title="Preview", width=980))
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1200})
+    page.goto(url)
+    page.get_by_text("Store name").first.wait_for(timeout=30000)
+    page.wait_for_timeout(3000)
+    page.screenshot(
+        path=OUTPUT_DIR / "dandi_dataset_preview.png",
+        clip={"x": 0, "y": 0, "width": 1030, "height": 800},
+    )
+    print("Saved dandi_dataset_preview.png")
+    page.set_viewport_size(VIEWPORT)
+    pn.state.kill_all_servers()
+
+
+def screenshot_dandi_asset_browser(page: Page) -> None:
+    """How-to: the files screen, scanned for photometry with one asset selected.
+
+    Built from the component directly rather than the homepage so the screen is not pushed
+    down by the sidebar and card chrome. ``FileSelector`` computes its selected/unselected
+    lists at construction, so the widget is built with ``value`` already set and swapped into
+    the selector's slot rather than assigned afterwards.
+
+    The dandiset is scanned for fiber photometry first, so the shot shows the state the guide
+    describes: the status line reporting what the scan found, the filter switched on, and the
+    tree holding only the subject folders that carry traces. The browser is left at the top of
+    that tree rather than descended into one subject, because with the filter on a subject
+    folder holds a single session and the pane would read as empty.
+    """
+    selector = DandiFilePanel()
+    selector.load_dandiset(DANDI_DEMO_DANDISET_ID)
+    selector.scan_assets()
+    selector._scan["thread"].join()
+    selector._poll_scan()
+    mirror_root = selector._current_mirror_root
     file_selector = pn.widgets.FileSelector(
-        subject_directory,
-        root_directory=selector._current_mirror_root,
+        mirror_root,
+        root_directory=mirror_root,
         file_pattern="*.nwb",
         name="NWB assets",
-        value=[str(Path(subject_directory) / DANDI_DEMO_ASSET)],
+        value=[str(Path(mirror_root) / DANDI_DEMO_SUBJECT / DANDI_DEMO_ASSET)],
         width=950,
     )
     file_selector._directory.visible = False
     selector._asset_file_selector_slot[:] = [file_selector]
 
-    template = pn.template.BootstrapTemplate(title="Input Folder Selection - DANDI source")
+    template = pn.template.BootstrapTemplate(
+        title="Input Folder Selection - DANDI source"
+    )
     template.main.append(selector.panel)
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1700})
     page.goto(url)
-    page.get_by_text("DANDI source").first.wait_for()
+    page.get_by_text("Back to dandisets").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_asset_browser.png",
-        clip={"x": 0, "y": 335, "width": 1130, "height": 430},
+        clip={"x": 0, "y": 55, "width": 1130, "height": 690},
     )
     print("Saved dandi_asset_browser.png")
     page.set_viewport_size(VIEWPORT)
@@ -890,7 +1031,9 @@ def _metadata_template() -> BasicTemplate:
     read out of a session's ``storesList.csv``.
     """
     channels = [Channel("dms", "control", "Dv1A"), Channel("dms", "signal", "Dv2A")]
-    example = load_yaml(str(REPO_ROOT / "tests" / "data" / "fiber_photometry_metadata_example.yaml"))
+    example = load_yaml(
+        str(REPO_ROOT / "tests" / "data" / "fiber_photometry_metadata_example.yaml")
+    )
     devices, _rows, scalars = parse_metadata_dict(metadata=example, channels=channels)
     channel_rows = [
         {
@@ -924,7 +1067,12 @@ def _metadata_template() -> BasicTemplate:
     return build_metadata_template(
         session_label="Photo_63_207 (1)",
         channels=channels,
-        metadata=build_metadata_dict(devices=devices, channel_rows=channel_rows, scalars=scalars, channels=channels),
+        metadata=build_metadata_dict(
+            devices=devices,
+            channel_rows=channel_rows,
+            scalars=scalars,
+            channels=channels,
+        ),
         metadata_yaml_path=str(SAMPLE_DATA_DIR / "nwb_metadata.yaml"),
     )
 
@@ -950,7 +1098,12 @@ def screenshot_input_metadata(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "input_metadata.png",
-        clip={"x": 0, "y": 0, "width": VIEWPORT["width"], "height": _card_top(page, "Optical hardware") - 8},
+        clip={
+            "x": 0,
+            "y": 0,
+            "width": VIEWPORT["width"],
+            "height": _card_top(page, "Optical hardware") - 8,
+        },
     )
     print("Saved input_metadata.png")
 
@@ -998,6 +1151,8 @@ def main() -> None:
             screenshot_data_selection(page)
             screenshot_parameters(page)
             screenshot_dandi_source_selection(page)
+            screenshot_dandi_catalog_search(page)
+            screenshot_dandi_dataset_preview(page)
             screenshot_dandi_asset_browser(page)
             screenshot_label_stores(page, tmp_path)
             screenshot_label_stores_configured(page, tmp_path)
@@ -1012,8 +1167,12 @@ def main() -> None:
             screenshot_covariate_label_stores(page)
             screenshot_covariate_correlations(page, tmp_path)
             screenshot_visualization(page, tmp_path)
-            screenshot_run_name_section(page, run_name="filter_250", filename="compare_parameters_run_name.png")
-            screenshot_run_name_section(page, run_name="1", filename="combine_data_run_name.png")
+            screenshot_run_name_section(
+                page, run_name="filter_250", filename="compare_parameters_run_name.png"
+            )
+            screenshot_run_name_section(
+                page, run_name="1", filename="combine_data_run_name.png"
+            )
             screenshot_compare_parameters_existing_runs(page)
             screenshot_label_groups_page(page)
             screenshot_group_psth_plot(page, tmp_path)

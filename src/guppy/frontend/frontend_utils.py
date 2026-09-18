@@ -56,3 +56,25 @@ def scanPortsAndFind(start_port: int = 5000, end_port: int = 5200, host: str = "
             break
 
     return port
+
+
+# Width of the DANDI panels' widgets inside the 1000px Input Folder Selection card.
+DANDI_PANEL_WIDTH = 950
+
+# Panel's default button type renders as pale grey on white, which reads as page background
+# rather than as something to click. The navigation and dismiss buttons take this solid grey
+# instead: unmistakably a button, and distinct from the blue and green of the primary actions
+# beside them. The declarations need !important to beat the design's own button rules.
+SECONDARY_BUTTON_STYLESHEET = """
+.bk-btn {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #ffffff !important;
+    font-weight: 500 !important;
+}
+.bk-btn:hover {
+    background-color: #5c636a !important;
+    border-color: #565e64 !important;
+    color: #ffffff !important;
+}
+"""

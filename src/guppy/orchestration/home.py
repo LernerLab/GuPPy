@@ -285,7 +285,7 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     template._widgets = {
         "files_1": parameter_form.files_1,
         "source_mode": parameter_form.source_mode,
-        "dandi_selector": parameter_form.dandi_selector,
+        "dandi_file_panel": parameter_form.dandi_file_panel,
         "read_progress": sidebar.read_progress,
         "extract_progress": sidebar.extract_progress,
         "psth_progress": sidebar.psth_progress,
