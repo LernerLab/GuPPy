@@ -108,7 +108,7 @@ says about dandisets and their assets; `dandi_filter.py` reads those assets' byt
 of them, and which whole dandisets, hold photometry GuPPy can read; `dandi_preview.py` opens one
 asset and reports what it holds in detail. The split is forced by the archive: DANDI's structured
 metadata carries no notion of fiber photometry, so the search can only propose candidates and
-anything authoritative has to be read out of the files. See [How the DANDI browser works](dandi.md)
+anything authoritative has to be read out of the files. See [DANDI browser](dandi.md)
 for the reading strategy that makes that affordable.
 
 ### `testing/`
