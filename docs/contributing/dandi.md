@@ -119,6 +119,16 @@ that has already settled costs no requests at all. It holds two kinds of verdict
   permanent, but a negative is only true of the assets that existed when it was taken, so a
   dandiset that grows is read again.
 
+`default_verdict_cache_path()` resolves to `dandi_photometry_verdicts.json` under the platform
+cache directory — `~/Library/Caches/guppy/` on macOS, `~/.cache/guppy/` on Linux,
+`%LOCALAPPDATA%\LernerLab\guppy\Cache\` on Windows. Deleting it forces every verdict to be read
+again, which is what to do after a change to the check that would give a file a different answer
+than the one on disk:
+
+```bash
+python -c "from guppy.utils.dandi_filter import default_verdict_cache_path; default_verdict_cache_path().unlink(missing_ok=True)"
+```
+
 ## Panels
 
 Three Panel components mirror the three questions, in `frontend/`. `DandiFilePanel` is the outer
