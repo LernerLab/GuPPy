@@ -101,19 +101,20 @@ handles run-folder discovery and naming; `progress.py` provides the step progres
 validation helpers reused across layers (`validate_window_bounds`, `validate_peak_windows`,
 `validate_required_folder_selection`, and friends).
 
-`dandi_catalog.py` sits here too, as the archive-side counterpart to the DANDI extractor. It
-searches the DANDI REST API for fiber photometry dandisets and reduces each hit to a
-`DandisetSummary` the browser can tabulate; it scans every asset of a dandiset to report which of
-them hold fiber photometry at all; and it opens one asset's HDF5 header to report the channels,
-sites and indicators it holds plus a decimated slice of its traces. The split between those parts
-is forced by the archive — DANDI's structured metadata carries no notion of fiber photometry, so
-the catalog can only search free text, and anything authoritative has to be read out of the files.
+Three DANDI modules sit here too, as the archive-side counterpart to the DANDI extractor, and they
+form a pipeline in which each uses the one before it. `dandi_search.py` searches the DANDI REST API
+and reduces each hit to a `DandisetSummary` the search panel can tabulate, and lists a dandiset's
+NWB assets with the URLs their bytes are readable from. `dandi_filter.py` reads those bytes to
+decide which assets, and which whole dandisets, hold photometry GuPPy can read. `dandi_preview.py`
+opens one asset's HDF5 header and reports what it holds in detail — the channels, their sites and
+indicators, the events a PSTH could align to, and a decimated slice of every trace.
 
-The same reading answers a second question one level up: which *dandisets* hold photometry at
-all. DANDI's structured metadata cannot say — there is no measurement technique or approach for
-fiber photometry, because those are derived from the core NWB types dandi-cli recognizes and the
-photometry types are an extension. So the catalog's free-text search proposes candidates and
-`verify_dandisets` reads them, stopping at the first asset that answers yes.
+The split is forced by the archive. DANDI's structured metadata carries no notion of fiber
+photometry: there is no measurement technique or approach for it, because those are derived from
+the core NWB types dandi-cli recognizes and the photometry types are an extension. So the search
+can only match free text, which proposes candidates, and anything authoritative has to be read out
+of the files — which is what the other two modules do. `verify_dandisets` reads a dandiset's assets
+and stops at the first one that answers yes.
 
 That asymmetry shapes the UI. Confirming a dandiset is usually one file, while ruling one out
 means reading every asset it has, so the answer fills in quickly and then slows — which is why
@@ -149,8 +150,9 @@ traces as some other series type, so having it is a candidate rather than an ans
 Within a dandiset, `scan_order` walks the assets from both ends of the size range inward rather
 than largest-first. Which asset carries the photometry depends on what else the dandiset carries:
 where the recordings are the bulk of it they are the largest files, but where photometry
-accompanies electrophysiology it is the other way round — in dandiset 000689 the photometry files
-are 5 MB against 19 GB of ephys, and rank 33rd of 53 by size.
+accompanies electrophysiology it is the other way round. Dandiset 000689 is that second layout —
+its photometry files are 5 MB against 19 GB of ephys, ranking 33rd of 53 by size — so reading from
+either end alone would miss one of the two arrangements entirely.
 
 ### `testing/`
 

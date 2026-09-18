@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
-from .dandi_selector import DandiSelector
+from .dandi_file_panel import DandiFilePanel
 from .frontend_utils import default_root_path
 from ..utils.utils import (
     common_parent_directory,
@@ -165,8 +165,8 @@ class ParameterForm:
         self.files_1.param.watch(self._on_sessions_changed, "value")
         self.run_names_for_all_sessions.param.watch(self._on_run_names_for_all_sessions_change, "value")
         self.outputs_selector.param.watch(self._load_parameters_from_selected_runs, "value")
-        self.dandi_selector.output_root_selector.param.watch(self._on_sessions_changed, "value")
-        self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
+        self.dandi_file_panel.output_root_selector.param.watch(self._on_sessions_changed, "value")
+        self.dandi_file_panel.attach_asset_selection_watcher(callback=self._on_sessions_changed)
 
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
@@ -197,9 +197,9 @@ class ParameterForm:
 
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
-        self.dandi_selector = DandiSelector(styles=self.styles, start_path=self.folder_path)
+        self.dandi_file_panel = DandiFilePanel(styles=self.styles, start_path=self.folder_path)
         # Hidden by default; shown when source_mode == "dandi"
-        self.dandi_selector.panel.visible = False
+        self.dandi_file_panel.panel.visible = False
 
         self.timeForLightsTurnOn = pn.widgets.IntInput(
             name="Eliminate first few seconds (int)",
@@ -617,7 +617,7 @@ class ParameterForm:
         self.input_folder_selection_widget = pn.Column(
             pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode),
             self.files_1,
-            self.dandi_selector.panel,
+            self.dandi_file_panel.panel,
             self.combine_data,
         )
         self.input_folder_selection = pn.Card(
@@ -648,11 +648,11 @@ class ParameterForm:
     def _on_source_mode_change(self, event: object) -> None:
         is_dandi = event.new == "dandi"
         self.files_1.visible = not is_dandi
-        self.dandi_selector.panel.visible = is_dandi
+        self.dandi_file_panel.panel.visible = is_dandi
         if is_dandi:
             # The catalog runs its default search the first time it is looked at, so that a
             # local-mode session never reaches the archive.
-            self.dandi_selector.open_catalog()
+            self.dandi_file_panel.open_catalog()
         self._run_selection_by_source_mode[event.old] = (
             list(self.outputs_selector.value or []),
             list(self.run_names_for_all_sessions.value),
@@ -743,7 +743,7 @@ class ParameterForm:
           outputs and can navigate up to switch between sessions.
         - DANDI mode: root set to the chosen output root, which holds every mirrored session.
         """
-        dandi_output_root = self.dandi_selector.output_root if self.source_mode.value == "dandi" else None
+        dandi_output_root = self.dandi_file_panel.output_root if self.source_mode.value == "dandi" else None
         if dandi_output_root:
             root_target = dandi_output_root
             directory_target = sessions[0] if sessions else dandi_output_root
@@ -842,11 +842,11 @@ class ParameterForm:
         The directories are not created here; ``_resolve_dandi_sessions`` does that when
         the pipeline actually runs.
         """
-        output_root = self.dandi_selector.output_root
+        output_root = self.dandi_file_panel.output_root
         if not output_root:
             return []
         sessions = []
-        for uri in self.dandi_selector.selected_uris:
+        for uri in self.dandi_file_panel.selected_uris:
             asset_path = uri.split("/", 3)[-1]
             session_stem = Path(asset_path).stem
             sessions.append(str(Path(output_root) / session_stem))
@@ -870,8 +870,8 @@ class ParameterForm:
         dandi_uri_map : dict[str, str]
             Mapping from session directory to the originating DANDI URI.
         """
-        selected_uris = self.dandi_selector.selected_uris
-        output_root = self.dandi_selector.output_root
+        selected_uris = self.dandi_file_panel.selected_uris
+        output_root = self.dandi_file_panel.output_root
         if not selected_uris:
             logger.error("DANDI mode: no NWB assets selected")
             raise ValueError("DANDI mode: select at least one NWB asset before running the pipeline")

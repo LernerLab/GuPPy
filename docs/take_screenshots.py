@@ -32,8 +32,9 @@ from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.covariate_correlation_view import build_covariate_correlation_view
 from guppy.frontend.custom_events_config import CustomEventsConfig
-from guppy.frontend.dandi_browser import DandiBrowser, PhotometryPreviewPane
-from guppy.frontend.dandi_selector import DandiSelector
+from guppy.frontend.dandi_file_panel import DandiFilePanel
+from guppy.frontend.dandi_preview_panel import DandiPreviewPanel
+from guppy.frontend.dandi_search_panel import DandiSearchPanel
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
@@ -47,7 +48,7 @@ from guppy.orchestration.store_labeling import build_store_labeling_template
 from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
-from guppy.utils.dandi_catalog import preview_asset
+from guppy.utils.dandi_preview import preview_asset
 from guppy.utils.nwb_metadata import (
     Channel,
     build_metadata_dict,
@@ -904,7 +905,7 @@ def screenshot_dandi_catalog_search(page: Page) -> None:
     the archive's own. The verify checkbox is left off, which is how the panel opens: it reads
     every listed dandiset's files and takes minutes.
     """
-    browser = DandiBrowser()
+    browser = DandiSearchPanel()
     browser.open_catalog()
 
     template = pn.template.BootstrapTemplate(title="Find a fiber photometry dandiset")
@@ -930,7 +931,7 @@ def screenshot_dandi_dataset_preview(page: Page) -> None:
     Streams the same asset the live DANDI test pins, so the channel table in shot is the one
     the guide's store-label mapping is taken from.
     """
-    pane = PhotometryPreviewPane()
+    pane = DandiPreviewPanel()
     pane.show(
         preview=preview_asset(
             dandiset_id=DANDI_DEMO_DANDISET_ID,
@@ -969,7 +970,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     that tree rather than descended into one subject, because with the filter on a subject
     folder holds a single session and the pane would read as empty.
     """
-    selector = DandiSelector()
+    selector = DandiFilePanel()
     selector.load_dandiset(DANDI_DEMO_DANDISET_ID)
     selector.scan_assets()
     selector._scan["thread"].join()

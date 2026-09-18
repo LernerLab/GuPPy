@@ -1,6 +1,10 @@
-"""Panel component for browsing public DANDI dandisets and selecting NWB assets."""
+"""Panel component for choosing NWB assets out of one DANDI dandiset.
 
-import logging
+Once the search panel hands over a dandiset identifier, this lists its NWB assets, optionally
+reads them to keep only those holding photometry GuPPy can read, previews a chosen one, and
+turns the selection into the ``dandi://`` URIs the rest of the pipeline reads from.
+"""
+
 import os
 import shutil
 import tempfile
@@ -10,24 +14,16 @@ from threading import Thread
 import panel as pn
 from dandi.exceptions import NotFoundError
 
-from .dandi_browser import (
-    BROWSER_WIDTH,
+from .dandi_preview_panel import DandiPreviewPanel
+from .dandi_search_panel import DandiSearchPanel
+from .frontend_utils import (
+    DANDI_PANEL_WIDTH,
     SECONDARY_BUTTON_STYLESHEET,
-    DandiBrowser,
-    PhotometryPreviewPane,
+    default_root_path,
 )
-from .frontend_utils import default_root_path
-from ..utils.dandi_catalog import (
-    AssetSummary,
-    filter_assets,
-    format_byte_size,
-    list_nwb_assets,
-    preview_asset,
-    scan_assets_for_photometry,
-)
-
-logger = logging.getLogger(__name__)
-
+from ..utils.dandi_filter import filter_assets, scan_assets_for_photometry
+from ..utils.dandi_preview import preview_asset
+from ..utils.dandi_search import AssetSummary, format_byte_size, list_nwb_assets
 
 # Stable per-process parent directory under which we build a fake filesystem
 # mirror of each dandiset (one subfolder per dandiset, containing zero-byte
@@ -70,10 +66,10 @@ def _build_dandiset_mirror(*, dandiset_id: str, mirror_parent: str, assets: list
     return str(mirror_root)
 
 
-class DandiSelector:
+class DandiFilePanel:
     """A Panel widget for finding and selecting NWB files from the public DANDI Archive.
 
-    Two screens. The catalog is a :class:`~guppy.frontend.dandi_browser.DandiBrowser`, which
+    Two screens. The catalog is a :class:`~guppy.frontend.dandi_search_panel.DandiSearchPanel`, which
     searches the archive and shows one dandiset at a time; choosing one to analyze replaces it
     with that dandiset's files.
 
@@ -97,15 +93,15 @@ class DandiSelector:
         ``default_root_path()`` when not supplied or when the path does not exist.
     list_assets_function : callable, optional
         Injection point for the asset listing; defaults to
-        :func:`~guppy.utils.dandi_catalog.list_nwb_assets`.
+        :func:`~guppy.utils.dandi_search.list_nwb_assets`.
     preview_function : callable, optional
         Injection point for the streaming preview; defaults to
-        :func:`~guppy.utils.dandi_catalog.preview_asset`.
+        :func:`~guppy.utils.dandi_preview.preview_asset`.
     scan_function : callable, optional
         Injection point for the fiber photometry scan; defaults to
-        :func:`~guppy.utils.dandi_catalog.scan_assets_for_photometry`.
-    browser : DandiBrowser or None, optional
-        Catalog browser to embed. One is built when not supplied.
+        :func:`~guppy.utils.dandi_filter.scan_assets_for_photometry`.
+    search_panel : DandiSearchPanel or None, optional
+        Catalog search panel to embed. One is built when not supplied.
 
     Attributes
     ----------
@@ -128,7 +124,7 @@ class DandiSelector:
         list_assets_function: object = list_nwb_assets,
         preview_function: object = preview_asset,
         scan_function: object = scan_assets_for_photometry,
-        browser: DandiBrowser | None = None,
+        search_panel: DandiSearchPanel | None = None,
     ) -> None:
         self.styles = styles or dict(background="WhiteSmoke")
         # Allow tests to inject a tmp_path-based parent; default to the
@@ -152,7 +148,9 @@ class DandiSelector:
         # Re-attached to each rebuilt asset FileSelector by _make_asset_file_selector.
         self._asset_selection_watchers = []
 
-        self.browser = browser if browser is not None else DandiBrowser(on_dandiset_selected=self.load_dandiset)
+        self.search_panel = (
+            search_panel if search_panel is not None else DandiSearchPanel(on_dandiset_selected=self.load_dandiset)
+        )
         self.scan_button = pn.widgets.Button(
             name="Scan for fiber photometry",
             button_type="primary",
@@ -202,23 +200,23 @@ class DandiSelector:
             stylesheets=[SECONDARY_BUTTON_STYLESHEET],
         )
         self.hide_preview_button.on_click(self.hide_preview)
-        self.asset_preview_pane = PhotometryPreviewPane(preview_function=preview_function, width=BROWSER_WIDTH)
+        self.preview_panel = DandiPreviewPanel(preview_function=preview_function, width=DANDI_PANEL_WIDTH)
 
         self.output_root_selector = pn.widgets.FileSelector(
             start_path if start_path and Path(start_path).is_dir() else default_root_path(),
             root_directory="/",
             name="Local output directory",
-            width=950,
+            width=DANDI_PANEL_WIDTH,
         )
 
-        self.status = pn.pane.Markdown("", width=950)
-        self.asset_status = pn.pane.Markdown("", width=950)
+        self.status = pn.pane.Markdown("", width=DANDI_PANEL_WIDTH)
+        self.asset_status = pn.pane.Markdown("", width=DANDI_PANEL_WIDTH)
 
-        self.dandiset_heading = pn.pane.Markdown("", width=950)
+        self.dandiset_heading = pn.pane.Markdown("", width=DANDI_PANEL_WIDTH)
         self.back_to_catalog_button = pn.widgets.Button(
             name="← Back to dandisets", width=200, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
         )
-        self.back_to_catalog_button.on_click(self.show_catalog)
+        self.back_to_catalog_button.on_click(self.open_catalog)
 
         # Two screens, as in the browser above: the catalog, or the files of one dandiset.
         self.catalog_view = pn.Column(
@@ -226,9 +224,9 @@ class DandiSelector:
                 "### DANDI source\n"
                 "Search the [DANDI Archive](https://dandiarchive.org) for a dataset to "
                 "reanalyze, then select the NWB files to stream through the pipeline.",
-                width=950,
+                width=DANDI_PANEL_WIDTH,
             ),
-            self.browser.panel,
+            self.search_panel.panel,
             self.status,
         )
         self.files_view = pn.Column(
@@ -242,26 +240,29 @@ class DandiSelector:
                 "channels a file holds, their brain regions, indicators and wavelengths, and "
                 "the store labels Label Stores will ask you for — **File to preview** picks "
                 "which of the selected files it reads, without changing the selection.",
-                width=950,
+                width=DANDI_PANEL_WIDTH,
             ),
             pn.Row(self.scan_button, self.photometry_only),
             self.scan_progress,
             self.asset_status,
             self._asset_file_selector_slot,
             pn.Row(self.preview_select, self.preview_button, self.hide_preview_button),
-            self.asset_preview_pane.panel,
+            self.preview_panel.panel,
             pn.pane.Markdown(
                 "Choose a local directory where pipeline outputs will be written. One "
                 "subfolder is created per selected asset.",
-                width=950,
+                width=DANDI_PANEL_WIDTH,
             ),
             self.output_root_selector,
             visible=False,
         )
         self.panel = pn.Column(self.catalog_view, self.files_view)
 
-    def show_catalog(self, event: object = None) -> None:
-        """Show the dandiset catalog, leaving the files of whichever dandiset was open.
+    def open_catalog(self, event: object = None) -> None:
+        """Show the dandiset catalog, searching the archive the first time it is opened.
+
+        The files of whichever dandiset was open are left alone, so coming back to them costs
+        no listing.
 
         Parameters
         ----------
@@ -270,7 +271,7 @@ class DandiSelector:
         """
         self.files_view.visible = False
         self.catalog_view.visible = True
-        self.browser.open_catalog()
+        self.search_panel.open_catalog()
 
     def _make_asset_file_selector(self, root_directory: str) -> pn.widgets.FileSelector:
         """Construct a fresh ``FileSelector`` rooted at ``root_directory``.
@@ -284,7 +285,7 @@ class DandiSelector:
             root_directory=root_directory,
             file_pattern="*.nwb",
             name="NWB assets",
-            width=950,
+            width=DANDI_PANEL_WIDTH,
         )
         # Hide the mirror-path TextInput at the top of the FileSelector — users
         # should never see the internal /tmp/guppy_dandi_mirror/... path.
@@ -321,7 +322,7 @@ class DandiSelector:
         self._assets = []
         self._forget_scan()
         self.asset_status.object = ""
-        self.asset_preview_pane.clear()
+        self.preview_panel.clear()
         self.hide_preview_button.visible = False
         self._swap_asset_file_selector(self._mirror_parent)
 
@@ -332,12 +333,6 @@ class DandiSelector:
         self.photometry_only.disabled = True
         self.scan_button.disabled = True
 
-    def open_catalog(self) -> None:
-        """Show the catalog, searching the archive the first time it is opened."""
-        self.files_view.visible = False
-        self.catalog_view.visible = True
-        self.browser.open_catalog()
-
     def hide_preview(self, event: object = None) -> None:
         """Put the file preview away, leaving the file selection alone.
 
@@ -346,7 +341,7 @@ class DandiSelector:
         event : object, optional
             The Panel click event; unused.
         """
-        self.asset_preview_pane.clear()
+        self.preview_panel.clear()
         self.hide_preview_button.visible = False
 
     def load_dandiset(self, dandiset_id: str) -> None:
@@ -456,7 +451,7 @@ class DandiSelector:
         self._current_mirror_root = _build_dandiset_mirror(
             dandiset_id=dandiset_id, mirror_parent=self._mirror_parent, assets=assets
         )
-        self.asset_preview_pane.clear()
+        self.preview_panel.clear()
         self.hide_preview_button.visible = False
         self._swap_asset_file_selector(self._current_mirror_root)
         if self._photometry_by_path:
@@ -513,7 +508,7 @@ class DandiSelector:
         dandiset_id = self._dandiset_id
         self.asset_status.object = f"Streaming `{asset_path}`..."
         preview = self.preview_function(dandiset_id=dandiset_id, asset_path=asset_path)
-        self.asset_preview_pane.show(preview=preview)
+        self.preview_panel.show(preview=preview)
         self.hide_preview_button.visible = True
         self.asset_status.object = f"Previewed `{asset_path}` from dandiset {dandiset_id}."
 
