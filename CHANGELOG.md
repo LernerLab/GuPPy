@@ -1,3 +1,8 @@
+# v2.0.0-beta3.post1 (Upcoming)
+
+## Fixes
+- GuPPy now requires zarr earlier than 3, since a fresh install otherwise resolved zarr 3.x, which the hdmf-zarr/dandi stack cannot use, and backtracked dandi to a release incompatible with pydantic 2. [PR #521](https://github.com/LernerLab/GuPPy/pull/521)
+
 # v2.0.0-beta3 (Upcoming)
 
 ## Features
