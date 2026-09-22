@@ -66,6 +66,7 @@ dependencies = [
     "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv@npm_stores",
     "ndx-guppy>=0.2.1",
     "tornado>=6.5.10",  # 6.5.9 breaks Bokeh's static-file handler, so Panel pages fail to load
+    "zarr<3",  # zarr 3 breaks the hdmf-zarr/dandi stack; remove once supported
 ]
 
 [dependency-groups]
