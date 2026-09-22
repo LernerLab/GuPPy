@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guppy-neuro"
-version = "2.0.0-beta3"
+version = "2.0.0b3.post1"
 description = "Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool."
 readme = "README.md"
 authors = [
@@ -63,6 +63,7 @@ dependencies = [
     "pyyaml",
     "neuroconv[guppy]>=0.10.2",
     "ndx-guppy>=0.2.1",
+    "zarr<3",  # zarr 3 breaks the hdmf-zarr/dandi stack; remove once supported
 ]
 
 [dependency-groups]
