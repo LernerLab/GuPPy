@@ -73,6 +73,15 @@ STRIDE_CHANNEL_SLOTS = ("chev", "chod", "chpr")
 ColumnLabel = str | int
 
 
+def _is_number(value: object) -> bool:
+    """Whether ``value`` parses as a float."""
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 class NpmRecordingExtractor(CsvRecordingExtractor):
     """
     Extractor for fiber photometry data from Neurophotometrics (NPM) systems.
@@ -189,15 +198,15 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             entry is read from.
         """
         session_folder = Path(folder_path)
-        path = sorted(session_folder.glob("*.csv")) + sorted(session_folder.glob("*.doric"))
-        path_chev = list(session_folder.glob("*chev*"))
-        path_chod = list(session_folder.glob("*chod*"))
-        path_chpr = list(session_folder.glob("*chpr*"))
-        path_event = list(session_folder.glob("event*"))
-        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
-
-        path = sorted(set(path) - set(path_chev_chod_event))
-        return [csv_path for csv_path in path if not (csv_path.suffix == ".csv" and _is_event_csv(csv_path))]
+        candidate_paths = set(session_folder.glob("*.csv")) | set(session_folder.glob("*.doric"))
+        derived_paths = {
+            path for pattern in ("*chev*", "*chod*", "*chpr*", "event*") for path in session_folder.glob(pattern)
+        }
+        return [
+            path
+            for path in sorted(candidate_paths - derived_paths)
+            if not (path.suffix == ".csv" and _is_event_csv(path))
+        ]
 
     @classmethod
     def _classify_npm_file(cls, path: str | Path) -> tuple[str, pd.DataFrame, bool]:
@@ -221,64 +230,66 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         columns_are_strings : bool
             Whether the file carries a text header row.
         """
-        extension = Path(path).name.split(".")[-1]
-        if extension == "doric":
+        cls._reject_non_npm_file(path)
+        df, columns_are_strings = cls._read_npm_file(path)
+        flag = cls._npm_file_layout(df, columns_are_strings=columns_are_strings, source_path=path)
+        return flag, df, columns_are_strings
+
+    @staticmethod
+    def _reject_non_npm_file(path: str | Path) -> None:
+        """Raise if ``path`` is a Doric file, which shares the ``.csv`` extension with NPM exports.
+
+        A Doric ``.csv`` is recognized by its first two rows being entirely text, where an NPM
+        file has numbers in at least its second row.
+        """
+        if Path(path).suffix == ".doric":
             raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path}'.")
-        df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
-        df = df.dropna(axis=1, how="all")
-        header_values = np.array(df).flatten()
-        check_all_str = []
-        for element in header_values:
-            try:
-                float(element)
-            except:
-                check_all_str.append(element)
-        if len(check_all_str) == len(header_values):
+        first_rows = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str).dropna(axis=1, how="all")
+        if not any(_is_number(value) for value in first_rows.to_numpy().flatten()):
             raise ValueError(
                 f"CSV file '{path}' appears to be a Doric .csv (all-string header rows). "
                 "NpmRecordingExtractor only supports NPM .csv files; use the Doric extractor instead."
             )
+
+    @classmethod
+    def _read_npm_file(cls, path: str | Path) -> tuple[pd.DataFrame, bool]:
+        """Read an NPM file, taking its first row as the header only when that row is text.
+
+        Returns the file's contents and whether it carries a text header. A header-less file's
+        columns are labeled by position.
+        """
         df = pd.read_csv(path, index_col=False)
         _, numeric_headers = cls._check_header(df)
+        if numeric_headers:
+            return pd.read_csv(path, header=None), False
+        return df, True
 
-        # check dataframe structure and read data accordingly
-        if len(numeric_headers) > 0:
-            columns_are_strings = False
-            df = pd.read_csv(path, header=None)
-        else:
-            columns_are_strings = True
-        columns = np.array(list(df.columns), dtype=str)
+    @classmethod
+    def _npm_file_layout(cls, df: pd.DataFrame, *, columns_are_strings: bool, source_path: str | Path) -> str:
+        """Name the NPM layout of a file's contents: ``"data_np_v2"``, ``"data_np"`` or ``"event_np"``.
 
-        # check the structure of dataframe and assign flag to the type of file
-        if len(columns) == 1:
+        A text header with a ``Flags``/``LedState`` column marks channels annotated by excitation.
+        A two-column file is an event file -- timestamps and a value per event -- unless it is
+        header-less with a float second column, which is one interleaved data column.
+        """
+        column_count = len(df.columns)
+        if column_count == 1:
             raise ValueError(
-                f"CSV file '{path}' has 1 column (event .csv layout). "
+                f"CSV file '{source_path}' has 1 column (event .csv layout). "
                 "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for event timestamp files."
             )
-        if len(columns) == 3:
+        if column_count == 3:
             raise ValueError(
-                f"CSV file '{path}' has 3 columns {list(columns)} (data .csv layout). "
+                f"CSV file '{source_path}' has 3 columns {[str(column) for column in df.columns]} (data .csv layout). "
                 "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for 3-column data files."
             )
-        if len(columns) == 2:
-            flag = "event_or_data_np"
-        else:
-            flag = "data_np"
-
-        if columns_are_strings and (
-            "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
-        ):
-            flag = flag + "_v2"
-
-        if flag == "event_or_data_np":
-            second_column_values = list(df.iloc[:, 1])
-            check_float = [True for value in second_column_values if isinstance(value, float)]
-            if len(second_column_values) == len(check_float) and not columns_are_strings:
-                flag = "data_np"
-            else:
-                flag = "event_np"
-
-        return flag, df, columns_are_strings
+        if columns_are_strings and {"flags", "ledstate"} & cls._column_by_lowercase_name(df).keys():
+            return "data_np_v2"
+        if column_count == 2:
+            second_column_is_float = all(isinstance(value, float) for value in df.iloc[:, 1])
+            if columns_are_strings or not second_column_is_float:
+                return "event_np"
+        return "data_np"
 
     @classmethod
     def _decompose_streams(

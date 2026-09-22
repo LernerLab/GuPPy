@@ -454,9 +454,7 @@ def build_store_labeling_template(
 
         nonlocal npm_store_provenance
         # A raise out of a Panel on_click reaches only the terminal running the server, so
-        # report what went wrong on the page instead (issue #337). This is the session's one
-        # decomposition: the store names, the preview traces and the provenance Save persists
-        # all come off it.
+        # report what went wrong on the page instead (issue #337).
         extractor = NpmRecordingExtractor(
             folder_path=folder_path,
             num_ch=inputParameters["noChannels"],
@@ -465,13 +463,16 @@ def build_store_labeling_template(
             npm_split_events=inputParameters["npm_split_events"],
         )
         try:
-            streams = extractor.decompose()
+            events, _ = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=inputParameters["noChannels"], inputParameters=inputParameters
+            )
+            # NPM reads nothing from outputPath, and Confirm has no output folder yet.
+            output_dicts = extractor.read(events=events, outputPath=None)
         except ValueError as exc:
             store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
             return
-        npm_store_provenance = extractor.store_provenance()
-        events = list(streams.keys())
-        channel_previews = _npm_channel_previews(streams)
+        npm_store_provenance = extractor.get_store_provenance()
+        channel_previews = _npm_channel_previews(output_dicts)
         # Keep the non-NPM events discovered at build time selectable alongside the
         # freshly discovered NPM events (mixed-modality sessions).
         merged_events = [*events, *(name for name in allnames if name not in events)]
@@ -506,24 +507,27 @@ def build_store_labeling_template(
     return template
 
 
-def _npm_channel_previews(streams: dict[str, dict[str, np.ndarray]]) -> dict[str, dict[str, np.ndarray]]:
-    """Return the photometry preview traces of a decomposed NPM session.
+def _npm_channel_previews(output_dicts: list[dict[str, object]]) -> dict[str, dict[str, np.ndarray]]:
+    """Return the photometry preview traces of an NPM session.
 
     Parameters
     ----------
-    streams : dict
-        The session's demultiplexed streams, from
-        :meth:`~guppy.extractors.npm_recording_extractor.NpmRecordingExtractor.decompose`.
+    output_dicts : list of dict
+        The session's stores, as returned by
+        :meth:`~guppy.extractors.npm_recording_extractor.NpmRecordingExtractor.read`.
 
     Returns
     -------
     dict
-        Maps each photometry channel name to ``{"x": timestamps, "y": data}``.
+        Maps each photometry channel's store ID to ``{"x": timestamps, "y": data}``.
     """
-    # A photometry channel is a stream carrying data; an event stream carries only timestamps.
-    return {
-        name: {"x": stream["timestamps"], "y": stream["data"]} for name, stream in streams.items() if "data" in stream
-    }
+    # A photometry channel is a store carrying data; an event store carries only timestamps.
+    channel_previews = {}
+    for output_dict in output_dicts:
+        if "data" not in output_dict:
+            continue
+        channel_previews[output_dict["store_id"]] = {"x": output_dict["timestamps"], "y": output_dict["data"]}
+    return channel_previews
 
 
 def read_header(
@@ -570,7 +574,7 @@ def read_header(
     if "npm" in all_formats:
         npm_interactive = {
             "multiple_event_ttls": NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path),
-            "timestamp_column_options": NpmRecordingExtractor.timestamp_column_options(folder_path=folder_path),
+            "timestamp_column_options": NpmRecordingExtractor.get_timestamp_column_options(folder_path=folder_path),
         }
 
     events, flags = [], []
