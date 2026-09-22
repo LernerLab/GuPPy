@@ -1,5 +1,6 @@
 import json
 import math
+from fnmatch import fnmatch
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -202,7 +203,10 @@ class TestParameterForm:
     def test_comparison_table_starts_with_a_single_blank_row(self, parameter_form):
         # A fixed block of slots is mostly blank rows for anyone running two comparisons.
         assert parameter_form.comparison_df_widget.value.shape == (1, 2)
-        assert list(parameter_form.comparison_df_widget.value.columns) == ["Event A", "Event B"]
+        assert list(parameter_form.comparison_df_widget.value.columns) == [
+            "Event A",
+            "Event B",
+        ]
 
     def test_add_button_grows_the_comparison_table_without_limit(self, parameter_form):
         # The number of worthwhile pairs grows with the square of the event count, so six
@@ -338,18 +342,18 @@ class TestParameterForm:
     def test_source_mode_default_is_local(self, parameter_form):
         assert parameter_form.source_mode.value == "local"
         assert parameter_form.files_1.visible is True
-        assert parameter_form.dandi_selector.panel.visible is False
+        assert parameter_form.dandi_file_panel.panel.visible is False
 
     def test_source_mode_toggle_to_dandi_shows_dandi_panel(self, parameter_form):
         parameter_form.source_mode.value = "dandi"
         assert parameter_form.files_1.visible is False
-        assert parameter_form.dandi_selector.panel.visible is True
+        assert parameter_form.dandi_file_panel.panel.visible is True
 
     def test_source_mode_toggle_back_to_local_restores(self, parameter_form):
         parameter_form.source_mode.value = "dandi"
         parameter_form.source_mode.value = "local"
         assert parameter_form.files_1.visible is True
-        assert parameter_form.dandi_selector.panel.visible is False
+        assert parameter_form.dandi_file_panel.panel.visible is False
 
     def test_get_input_parameters_local_mode_sets_mode_and_no_dandi_map(self, parameter_form):
         result = parameter_form.getInputParameters()
@@ -423,17 +427,9 @@ class TestNumericParameterValidation:
             parameter_form.getInputParameters()
 
 
-class _FakeAsset:
-    def __init__(self, path):
-        self.path = path
-
-
 class _FakeDandiset:
     def __init__(self, asset_paths):
-        self._asset_paths = asset_paths
-
-    def get_assets(self):
-        return [_FakeAsset(path) for path in self._asset_paths]
+        self.asset_paths = asset_paths
 
 
 class _FakeDandiAPIClient:
@@ -448,14 +444,38 @@ class _FakeDandiAPIClient:
     def get_dandiset(self, dandiset_id, version=None):
         return self.dandisets_by_id[dandiset_id]
 
+    def paginate(self, path, params=None):
+        """Serve the archive's asset listing, which is where the selector gets its assets.
+
+        The catalog search hits the same client when the DANDI source is opened; nothing here
+        is testing the catalog, so it returns no dandisets and leaves the table empty.
+        """
+        if not path.endswith("/assets/"):
+            return []
+        identifier = path.split("/")[2]
+        pattern = (params or {}).get("glob", "*")
+        return [
+            {
+                "asset_id": f"asset-{asset_path}",
+                "path": asset_path,
+                "size": 1_000,
+                "metadata": {"contentUrl": [f"https://dandiarchive.s3.amazonaws.com/blobs/{asset_path}"]},
+            }
+            for asset_path in self.dandisets_by_id[identifier].asset_paths
+            if fnmatch(asset_path, pattern)
+        ]
+
 
 @pytest.fixture
 def patched_dandi_client(monkeypatch, tmp_path):
-    from guppy.frontend import dandi_selector as dandi_selector_module
+    from guppy.frontend import dandi_file_panel as dandi_file_panel_module
+    from guppy.utils import dandi_search
 
-    monkeypatch.setattr(dandi_selector_module, "DandiAPIClient", _FakeDandiAPIClient)
+    # The form builds its own DandiFilePanel, so the archive is replaced under the asset
+    # listing rather than injected into the selector.
+    monkeypatch.setattr(dandi_search, "DandiAPIClient", _FakeDandiAPIClient)
     # Point the mirror parent at tmp_path so tests don't pollute the real temp dir.
-    monkeypatch.setattr(dandi_selector_module, "_MIRROR_ROOT", str(tmp_path / "dandi_mirror"))
+    monkeypatch.setattr(dandi_file_panel_module, "_MIRROR_ROOT", str(tmp_path / "dandi_mirror"))
     return _FakeDandiAPIClient
 
 
@@ -470,12 +490,12 @@ def _dandi_form_with_existing_runs(*, form, patched_dandi_client, output_root, a
             Path(run_folder_for_run(str(session), run_name)).mkdir()
 
     form.source_mode.value = "dandi"
-    form.dandi_selector.dandiset_input.value = "000971"
-    mirror_root = form.dandi_selector._current_mirror_root
-    form.dandi_selector.asset_file_selector.value = [
+    form.dandi_file_panel.load_dandiset("000971")
+    mirror_root = form.dandi_file_panel._current_mirror_root
+    form.dandi_file_panel.asset_file_selector.value = [
         str(Path(mirror_root).joinpath(*asset_path.split("/"))) for asset_path in asset_paths
     ]
-    form.dandi_selector.output_root_selector.value = [str(output_root)]
+    form.dandi_file_panel.output_root_selector.value = [str(output_root)]
     return form
 
 
@@ -488,13 +508,13 @@ class TestParameterFormDandiMode:
         }
         form = bare_parameter_form
         form.source_mode.value = "dandi"
-        form.dandi_selector.dandiset_input.value = "000971"
-        mirror_root = form.dandi_selector._current_mirror_root
-        form.dandi_selector.asset_file_selector.value = [
+        form.dandi_file_panel.load_dandiset("000971")
+        mirror_root = form.dandi_file_panel._current_mirror_root
+        form.dandi_file_panel.asset_file_selector.value = [
             str(Path(mirror_root) / "sub-01" / "session_a.nwb"),
             str(Path(mirror_root) / "sub-02" / "session_b.nwb"),
         ]
-        form.dandi_selector.output_root_selector.value = [str(output_root)]
+        form.dandi_file_panel.output_root_selector.value = [str(output_root)]
 
         result = form.getInputParameters()
 
@@ -513,7 +533,7 @@ class TestParameterFormDandiMode:
     def test_dandi_mode_no_asset_raises(self, bare_parameter_form, tmp_path):
         form = bare_parameter_form
         form.source_mode.value = "dandi"
-        form.dandi_selector.output_root_selector.value = [str(tmp_path)]
+        form.dandi_file_panel.output_root_selector.value = [str(tmp_path)]
         with pytest.raises(Exception, match="select at least one NWB asset"):
             form.getInputParameters()
 
@@ -521,9 +541,9 @@ class TestParameterFormDandiMode:
         patched_dandi_client.dandisets_by_id = {"000971": _FakeDandiset(["sub-01/data.nwb"])}
         form = bare_parameter_form
         form.source_mode.value = "dandi"
-        form.dandi_selector.dandiset_input.value = "000971"
-        mirror_root = form.dandi_selector._current_mirror_root
-        form.dandi_selector.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "data.nwb")]
+        form.dandi_file_panel.load_dandiset("000971")
+        mirror_root = form.dandi_file_panel._current_mirror_root
+        form.dandi_file_panel.asset_file_selector.value = [str(Path(mirror_root) / "sub-01" / "data.nwb")]
         with pytest.raises(Exception, match="local output directory"):
             form.getInputParameters()
 
@@ -586,7 +606,7 @@ class TestParameterFormDandiMode:
         form.run_names_for_all_sessions.value = ["1"]
         patched_dandi_client.dandisets_by_id["000972"] = _FakeDandiset(["sub-09/other.nwb"])
 
-        form.dandi_selector.dandiset_input.value = "000972"
+        form.dandi_file_panel.load_dandiset("000972")
 
         assert form.run_names_for_all_sessions.options == []
         assert form._collect_selected_runs() == {}
@@ -715,15 +735,31 @@ class TestOutputsSelector:
 
 class TestRunNamePicker:
     def test_offers_every_run_name_any_selected_session_has(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
-        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline", "2"]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
+        assert bare_parameter_form.run_names_for_all_sessions.options == [
+            "1",
+            "baseline",
+            "2",
+        ]
 
     def test_session_without_run_folders_contributes_no_names(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_c]
-        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline"]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_c,
+        ]
+        assert bare_parameter_form.run_names_for_all_sessions.options == [
+            "1",
+            "baseline",
+        ]
 
     def test_choosing_a_name_selects_that_run_in_every_session(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         bare_parameter_form.run_names_for_all_sessions.value = ["1"]
         assert bare_parameter_form._collect_selected_runs() == {
             sessions_with_runs.session_a: ["1"],
@@ -731,14 +767,20 @@ class TestRunNamePicker:
         }
 
     def test_name_only_one_session_has_selects_only_that_session(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         bare_parameter_form.run_names_for_all_sessions.value = ["baseline"]
         assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["baseline"]}
 
     def test_programmatic_selection_reaches_the_visible_pane(self, bare_parameter_form, sessions_with_runs):
         # FileSelector.value alone leaves the "Selected files" pane empty; the picker has to
         # re-enumerate the browser for a bulk choice to be visible to the user.
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         bare_parameter_form.run_names_for_all_sessions.value = ["1"]
         assert sorted(bare_parameter_form.outputs_selector._selector.value) == [
             run_folder_for_run(sessions_with_runs.session_a, "1"),
@@ -746,7 +788,10 @@ class TestRunNamePicker:
         ]
 
     def test_dropping_a_name_deselects_only_the_runs_it_named(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         bare_parameter_form.run_names_for_all_sessions.value = ["1", "2"]
 
         bare_parameter_form.run_names_for_all_sessions.value = ["2"]
@@ -754,7 +799,10 @@ class TestRunNamePicker:
         assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_b: ["2"]}
 
     def test_runs_picked_in_the_tree_survive_a_later_bulk_choice(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         hand_picked = run_folder_for_run(sessions_with_runs.session_a, "baseline")
         bare_parameter_form.outputs_selector.value = [hand_picked]
 
@@ -765,7 +813,10 @@ class TestRunNamePicker:
 
     def test_removing_a_session_preserves_the_other_sessions_choices(self, bare_parameter_form, sessions_with_runs):
         # Regression for #462: dropping one session used to wipe every run choice.
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         bare_parameter_form.run_names_for_all_sessions.value = ["1"]
 
         bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
@@ -776,7 +827,10 @@ class TestRunNamePicker:
         bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
         bare_parameter_form.run_names_for_all_sessions.value = ["1"]
 
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
 
         assert bare_parameter_form._collect_selected_runs() == {
             sessions_with_runs.session_a: ["1"],
@@ -784,12 +838,18 @@ class TestRunNamePicker:
         }
 
     def test_name_gone_from_disk_leaves_the_picker_when_its_session_does(self, bare_parameter_form, sessions_with_runs):
-        bare_parameter_form.files_1.value = [sessions_with_runs.session_a, sessions_with_runs.session_b]
+        bare_parameter_form.files_1.value = [
+            sessions_with_runs.session_a,
+            sessions_with_runs.session_b,
+        ]
         bare_parameter_form.run_names_for_all_sessions.value = ["1", "2"]
 
         bare_parameter_form.files_1.value = [sessions_with_runs.session_a]
 
-        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "baseline"]
+        assert bare_parameter_form.run_names_for_all_sessions.options == [
+            "1",
+            "baseline",
+        ]
         assert bare_parameter_form.run_names_for_all_sessions.value == ["1"]
 
     def test_refresh_individual_outputs_offers_new_runs_and_keeps_the_selection(
@@ -801,7 +861,11 @@ class TestRunNamePicker:
 
         bare_parameter_form.refresh_individual_outputs()
 
-        assert bare_parameter_form.run_names_for_all_sessions.options == ["1", "2", "baseline"]
+        assert bare_parameter_form.run_names_for_all_sessions.options == [
+            "1",
+            "2",
+            "baseline",
+        ]
         assert bare_parameter_form._collect_selected_runs() == {sessions_with_runs.session_a: ["1"]}
 
     def test_switching_source_mode_and_back_keeps_the_local_selection(self, bare_parameter_form, sessions_with_runs):
@@ -846,7 +910,12 @@ class TestTitledBox:
         assert box.objects[0].object == "### Signal Filtering"
 
     def test_second_pane_names_the_consuming_steps(self, panel_extension):
-        box = _titled_box(title="Signal Filtering", read_by="Step 3 and Group Analysis", contents=[], width=960)
+        box = _titled_box(
+            title="Signal Filtering",
+            read_by="Step 3 and Group Analysis",
+            contents=[],
+            width=960,
+        )
 
         assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
 
@@ -887,7 +956,10 @@ class TestParameterHelp:
             for item in section
             for widget in (list(item) if isinstance(item, pn.Row) else [item])
             if isinstance(widget, pn.widgets.Widget)
-            and not isinstance(widget, (pn.widgets.Tabulator, pn.widgets.Button, pn.widgets.TooltipIcon))
+            and not isinstance(
+                widget,
+                (pn.widgets.Tabulator, pn.widgets.Button, pn.widgets.TooltipIcon),
+            )
             and not widget.description
         ]
 
@@ -1015,7 +1087,11 @@ class TestParameterAutoPopulate:
     def test_set_input_parameters_ignores_retired_artifact_keys(self, parameter_form):
         """Snapshots still record the artifact keys as provenance, but the form has no widgets for them."""
         parameter_form.setInputParameters(
-            {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate", "nSecPost": 99}
+            {
+                "removeArtifacts": True,
+                "artifactsRemovalMethod": "concatenate",
+                "nSecPost": 99,
+            }
         )
         assert parameter_form.nSecPost.value == 99
         assert "removeArtifacts" not in parameter_form.getInputParameters()
@@ -1032,7 +1108,11 @@ class TestParameterAutoPopulate:
         assert bare_parameter_form.z_score_computation.value == "modified z-score"
         assert bare_parameter_form.combine_data.value is True
         assert bare_parameter_form.nSecPrev.value == -3
-        assert list(bare_parameter_form.df_widget.value["Peak Start time"])[:3] == [-4.0, 1.0, 6.0]
+        assert list(bare_parameter_form.df_widget.value["Peak Start time"])[:3] == [
+            -4.0,
+            1.0,
+            6.0,
+        ]
 
     def test_agreeing_runs_populate_widgets(self, bare_parameter_form, tmp_path):
         session = tmp_path / "sessionA"
