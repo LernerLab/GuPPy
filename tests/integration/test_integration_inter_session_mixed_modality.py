@@ -68,7 +68,7 @@ def test_mixed_modality(tmp_path):
         base_dir=base_dir,
         selected_folders=[npm_folder],
         store_id_to_store_label=npm_store_id_to_store_label,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
     )
     step1(
         base_dir=base_dir,
@@ -81,19 +81,19 @@ def test_mixed_modality(tmp_path):
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
 
@@ -193,7 +193,7 @@ def test_mixed_modality_tdt_npm(tmp_path):
             "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
     )
 
     selected_folders = [str(tdt_session), str(npm_session)]
@@ -201,19 +201,19 @@ def test_mixed_modality_tdt_npm(tmp_path):
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
 
@@ -432,7 +432,7 @@ def test_mixed_modality_nwb_npm(tmp_path):
             "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
     )
 
     selected_folders = [str(nwb_session), str(npm_session)]
@@ -440,19 +440,19 @@ def test_mixed_modality_nwb_npm(tmp_path):
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
 

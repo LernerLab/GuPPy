@@ -176,13 +176,13 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
         # The stimuli file rides ComputerTimestamp, in milliseconds (see stubbed_testing_data/README.md).
         npm_timestamp_column_name = "ComputerTimestamp"
         npm_time_unit = "milliseconds"
-        npm_split_events = [False, True]
+        npm_split_events = {"bl72bl82_12feb2024_stimuli.csv": True}
     elif session_subdir == "npm/sampleData_NPM_4":
-        npm_split_events = [False, True]
+        npm_split_events = {"PagCeAVgatFear_1442_ts0.csv": True}
     elif session_subdir == "npm/sampleData_NPM_3":
         npm_timestamp_column_name = "ComputerTimestamp"
         npm_time_unit = "milliseconds"
-        npm_split_events = [False, True]
+        npm_split_events = {"ttls.csv": True}
     elif session_subdir == "npm/sampleData_NPM_5":
         # Header-less session: its clock is in milliseconds, which only the user can state.
         npm_time_unit = "milliseconds"
