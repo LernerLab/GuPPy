@@ -44,7 +44,7 @@ CONSISTENCY_CASES = [
         {
             "npm_timestamp_column_name": "ComputerTimestamp",
             "npm_time_unit": "milliseconds",
-            "npm_split_events": [False, True],
+            "npm_split_events": {"ttls.csv": True},
         },
     ),
     (
@@ -59,7 +59,7 @@ CONSISTENCY_CASES = [
             "file0_chev1": "PagCeAVgatFear_14421_415nm_Region0G",
             "file0_chod1": "PagCeAVgatFear_14421_470nm_Region0G",
         },
-        {"npm_split_events": [False, True]},
+        {"npm_split_events": {"PagCeAVgatFear_1442_ts0.csv": True}},
     ),
     (
         "SampleData_Neurophotometrics/sampleData_NPM_5",
@@ -133,6 +133,36 @@ def _reconcile_reference_store_ids(
     return destination
 
 
+def _trim_actual_stores_to_the_reference_length(
+    *, actual_output_dir: Path, expected_output_dir: Path, store_ids: list[str]
+) -> None:
+    """Drop the one final frame a current raw store holds beyond its reference.
+
+    Each channel now keeps every frame its own LED lit. The v1.3.0 extractor timed every channel
+    by its file's first channel and cut it to that channel's length, so a channel landing on one
+    more frame than the first channel (sampleData_NPM_4's 470 nm) held one sample fewer.
+
+    Parameters
+    ----------
+    actual_output_dir : Path
+        The run folder the current code wrote.
+    expected_output_dir : Path
+        The reconciled reference folder.
+    store_ids : list of str
+        The current store ids of the raw per-store files to trim.
+    """
+    for store_id in store_ids:
+        with h5py.File(expected_output_dir / f"{store_id}.hdf5", "r") as expected_store_file:
+            reference_sample_count = expected_store_file["timestamps"].shape[0]
+        with h5py.File(actual_output_dir / f"{store_id}.hdf5", "r+") as actual_store_file:
+            if actual_store_file["timestamps"].shape[0] != reference_sample_count + 1:
+                continue
+            for key in ("timestamps", "data"):
+                trimmed_values = np.asarray(actual_store_file[key])[:reference_sample_count]
+                del actual_store_file[key]
+                actual_store_file.create_dataset(key, data=trimmed_values)
+
+
 @pytest.mark.parametrize(
     "session_subdir, standard_output_subdir, store_id_to_store_label, reference_store_id_to_store_id, extra_kwargs",
     CONSISTENCY_CASES,
@@ -186,7 +216,14 @@ def test_consistency(
     selected_runs = {folder: ["1"] for folder in common_kwargs["selected_folders"]}
     step1(**common_kwargs, store_id_to_store_label=store_id_to_store_label, **extra_kwargs)
     step2(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
-    step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs, **extra_kwargs)
+    # v1.3.0 timed every NPM control/signal pair by the control's frames.
+    step3(
+        **common_kwargs,
+        control_fit_method="OLS",
+        pair_timestamps_channel="control",
+        selected_runs=selected_runs,
+        **extra_kwargs,
+    )
     step4(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
 
     run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
@@ -198,6 +235,11 @@ def test_consistency(
         destination=tmp_path / "expected_output",
         reference_store_id_to_store_id=reference_store_id_to_store_id,
     )
+    _trim_actual_stores_to_the_reference_length(
+        actual_output_dir=Path(actual_output_dir),
+        expected_output_dir=expected_output_dir,
+        store_ids=list(reference_store_id_to_store_id.values()),
+    )
 
     compare_output_folders(
         actual_dir=actual_output_dir,
@@ -206,6 +248,8 @@ def test_consistency(
         # NPM now emits the acquisition clock (issue #407); the v1.3.0 reference was
         # generated with it re-zeroed, so its continuous timestamps sit one recording
         # start lower. The warm-up trim is measured from that same start, so the set of
-        # retained samples — and every value derived from them — is unchanged.
+        # retained samples — and every value derived from them — is unchanged. The raw
+        # signal store is the exception: it now carries its own frames' timestamps, one frame
+        # from the reference's control-frame ones, which this relative tolerance absorbs.
         continuous_ts_offset=recording_start_for(tmp_base),
     )
