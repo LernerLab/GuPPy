@@ -908,26 +908,23 @@ def test_save_button_failed_resave_hides_saved_message(store_labeling_closures, 
 # ---------------------------------------------------------------------------
 
 
-def test_npm_channel_previews_have_equal_x_and_y_lengths():
-    # sampleData_NPM_4 interleaves unevenly: 470 nm lands on one more frame than 415 nm. Every
-    # channel of a file shares the first slot's timebase, trimmed to the length they have in
-    # common, so no stream reaches the preview with unequal x/y — which hv.Curve rejects with a
-    # DataError in the Step-1 GUI.
-    folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
-
-    streams = NpmRecordingExtractor(folder_path, num_ch=2).decompose()
-    ragged = [
-        name
-        for name, stream in streams.items()
-        if "data" in stream and len(stream["timestamps"]) != len(stream["data"])
+def test_npm_channel_previews_plot_each_photometry_channel():
+    output_dicts = [
+        {
+            "store_id": "signals_470nm_G0",
+            "timestamps": np.array([0.0, 0.1, 0.2]),
+            "data": np.array([5.0, 6.0, 7.0]),
+            "sampling_rate": np.array([10.0]),
+        },
+        {"store_id": "event0", "timestamps": np.array([0.05, 0.15])},
     ]
-    assert not ragged, f"Channels with unequal timestamps/data lengths: {ragged}"
 
-    previews = _npm_channel_previews(streams)
+    previews = _npm_channel_previews(output_dicts)
 
-    assert previews, "Expected photometry previews for an NPM session"
-    for name, preview in previews.items():
-        assert len(preview["x"]) == len(preview["y"]), f"Unequal x/y lengths for preview {name!r}"
+    # An event store carries no data, so it has nothing to plot.
+    assert list(previews) == ["signals_470nm_G0"]
+    np.testing.assert_array_equal(previews["signals_470nm_G0"]["x"], np.array([0.0, 0.1, 0.2]))
+    np.testing.assert_array_equal(previews["signals_470nm_G0"]["y"], np.array([5.0, 6.0, 7.0]))
 
 
 # ---------------------------------------------------------------------------
@@ -940,14 +937,14 @@ NPM_6_FOLDER = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_6"
 
 
 def test_read_header_npm_defers_discovery():
-    # sampleData_NPM_3: file0 has multiple timestamp columns; file1 has multiple event TTLs.
+    # sampleData_NPM_3: signals.csv has multiple timestamp columns; ttls.csv has multiple event TTLs.
     events, flags, npm_interactive = read_header({}, num_ch=2, folder_path=NPM_3_FOLDER)
 
     # NPM discovery is deferred to the confirm callback, so no NPM events are returned yet.
     assert events == []
     assert flags == []
     assert npm_interactive == {
-        "multiple_event_ttls": [False, True],
+        "multiple_event_ttls": {"ttls.csv": True},
         "timestamp_column_options": ["SystemTimestamp", "ComputerTimestamp"],
     }
 
@@ -1014,14 +1011,14 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     instructions = template._widgets["instructions"]
     selector = template._widgets["selector"]
 
-    # The session offers two timestamp columns; file1 gets a split-events checkbox.
+    # The session offers two timestamp columns; ttls.csv gets a split-events checkbox.
     instructions.timestamp_column_select.value = "ComputerTimestamp"
     instructions.time_unit_select.value = "milliseconds"
-    instructions.split_event_checkboxes[1].value = True
+    instructions.split_event_checkboxes["ttls.csv"].value = True
 
     template._hooks["confirm_npm_configuration"]()
 
-    assert input_parameters["npm_split_events"] == [False, True]
+    assert input_parameters["npm_split_events"] == {"ttls.csv": True}
     assert input_parameters["npm_time_unit"] == "milliseconds"
     assert input_parameters["npm_timestamp_column_name"] == "ComputerTimestamp"
 
@@ -1131,9 +1128,9 @@ def test_npm_params_to_persist_records_the_provenance_it_is_given(tmp_path):
 def test_npm_params_to_persist_records_the_unit_that_will_be_applied():
     # An unset unit must not be persisted as-is: .npm_params.json is the only record of
     # the unit a run was read with, so it states the resolved value (issue #411).
-    npm_params = _npm_params_to_persist({"npm_split_events": [False, False], "noChannels": 2}, {})
+    npm_params = _npm_params_to_persist({"npm_split_events": {"ttls.csv": False}, "noChannels": 2}, {})
 
-    assert npm_params["npm_split_events"] == [False, False]
+    assert npm_params["npm_split_events"] == {"ttls.csv": False}
     assert npm_params["npm_time_unit"] == "seconds"
     assert npm_params["npm_timestamp_column_name"] is None
     assert npm_params["noChannels"] == 2
@@ -1168,18 +1165,20 @@ def test_npm_params_to_persist_records_what_each_store_was_read_from():
         },
         NpmRecordingExtractor(
             str(NPM_3_FOLDER), num_ch=2, npm_time_unit="milliseconds", npm_timestamp_column_name="ComputerTimestamp"
-        ).store_provenance(),
+        ).get_store_provenance(),
     )
 
     assert npm_params["stores"]["signals_415nm_G2"] == {
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 415,
+        "interleave_position": None,
         "data_column": "G2",
         "timestamp_column": "ComputerTimestamp",
     }
     assert npm_params["stores"]["signals_470nm_G0"] == {
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 470,
+        "interleave_position": None,
         "data_column": "G0",
         "timestamp_column": "ComputerTimestamp",
     }
@@ -1192,7 +1191,7 @@ def test_npm_params_to_persist_records_the_cycle_position_where_no_led_is_named(
     # position in the interleave cycle in place of a wavelength.
     npm_params = _npm_params_to_persist(
         {"npm_split_events": None, "npm_time_unit": "milliseconds", "noChannels": 2},
-        NpmRecordingExtractor(str(NPM_5_FOLDER), num_ch=2, npm_time_unit="milliseconds").store_provenance(),
+        NpmRecordingExtractor(str(NPM_5_FOLDER), num_ch=2, npm_time_unit="milliseconds").get_store_provenance(),
     )
 
     assert npm_params["stores"]["PagCeAVgatFear_1512_1_chev1"] == {

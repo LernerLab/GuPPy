@@ -35,7 +35,7 @@ def metric_selectors(tab):
         ("step5_output_nwb", "ttl"),
         ("step5_output_pyphotometry", "ttl"),
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_5", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step5(step5_fixture_name, expected_event_substring, request):

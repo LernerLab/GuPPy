@@ -373,7 +373,7 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
     run_folder = tmp_path / "session_output_1"
     run_folder.mkdir()
     input_parameters = {
-        "npm_split_events": [True, False],
+        "npm_split_events": {"ttls.csv": True},
         "npm_time_unit": "milliseconds",
         "npm_timestamp_column_name": "ComputerTimestamp",
         "noChannels": 3,
@@ -386,7 +386,7 @@ def test_write_then_load_npm_params_round_trips(tmp_path):
     )
 
     assert load_npm_params(str(run_folder)) == {
-        "npm_split_events": [True, False],
+        "npm_split_events": {"ttls.csv": True},
         "npm_time_unit": "milliseconds",
         "npm_timestamp_column_name": "ComputerTimestamp",
         "noChannels": 3,
@@ -409,6 +409,17 @@ def test_load_npm_params_raises_for_file_written_before_the_session_wide_unit(tm
     )
 
     with pytest.raises(ValueError, match=r"records no 'npm_time_unit'"):
+        load_npm_params(str(run_folder))
+
+
+def test_load_npm_params_raises_for_split_events_recorded_by_file_position(tmp_path):
+    run_folder = tmp_path / "session_output_1"
+    run_folder.mkdir()
+    (run_folder / ".npm_params.json").write_text(
+        json.dumps({"npm_split_events": [False, True], "npm_time_unit": "seconds"})
+    )
+
+    with pytest.raises(ValueError, match="records 'npm_split_events' by file position"):
         load_npm_params(str(run_folder))
 
 

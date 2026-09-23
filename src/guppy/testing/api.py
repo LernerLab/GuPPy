@@ -242,7 +242,7 @@ def _drive_npm_configuration_form(
     template: object,
     npm_timestamp_column_name: str | None,
     npm_time_unit: str | None,
-    npm_split_events: list[bool] | None,
+    npm_split_events: dict[str, bool] | None,
 ) -> None:
     """Fill in and confirm the Label Stores page's NPM configuration form.
 
@@ -254,8 +254,8 @@ def _drive_npm_configuration_form(
         Timestamp column to select; requires the session to offer more than one.
     npm_time_unit : str or None
         Time unit to select; ``None`` keeps the form's default.
-    npm_split_events : list of bool or None
-        Per-file split-events answers; ``None`` keeps the form's defaults.
+    npm_split_events : dict of str to bool or None
+        Split-events answers keyed by event file name; ``None`` keeps the form's defaults.
 
     Raises
     ------
@@ -266,19 +266,19 @@ def _drive_npm_configuration_form(
     instructions = template._widgets["instructions"]
     multiple_event_ttls = instructions.multiple_event_ttls
     if npm_split_events is not None:
-        if len(npm_split_events) != len(multiple_event_ttls):
-            raise ValueError(
-                f"npm_split_events has {len(npm_split_events)} entries but the session has "
-                f"{len(multiple_event_ttls)} NPM files; provide one boolean per file."
-            )
-        for file_index, split in enumerate(npm_split_events):
-            checkbox = instructions.split_event_checkboxes.get(file_index)
+        for file_name, split in npm_split_events.items():
+            if file_name not in multiple_event_ttls:
+                raise ValueError(
+                    f"npm_split_events names '{file_name}', which is not one of the session's NPM "
+                    f"event files: {list(multiple_event_ttls)}."
+                )
+            checkbox = instructions.split_event_checkboxes.get(file_name)
             if checkbox is not None:
                 checkbox.value = bool(split)
             elif split:
                 raise ValueError(
-                    f"npm_split_events[{file_index}] is True but NPM file {file_index} has only one "
-                    "event TTL, so there is nothing to split."
+                    f"npm_split_events['{file_name}'] is True but that file has only one event TTL, "
+                    "so there is nothing to split."
                 )
     if npm_timestamp_column_name is not None:
         if instructions.timestamp_column_select is None:
@@ -384,7 +384,7 @@ def step1(
     isosbestic_control: bool = True,
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     dandi_uri_map: dict[str, str] | None = None,
     run_name: str | None = None,
     run_name_policy: Literal["create", "overwrite"] = "create",
@@ -416,8 +416,8 @@ def step1(
     npm_time_unit : str | None
         Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
         file in the folder. None defaults to seconds.
-    npm_split_events : list[bool] | None
-        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    npm_split_events : dict[str, bool] | None
+        Maps each NPM event file's name to whether to split its events. None if not applicable.
 
     Raises
     ------
@@ -521,7 +521,7 @@ def step2(
     selected_folders: Iterable[str],
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     number_of_cores: int = 1,
     dandi_uri_map: dict[str, str] | None = None,
     selected_runs: dict[str, list[str]],
@@ -547,8 +547,8 @@ def step2(
     npm_time_unit : str | None
         Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
         file in the folder. None defaults to seconds.
-    npm_split_events : list[bool] | None
-        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    npm_split_events : dict[str, bool] | None
+        Maps each NPM event file's name to whether to split its events. None if not applicable.
     number_of_cores : int
         Number of worker processes to use for parallel data reading. Defaults to ``1``
         (single-process) to avoid multiprocessing conflicts in test environments.
@@ -615,7 +615,7 @@ def _build_preprocess_input_parameters(
     selected_folders: Iterable[str],
     npm_timestamp_column_name: str | None,
     npm_time_unit: str | None,
-    npm_split_events: list[bool] | None,
+    npm_split_events: dict[str, bool] | None,
     combine_data: bool,
     zscore_method: str,
     baseline_window_start: int,
@@ -721,7 +721,7 @@ def step3(
     selected_folders: Iterable[str],
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     combine_data: bool = False,
     zscore_method: str = "standard z-score",
     baseline_window_start: int = 0,
@@ -756,8 +756,8 @@ def step3(
     npm_time_unit : str | None
         Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
         file in the folder. None defaults to seconds.
-    npm_split_events : list[bool] | None
-        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    npm_split_events : dict[str, bool] | None
+        Maps each NPM event file's name to whether to split its events. None if not applicable.
     combine_data : bool
         Whether to enable data combining logic in Step 3.
     zscore_method : str
@@ -830,7 +830,7 @@ def tonic_analysis(
     tonic_epochs: dict[str, pd.DataFrame],
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     combine_data: bool = False,
     selected_runs: dict[str, list[str]],
 ) -> None:
@@ -900,7 +900,7 @@ def select_artifact_windows(
     artifact_removal_method: str = "replace with NaN",
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     combine_data: bool = False,
     zscore_method: str = "standard z-score",
     baseline_window_start: int = 0,
@@ -975,7 +975,7 @@ def remove_artifacts(
     selected_folders: Iterable[str],
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     combine_data: bool = False,
     zscore_method: str = "standard z-score",
     baseline_window_start: int = 0,
@@ -1040,7 +1040,7 @@ def step4(
     selected_folders: Iterable[str],
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     combine_data: bool = False,
     compute_corr: bool = False,
     use_transients_as_events: bool = False,
@@ -1080,8 +1080,8 @@ def step4(
     npm_time_unit : str | None
         Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
         file in the folder. None defaults to seconds.
-    npm_split_events : list[bool] | None
-        List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    npm_split_events : dict[str, bool] | None
+        Maps each NPM event file's name to whether to split its events. None if not applicable.
     combine_data : bool
         Whether to enable combined-session processing mode in Step 4. Defaults to False.
     compute_corr : bool
@@ -1298,7 +1298,7 @@ def step5(
     selected_folders: Iterable[str],
     npm_timestamp_column_name: str | None = None,
     npm_time_unit: str | None = None,
-    npm_split_events: list[bool] | None = None,
+    npm_split_events: dict[str, bool] | None = None,
     use_transients_as_events: bool = False,
     select_for_transients: str = "z_score",
     selected_group_folders: list[str] | None = None,
@@ -1327,8 +1327,8 @@ def step5(
     npm_time_unit : str | None
         Unit of the NPM session's timestamps (e.g., 'seconds', 'milliseconds'), applied to every
         file in the folder. None defaults to seconds.
-    npm_split_events : list[bool] | None
-        List of booleans indicating whether to split events for NPM files. None if not applicable.
+    npm_split_events : dict[str, bool] | None
+        Maps each NPM event file's name to whether to split its events. None if not applicable.
     use_transients_as_events : bool
         Whether step 4 used each recording site's detected transients as its event
         timestamps; must match the value step 4 ran with. Defaults to False.

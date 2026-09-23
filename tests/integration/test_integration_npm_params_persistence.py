@@ -36,7 +36,7 @@ def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         store_id_to_store_label=store_id_to_store_label,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
     )
 
     run_folders = sorted(list(Path(session_copy).glob("sampleData_NPM_4_output_*")))
@@ -124,6 +124,7 @@ def test_step1_records_what_each_store_was_demultiplexed_from(tmp_path):
     assert npm_params["stores"]["signals_415nm_G2"] == {
         "file": "signals.csv",
         "excitation_wavelength_in_nm": 415,
+        "interleave_position": None,
         "data_column": "G2",
         "timestamp_column": "ComputerTimestamp",
     }
