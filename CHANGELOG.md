@@ -8,6 +8,7 @@
 - GuPPy now requires tornado 6.5.10 or later, since 6.5.9 broke Bokeh's static-file serving and left the Panel pages unable to load. [PR #520](https://github.com/LernerLab/GuPPy/pull/520)
 
 ## Improvements
+- The stubbed testing data now includes `sampleData_NPM_6`, PhAT's Sample2 Neurophotometrics recording, whose header carries blank cells and a second timestamp column named `Timestamp`. [PR #525](https://github.com/LernerLab/GuPPy/pull/525)
 - `stubbed_testing_data/README.md` is no longer tracked in Git LFS, so the stub catalogue can be read in a diff and edited on two branches without conflicting as a pair of opaque hashes. The recordings it describes, and the acquisition artifacts alongside them, stay in LFS. [PR #510](https://github.com/LernerLab/GuPPy/pull/510)
 - The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds. [PR #503](https://github.com/LernerLab/GuPPy/pull/503)
 - Saving on the Label Stores page now pops up a confirmation naming the output folder, and the homepage lists the new run under **Output Folder Selection** as soon as it is saved. [PR #504](https://github.com/LernerLab/GuPPy/pull/504)
