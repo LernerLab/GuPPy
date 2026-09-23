@@ -19,7 +19,8 @@ def correct_timestamps(
     store_label_to_npoints: dict[str, np.ndarray | None],
     store_label_to_timestamps_ttl: dict[str, np.ndarray],
     mode: str,
-) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
+    pair_timestamps_channel: str,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, str], dict[str, np.ndarray]]:
     """
     Apply timestamp correction to all channels and TTL stores.
 
@@ -41,6 +42,9 @@ def correct_timestamps(
         Store label → TTL timestamp array.
     mode : str
         Acquisition format; one of ``'tdt'`` or ``'csv'``.
+    pair_timestamps_channel : str
+        Which channel of each control/signal pair the pair is timed by: ``'signal'`` or
+        ``'control'``.
 
     Returns
     -------
@@ -50,33 +54,40 @@ def correct_timestamps(
         Store label → index array applied to the raw timestamps.
     store_label_to_corrected_data : dict
         Store label → corrected data array.
+    store_label_to_timeline_label : dict
+        Store label → label of the channel whose timestamps its pair is timed by.
     compound_name_to_corrected_ttl_timestamps : dict
         Compound TTL name → corrected TTL timestamp array.
     """
-    store_label_to_corrected_timestamps, store_label_to_correction_index, store_label_to_corrected_data = (
-        timestampCorrection(
-            timeForLightsTurnOn,
-            store_array,
-            store_label_to_timestamps,
-            store_label_to_data,
-            store_label_to_sampling_rate,
-            store_label_to_npoints,
-            mode=mode,
-        )
+    (
+        store_label_to_corrected_timestamps,
+        store_label_to_correction_index,
+        store_label_to_corrected_data,
+        store_label_to_timeline_label,
+    ) = timestampCorrection(
+        timeForLightsTurnOn,
+        store_array,
+        store_label_to_timestamps,
+        store_label_to_data,
+        store_label_to_sampling_rate,
+        store_label_to_npoints,
+        mode=mode,
+        pair_timestamps_channel=pair_timestamps_channel,
     )
     compound_name_to_corrected_ttl_timestamps = decide_naming_and_applyCorrection_ttl(
         timeForLightsTurnOn,
         store_array,
         store_label_to_timestamps_ttl,
         store_label_to_timestamps,
-        store_label_to_data,
         mode=mode,
+        pair_timestamps_channel=pair_timestamps_channel,
     )
 
     return (
         store_label_to_corrected_timestamps,
         store_label_to_correction_index,
         store_label_to_corrected_data,
+        store_label_to_timeline_label,
         compound_name_to_corrected_ttl_timestamps,
     )
 
@@ -89,10 +100,14 @@ def timestampCorrection(
     store_label_to_sampling_rate: dict[str, np.ndarray],
     store_label_to_npoints: dict[str, np.ndarray | None],
     mode: str,
-) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray]]:
+    pair_timestamps_channel: str,
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, np.ndarray], dict[str, str]]:
     """
     Trim and realign control/signal timestamps, discarding the first ``timeForLightsTurnOn``
     seconds of the recording.
+
+    Each control/signal pair is timed by one of its channels, chosen by
+    ``pair_timestamps_channel``, and both channels are cut to the length of the shorter one.
 
     Parameters
     ----------
@@ -110,6 +125,8 @@ def timestampCorrection(
         Store label → npoints value (or None for CSV data).
     mode : str
         Acquisition format; one of ``'tdt'`` or ``'csv'``.
+    pair_timestamps_channel : str
+        Which channel of each pair the pair is timed by: ``'signal'`` or ``'control'``.
 
     Returns
     -------
@@ -119,6 +136,8 @@ def timestampCorrection(
         Store label → index array used to slice raw data.
     store_label_to_corrected_data : dict
         Store label → sliced data array.
+    store_label_to_timeline_label : dict
+        Store label → label of the channel whose timestamps its pair is timed by.
     """
     logger.debug(
         "Correcting timestamps by getting rid of the first %s seconds and convert timestamps to seconds",
@@ -131,21 +150,17 @@ def timestampCorrection(
     store_label_to_corrected_timestamps = {}
     store_label_to_correction_index = {}
     store_label_to_corrected_data = {}
-    store_ids = store_array[0, :]
-    store_labels = store_array[1, :]
+    store_label_to_timeline_label = {}
     control_signal_names = get_control_and_signal_channel_names(store_array)
-
-    indices = check_cntrl_sig_length(control_signal_names, store_label_to_data)
 
     for i in range(control_signal_names.shape[1]):
         control_name = control_signal_names[0, i]
         signal_name = control_signal_names[1, i]
-        match_index = np.where(store_labels == indices[i])[0]
-
-        name = store_labels[match_index][0]
+        name = pair_timeline_label(control_signal_names, pair_index=i, pair_timestamps_channel=pair_timestamps_channel)
         timestamp = store_label_to_timestamps[name]
         sampling_rate = store_label_to_sampling_rate[name]
         npoints = store_label_to_npoints[name]
+        sample_count = min(store_label_to_data[control_name].shape[0], store_label_to_data[signal_name].shape[0])
 
         if mode == "tdt":
             timeRecStart = timestamp[0]
@@ -155,18 +170,20 @@ def timestampCorrection(
             timestampNew = np.zeros((len(timestamps), lengthAdder))
             for i in range(lengthAdder):
                 timestampNew[:, i] = np.add(timestamps, adder[i])
-            timestampNew = (timestampNew.T).reshape(-1, order="F")
+            timestampNew = (timestampNew.T).reshape(-1, order="F")[:sample_count]
             correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
             timestampNew = timestampNew[correctionIndex]
         elif mode == "csv":
             # timestamp is on the acquisition clock, which need not start at 0, so the
             # cut is measured from the recording's own start.
+            timestamp = timestamp[:sample_count]
             correctionIndex = np.where(timestamp >= timestamp[0] + timeForLightsTurnOn)[0]
             timestampNew = timestamp[correctionIndex]
 
         for displayName in [control_name, signal_name]:
             store_label_to_corrected_timestamps[displayName] = timestampNew
             store_label_to_correction_index[displayName] = correctionIndex
+            store_label_to_timeline_label[displayName] = name
             data = store_label_to_data[displayName]
             if (data == 0).all() == True:
                 store_label_to_corrected_data[displayName] = data
@@ -174,7 +191,12 @@ def timestampCorrection(
                 store_label_to_corrected_data[displayName] = data[correctionIndex]
 
     logger.info("Timestamps corrected and converted to seconds.")
-    return store_label_to_corrected_timestamps, store_label_to_correction_index, store_label_to_corrected_data
+    return (
+        store_label_to_corrected_timestamps,
+        store_label_to_correction_index,
+        store_label_to_corrected_data,
+        store_label_to_timeline_label,
+    )
 
 
 def decide_naming_and_applyCorrection_ttl(
@@ -182,8 +204,8 @@ def decide_naming_and_applyCorrection_ttl(
     store_array: np.ndarray,
     store_label_to_timestamps_ttl: dict[str, np.ndarray],
     store_label_to_timestamps: dict[str, np.ndarray],
-    store_label_to_data: dict[str, np.ndarray],
     mode: str,
+    pair_timestamps_channel: str,
 ) -> dict[str, np.ndarray]:
     """
     Apply timestamp correction to all TTL stores and pair them with channel suffixes.
@@ -198,10 +220,10 @@ def decide_naming_and_applyCorrection_ttl(
         TTL display name → raw TTL timestamp array.
     store_label_to_timestamps : dict
         Channel display name → raw photometry timestamp array.
-    store_label_to_data : dict
-        Channel display name → raw data array.
     mode : str
         Acquisition format; one of ``'tdt'`` or ``'csv'``.
+    pair_timestamps_channel : str
+        Which channel of each pair the pair is timed by: ``'signal'`` or ``'control'``.
 
     Returns
     -------
@@ -209,19 +231,15 @@ def decide_naming_and_applyCorrection_ttl(
         Compound TTL name → corrected TTL timestamp array.
     """
     logger.debug("Applying correction of timestamps to the data and event timestamps")
-    store_ids = store_array[0, :]
-    store_labels = store_array[1, :]
     control_signal_names = get_control_and_signal_channel_names(store_array)
-    indices = check_cntrl_sig_length(control_signal_names, store_label_to_data)
 
     compound_name_to_corrected_ttl_timestamps = {}
     for ttl_name, ttl_timestamps in store_label_to_timestamps_ttl.items():
         for i in range(control_signal_names.shape[1]):
             name_1 = recording_site_from_channel_label(control_signal_names[0, i])
-
-            match_index = np.where(store_labels == indices[i])[0]
-
-            name = store_labels[match_index][0]
+            name = pair_timeline_label(
+                control_signal_names, pair_index=i, pair_timestamps_channel=pair_timestamps_channel
+            )
             timestamps = store_label_to_timestamps[name]
             timeRecStart = timestamps[0]
             corrected_ttl_timestamps = applyCorrection_ttl(
@@ -280,35 +298,23 @@ def applyCorrection_ttl(
     return corrected_ttl_timestamps
 
 
-def check_cntrl_sig_length(control_signal_names: np.ndarray, store_label_to_data: dict[str, np.ndarray]) -> list[str]:
+def pair_timeline_label(control_signal_names: np.ndarray, *, pair_index: int, pair_timestamps_channel: str) -> str:
     """
-    Identify the shorter channel in each control/signal pair.
+    Name the channel whose timestamps a control/signal pair is timed by.
 
     Parameters
     ----------
     control_signal_names : np.ndarray
         Shape ``(2, N)`` array where row 0 is control names and row 1 is signal names.
-    store_label_to_data : dict
-        Store label → data array.
+    pair_index : int
+        Column of the pair in ``control_signal_names``.
+    pair_timestamps_channel : str
+        ``'signal'`` or ``'control'``.
 
     Returns
     -------
-    indices : list of str
-        List of display names (one per pair) pointing to the channel with fewer samples.
-        When lengths are equal the signal name is returned.
+    str
+        The label of the chosen channel.
     """
-
-    indices = []
-    for i in range(control_signal_names.shape[1]):
-        control_name = control_signal_names[0, i]
-        signal_name = control_signal_names[1, i]
-        control = store_label_to_data[control_name]
-        signal = store_label_to_data[signal_name]
-        if control.shape[0] < signal.shape[0]:
-            indices.append(control_name)
-        elif control.shape[0] > signal.shape[0]:
-            indices.append(signal_name)
-        else:
-            indices.append(signal_name)
-
-    return indices
+    row = {"control": 0, "signal": 1}[pair_timestamps_channel]
+    return control_signal_names[row, pair_index]
