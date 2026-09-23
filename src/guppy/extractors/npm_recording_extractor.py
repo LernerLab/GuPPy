@@ -281,8 +281,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         list of dict
             One dict per store, in the order requested. An event store carries ``store_id``
             and ``timestamps``; a photometry channel adds ``data`` and ``sampling_rate``.
-            Timestamps are in seconds, and every channel of a file is timed by the file's first
-            channel reading the same column.
+            Timestamps are in seconds, and each channel is timed by its own frames.
 
         Raises
         ------
@@ -310,12 +309,10 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
                 output_dicts.append({"store_id": store_id, "timestamps": timestamps})
                 continue
 
-            timeline_rows, data_rows = self._shared_clock_rows(df, record)
-            timeline = np.asarray(df[record.timestamp_column], dtype=float)[timeline_rows] / divisor
-            sampling_rate = timeline.shape[0] / (timeline[-1] - timeline[0])
-            sample_count = min(timeline_rows.shape[0], data_rows.shape[0])
-            timestamps = timeline[:sample_count]
-            data = np.asarray(df[record.data_column], dtype=float)[data_rows][:sample_count]
+            rows = self._channel_rows(df, record)
+            timestamps = np.asarray(df[record.timestamp_column], dtype=float)[rows] / divisor
+            data = np.asarray(df[record.data_column], dtype=float)[rows]
+            sampling_rate = timestamps.shape[0] / (timestamps[-1] - timestamps[0])
             output_dicts.append(
                 {
                     "store_id": store_id,
@@ -362,9 +359,10 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         record = self._get_records()[event]
         df = self._get_dataframes()[record.file]
         if isinstance(record, EventStore):
-            return len(self._event_rows(df, record))
-        timeline_rows, data_rows = self._shared_clock_rows(df, record)
-        return min(len(timeline_rows), len(data_rows))
+            rows = self._event_rows(df, record)
+        else:
+            rows = self._channel_rows(df, record)
+        return len(rows)
 
     def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
@@ -485,37 +483,6 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         if record.event_value is None:
             return np.arange(df.shape[0])
         return np.flatnonzero(np.asarray(df.iloc[:, 1]) == record.event_value)
-
-    def _shared_clock_rows(self, df: pd.DataFrame, record: ChannelStore) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Select the rows a channel is timed by and the rows its samples come from.
-
-        Every channel of a file is timed by the file's first channel reading the same column --
-        the lowest wavelength, or the first interleave slot -- so that a file's channels share
-        one clock.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Contents of the data file.
-        record : ChannelStore
-            The channel's record.
-
-        Returns
-        -------
-        timeline_rows : np.ndarray
-            Integer row indices of the first channel's frames, which time the channel.
-        data_rows : np.ndarray
-            Integer row indices of the channel's own frames, which hold its samples.
-        """
-        first_record = next(
-            candidate
-            for candidate in self._get_records().values()
-            if isinstance(candidate, ChannelStore)
-            and candidate.file == record.file
-            and candidate.data_column == record.data_column
-        )
-        return self._channel_rows(df, first_record), self._channel_rows(df, record)
 
     def _channel_rows(self, df: pd.DataFrame, record: ChannelStore) -> np.ndarray:
         """
