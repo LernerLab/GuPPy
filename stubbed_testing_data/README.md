@@ -2,7 +2,7 @@
 
 Real fiber photometry recordings used by the GuPPy test suite. Each session has been truncated from the corresponding full recording in `testing_data/` to reduce file size while retaining enough data to exercise the relevant code paths — for sessions with TTL events, the duration was chosen to capture at least 5 complete pulses. To regenerate from the full recordings, run `src/guppy/testing/scripts/create_stubbed_testing_data.py`.
 
-The `tdt/ME112-ME113-260420-114630` session is an exception: its source recording is kept local (not uploaded to the shared `testing_data/` Google Drive), so it's stubbed via its own one-off script `src/guppy/testing/scripts/stub_me112_me113_session.py`.
+The `tdt/ME112-ME113-260420-114630` session is an exception: its source recording is kept local (not uploaded to the shared `testing_data/` Google Drive), so it's stubbed via its own one-off script `src/guppy/testing/scripts/stub_me112_me113_session.py`. `npm/sampleData_NPM_6` is another: its source is third-party sample data, stubbed via `src/guppy/testing/scripts/stub_phat_npm_session.py`.
 
 ---
 
@@ -323,6 +323,14 @@ Second NPM legacy format recording. Unlike `sampleData_NPM_4`, the event file co
 - `file0_chod2`: second column calcium signal
 - `file0_chod3`: third column calcium signal
 - `event0`: single event type
+
+## `npm/sampleData_NPM_6`
+
+PhAT's `Sample2_NPM_1fiber.csv`, from the Donaldson Lab's [PhAT toolkit](https://github.com/donaldsonlab/PhAT) (MIT licensed, `LICENSE` alongside), and the reproducer for issue #337. Its header line `,Timestamp,msTimestamp,,Region0R,Region1G,,,LedState` carries four blank header cells and two timestamp columns, one of them named exactly `Timestamp`. Photometry only, with no TTL events. Duration: 16.0 s.
+
+**Files:** `Sample2_NPM_1fiber.csv` (photometry, v2), `LICENSE`
+
+The first row's `LedState` is `0`, which lights no LED; after it the state cycles `4`/`1`/`2` (560/415/470 nm), each crossed with the `Region0R` and `Region1G` regions. `Timestamp` is in seconds and `msTimestamp` is the same clock in milliseconds. The stub is truncated on the raw text lines rather than through `NpmRecordingExtractor.stub()`, so the committed file keeps its blank header cells.
 
 ---
 
