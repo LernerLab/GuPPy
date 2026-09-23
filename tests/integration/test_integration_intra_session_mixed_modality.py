@@ -150,7 +150,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     external csv_event.csv — is passed through to CsvRecordingExtractor.
 
     NPM_1 photometry timestamps carry the acquisition clock, whose SystemTimestamp column
-    spans ~1891.3–2011.6 s. The external event CSV uses timestamps in that same absolute
+    spans ~1891.3–2052.8 s. The external event CSV uses timestamps in that same absolute
     domain so PSTH alignment succeeds.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
@@ -159,7 +159,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
 
     session_copy = _stage_session(src_base_dir, "npm/sampleData_NPM_1", tmp_base)
 
-    # Five timestamps on the NPM_1 acquisition clock (~1891.3–2011.6 s), spaced 20 s apart
+    # Five timestamps on the NPM_1 acquisition clock (~1891.3–2052.8 s), spaced 20 s apart
     # and clear of both ends. CsvRecordingExtractor reads these as-is without rescaling.
     csv_ttl_timestamps = np.array([1911.0, 1931.0, 1951.0, 1971.0, 1991.0])
     np.savetxt(session_copy / "csv_event.csv", csv_ttl_timestamps, header="timestamps", comments="", fmt="%.6f")

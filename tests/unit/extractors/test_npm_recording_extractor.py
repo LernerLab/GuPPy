@@ -370,25 +370,6 @@ class NpmRecordingExtractorTestMixin(RecordingExtractorTestMixin):
         result = isolated_extractor_instance.read(events=[self.ttl_event], outputPath="")
         return result[0]["timestamps"]
 
-    def test_stub_ttl_timestamps_within_duration(self, tmp_path, isolated_extractor_instance):
-        # NPM stub() truncates each raw file at its own first timestamp plus the duration,
-        # so the event file's window is not the data file's window and the base mixin's
-        # cutoff (anchored on the continuous stream) does not apply. Assert instead that
-        # stubbing retains exactly a non-empty prefix of the original TTL events.
-        if self.ttl_event is None:
-            return
-        original_ttl = isolated_extractor_instance.read(events=[self.ttl_event], outputPath="")[0]["timestamps"]
-
-        stub_folder_path = tmp_path / "stubbed"
-        isolated_extractor_instance.stub(
-            folder_path=stub_folder_path, duration_in_seconds=self.stub_ttl_test_duration_in_seconds
-        )
-        stubbed_extractor = self.extractor_class(folder_path=stub_folder_path, **self.stub_extractor_kwargs)
-        stubbed_ttl = stubbed_extractor.read(events=[self.ttl_event], outputPath="")[0]["timestamps"]
-
-        assert 0 < len(stubbed_ttl) < len(original_ttl)
-        np.testing.assert_array_equal(stubbed_ttl, original_ttl[: len(stubbed_ttl)])
-
 
 # ---------------------------------------------------------------------------
 # Contract test classes
@@ -450,7 +431,8 @@ class TestNpmRecordingExtractorSession4(NpmRecordingExtractorTestMixin):
     control_event = "file0_chev1"
     signal_event = "file0_chod1"
     ttl_event = "eventTrue"
-    stub_ttl_test_duration_in_seconds = 100.0
+    # The first two events fall 127 s and 155 s into the photometry.
+    stub_ttl_test_duration_in_seconds = 200.0
 
 
 class TestNpmRecordingExtractorSession5(NpmRecordingExtractorTestMixin):
@@ -464,7 +446,46 @@ class TestNpmRecordingExtractorSession5(NpmRecordingExtractorTestMixin):
     control_event = "file0_chev1"
     signal_event = "file0_chod1"
     ttl_event = "event0"
-    stub_ttl_test_duration_in_seconds = 100.0
+    # The first two events fall 173 s and 201 s into the photometry.
+    stub_ttl_test_duration_in_seconds = 250.0
+
+
+class TestNpmRecordingExtractorStub:
+    @pytest.fixture
+    def session_with_late_events(self, tmp_path):
+        """Ten seconds of photometry, with events at 2.5, 5.5 and 8.5 s on the same clock."""
+        session_folder = tmp_path / "session"
+        session_folder.mkdir()
+        rows = "".join(
+            f"{second},{float(second)},{1 if second % 2 == 0 else 2},{10.0 + second}\n" for second in range(10)
+        )
+        (session_folder / "a_signals.csv").write_text("FrameCounter,Timestamp,LedState,Region0G\n" + rows)
+        (session_folder / "b_events.csv").write_text("2.5,1\n5.5,1\n8.5,1\n")
+        return session_folder
+
+    def test_data_is_cut_at_its_first_timestamp_plus_the_duration(self, session_with_late_events, tmp_path):
+        stub_folder = tmp_path / "stubbed"
+
+        NpmRecordingExtractor(str(session_with_late_events)).stub(folder_path=stub_folder, duration_in_seconds=4.0)
+
+        stubbed_data = pd.read_csv(stub_folder / "a_signals.csv")
+        np.testing.assert_array_equal(stubbed_data["Timestamp"], [0.0, 1.0, 2.0, 3.0, 4.0])
+
+    def test_events_are_kept_only_inside_the_retained_photometry(self, session_with_late_events, tmp_path):
+        stub_folder = tmp_path / "stubbed"
+
+        NpmRecordingExtractor(str(session_with_late_events)).stub(folder_path=stub_folder, duration_in_seconds=4.0)
+
+        # The photometry keeps [0, 4] s, so only the event at 2.5 s survives.
+        assert (stub_folder / "b_events.csv").read_text() == "2.5,1\n"
+
+    def test_an_event_file_left_with_no_events_is_removed(self, session_with_late_events, tmp_path):
+        stub_folder = tmp_path / "stubbed"
+
+        NpmRecordingExtractor(str(session_with_late_events)).stub(folder_path=stub_folder, duration_in_seconds=1.0)
+
+        # The photometry keeps [0, 1] s, before the first event at 2.5 s.
+        assert sorted(path.name for path in stub_folder.iterdir()) == ["a_signals.csv"]
 
 
 # ---------------------------------------------------------------------------
@@ -648,8 +669,8 @@ class TestNpmEventClockValidation:
         column_spans = NpmRecordingExtractor._timestamp_column_spans(self.folder_path)
 
         assert list(column_spans) == ["SystemTimestamp", "ComputerTimestamp"]
-        np.testing.assert_allclose(column_spans["SystemTimestamp"], (1891.312544, 2011.607936))
-        np.testing.assert_allclose(column_spans["ComputerTimestamp"], (49884931.93, 50005222.1))
+        np.testing.assert_allclose(column_spans["SystemTimestamp"], (1891.312544, 2052.806336))
+        np.testing.assert_allclose(column_spans["ComputerTimestamp"], (49884931.93, 50046433.68))
 
     @pytest.fixture
     def two_data_file_session(self, tmp_path):
