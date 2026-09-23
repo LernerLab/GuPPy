@@ -57,7 +57,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         selected_folders=selected_folders,
         npm_timestamp_column_name=None,
         npm_time_unit=None,
-        npm_split_events=[True, True],
+        npm_split_events=None,
         selected_runs=selected_runs,
     )
 
@@ -66,7 +66,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         selected_folders=selected_folders,
         npm_timestamp_column_name=None,
         npm_time_unit=None,
-        npm_split_events=[True, True],
+        npm_split_events=None,
         selected_runs=selected_runs,
     )
 
@@ -75,7 +75,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         selected_folders=selected_folders,
         npm_timestamp_column_name=None,
         npm_time_unit=None,
-        npm_split_events=[True, True],
+        npm_split_events=None,
         bin_psth_trials=2,
         use_time_or_trials="# of trials",
         selected_runs=selected_runs,
