@@ -58,12 +58,13 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
     session_folders : list of str
         Session directories to process.
     inputParameters : dict
-        Pipeline configuration; must include ``'timeForLightsTurnOn'`` and
-        ``'isosbestic_control'``.
+        Pipeline configuration; must include ``'timeForLightsTurnOn'``,
+        ``'isosbestic_control'`` and ``'pair_timestamps_channel'``.
     """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
+    pair_timestamps_channel = inputParameters["pair_timestamps_channel"]
 
     selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
@@ -93,11 +94,13 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
                 store_label_to_npoints,
                 store_label_to_timestamps_ttl,
                 mode=mode,
+                pair_timestamps_channel=pair_timestamps_channel,
             )
             (
                 store_label_to_corrected_timestamps,
                 store_label_to_correction_index,
                 store_label_to_corrected_data,
+                store_label_to_timeline_label,
                 compound_name_to_corrected_ttl_timestamps,
             ) = timestamps_dicts
 
@@ -107,6 +110,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
                 store_label_to_timestamps,
                 store_label_to_sampling_rate,
                 store_label_to_correction_index,
+                store_label_to_timeline_label,
                 mode,
             )
             write_corrected_data(filepath, store_label_to_corrected_data)

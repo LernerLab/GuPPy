@@ -93,6 +93,7 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         "combine_data": inputParameters["combine_data"],
         "isosbestic_control": inputParameters["isosbestic_control"],
         "control_fit_method": inputParameters["control_fit_method"],
+        "pair_timestamps_channel": inputParameters["pair_timestamps_channel"],
         "controlFitWindowMode": inputParameters["controlFitWindowMode"],
         "controlFitWindowStart": inputParameters["controlFitWindowStart"],
         "controlFitWindowEnd": inputParameters["controlFitWindowEnd"],

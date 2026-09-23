@@ -113,6 +113,10 @@ class TestParameterForm:
     def test_number_of_cores_default(self, parameter_form):
         assert parameter_form.numberOfCores.value == 2
 
+    def test_pair_timestamps_channel_default(self, parameter_form):
+        assert parameter_form.pair_timestamps_channel.value == "signal"
+        assert parameter_form.pair_timestamps_channel.options == ["signal", "control"]
+
     def test_moving_avg_filter_default(self, parameter_form):
         assert parameter_form.moving_avg_filter.value == 100
 
@@ -954,6 +958,7 @@ SAVED_PARAMETERS = {
     "combine_data": True,
     "isosbestic_control": False,
     "control_fit_method": "OLS",
+    "pair_timestamps_channel": "control",
     "controlFitWindowMode": "baseline epoch",
     "controlFitWindowStart": 3,
     "controlFitWindowEnd": 8,

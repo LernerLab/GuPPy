@@ -43,7 +43,7 @@ from guppy_test_data import STUBBED_TESTING_DATA
             "ttl",
         ),
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_5", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, request):
