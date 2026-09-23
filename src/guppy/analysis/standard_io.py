@@ -125,10 +125,14 @@ def write_corrected_timestamps(
     store_label_to_timestamps: dict[str, np.ndarray],
     store_label_to_sampling_rate: dict[str, np.ndarray],
     store_label_to_correction_index: dict[str, np.ndarray],
+    store_label_to_timeline_label: dict[str, str],
     mode: str,
 ) -> None:
     """
     Write timestamp-correction HDF5 datasets for all channel pairs.
+
+    A pair's recording start and sampling rate are those of the channel its timestamps come
+    from.
 
     Parameters
     ----------
@@ -142,13 +146,16 @@ def write_corrected_timestamps(
         Store label → sampling-rate array.
     store_label_to_correction_index : dict
         Store label → index array used to slice the original timestamps.
+    store_label_to_timeline_label : dict
+        Store label → label of the channel whose timestamps its pair is timed by.
     mode : str
         Acquisition format; one of ``'tdt'`` or ``'csv'``.
     """
     for name, correctionIndex in store_label_to_correction_index.items():
-        timestamps = store_label_to_timestamps[name]
+        timeline_label = store_label_to_timeline_label[name]
+        timestamps = store_label_to_timestamps[timeline_label]
         corrected_timestamps = corrected_name_to_timestamps[name]
-        sampling_rate = store_label_to_sampling_rate[name]
+        sampling_rate = store_label_to_sampling_rate[timeline_label]
         if sampling_rate.shape == ():  # numpy scalar
             sampling_rate = np.asarray([sampling_rate])
         name_1 = recording_site_from_channel_label(name)

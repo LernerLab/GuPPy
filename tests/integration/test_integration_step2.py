@@ -23,7 +23,7 @@ from .integration_helpers import REPRESENTATIVE_SESSIONS, _locate_output_directo
         "step2_output_nwb",
         "step2_output_pyphotometry",
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_5", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
 )
 def test_step2(step2_fixture_name, request):
     """Validate Step 2 outputs for the representative integration sessions."""

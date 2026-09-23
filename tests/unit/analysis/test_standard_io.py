@@ -189,13 +189,18 @@ def test_write_artifact_removal_creates_data_ttl_and_timestamp_files(tmp_path):
 # ── write_corrected_timestamps ────────────────────────────────────────────────
 
 
+TIMELINE_ON_SIGNAL = {"control_dms": "signal_dms", "signal_dms": "signal_dms"}
+
+
 def test_write_corrected_timestamps_writes_all_keys(tmp_path):
     corrected_ts = {"control_dms": np.array([2.0, 3.0, 4.0]), "signal_dms": np.array([2.0, 3.0, 4.0])}
     original_ts = {"control_dms": np.array([0.0, 1.0, 2.0, 3.0]), "signal_dms": np.array([0.0, 1.0, 2.0, 3.0])}
     sampling_rate = {"control_dms": np.array([100.0]), "signal_dms": np.array([100.0])}
     correction_index = {"control_dms": np.array([2, 3, 4]), "signal_dms": np.array([2, 3, 4])}
 
-    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, "csv")
+    write_corrected_timestamps(
+        str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, TIMELINE_ON_SIGNAL, "csv"
+    )
 
     with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
         assert "timestampNew" in file
@@ -215,7 +220,9 @@ def test_write_corrected_timestamps_csv_mode_records_the_acquisition_clock_start
     sampling_rate = {"control_dms": np.array([1.0]), "signal_dms": np.array([1.0])}
     correction_index = {"control_dms": np.array([2, 3]), "signal_dms": np.array([2, 3])}
 
-    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, "csv")
+    write_corrected_timestamps(
+        str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, TIMELINE_ON_SIGNAL, "csv"
+    )
 
     with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
         np.testing.assert_array_equal(file["recordingStart"][:], np.array([100.0]))
@@ -233,11 +240,38 @@ def test_write_corrected_timestamps_tdt_mode_records_a_zero_start(tmp_path):
     sampling_rate = {"control_dms": np.array([1.0]), "signal_dms": np.array([1.0])}
     correction_index = {"control_dms": np.array([0, 1]), "signal_dms": np.array([0, 1])}
 
-    write_corrected_timestamps(str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, "tdt")
+    write_corrected_timestamps(
+        str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, TIMELINE_ON_SIGNAL, "tdt"
+    )
 
     with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
         np.testing.assert_array_equal(file["recordingStart"][:], np.array([0.0]))
         np.testing.assert_array_equal(file["timeRecStart"][:], np.array([1595956345.0]))
+
+
+@pytest.mark.parametrize(
+    "timeline_label, expected_start, expected_sampling_rate",
+    [("signal_dms", 100.5, 40.0), ("control_dms", 100.0, 20.0)],
+)
+def test_write_corrected_timestamps_describes_the_pairs_timeline_channel(
+    tmp_path, timeline_label, expected_start, expected_sampling_rate
+):
+    # The two channels start and run at different rates; the one the pair is timed by
+    # supplies its recording start and sampling rate, whichever channel is written last.
+    corrected_ts = {"control_dms": np.array([101.0]), "signal_dms": np.array([101.0])}
+    original_ts = {"control_dms": np.array([100.0, 101.0]), "signal_dms": np.array([100.5, 101.5])}
+    sampling_rate = {"control_dms": np.array([20.0]), "signal_dms": np.array([40.0])}
+    correction_index = {"control_dms": np.array([1]), "signal_dms": np.array([1])}
+    timeline_labels = {"control_dms": timeline_label, "signal_dms": timeline_label}
+
+    write_corrected_timestamps(
+        str(tmp_path), corrected_ts, original_ts, sampling_rate, correction_index, timeline_labels, "csv"
+    )
+
+    with h5py.File(tmp_path / "timeCorrection_dms.hdf5", "r") as file:
+        np.testing.assert_array_equal(file["recordingStart"][:], [expected_start])
+        np.testing.assert_array_equal(file["timeRecStart"][:], [expected_start])
+        np.testing.assert_array_equal(file["sampling_rate"][:], [expected_sampling_rate])
 
 
 # ── read_control_and_signal ───────────────────────────────────────────────────
