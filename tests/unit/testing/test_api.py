@@ -336,7 +336,7 @@ class TestStep1Driver:
                     "Sample_Control_Channel": "control_region",
                     "Sample_Signal_Channel": "signal_region",
                 },
-                npm_split_events=[False, True],
+                npm_split_events={"ttls.csv": True},
             )
 
     def test_signal_without_control_rejected_under_isosbestic_control(self, staged_csv_session):
@@ -361,7 +361,7 @@ class TestStep1Driver:
 
 @pytest.fixture
 def npm_template_two_timestamp_columns(panel_extension):
-    """Label Stores template for the NPM_3 stub: two timestamp columns, split checkbox on file 1."""
+    """Label Stores template for the NPM_3 stub: two timestamp columns, split checkbox for ttls.csv."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_3"
     input_parameters = {"noChannels": 2}
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
@@ -372,8 +372,19 @@ def npm_template_two_timestamp_columns(panel_extension):
 
 @pytest.fixture
 def npm_template_single_timestamp_column(panel_extension):
-    """Label Stores template for the NPM_4 stub: one timestamp column, split checkbox on file 1."""
+    """Label Stores template for the NPM_4 stub: one timestamp column, split checkbox for its event file."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_4"
+    input_parameters = {"noChannels": 2}
+    _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
+    return build_store_labeling_template(
+        [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive
+    )
+
+
+@pytest.fixture
+def npm_template_single_ttl_value(panel_extension):
+    """Label Stores template for the NPM_5 stub, whose one event file holds a single TTL value."""
+    folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_5"
     input_parameters = {"noChannels": 2}
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
@@ -400,23 +411,34 @@ def npm_template_no_excitation_bit(panel_extension, tmp_path):
 
 
 class TestDriveNpmConfigurationForm:
-    def test_split_events_length_mismatch_raises(self, npm_template_two_timestamp_columns):
-        with pytest.raises(ValueError, match="one boolean per file"):
+    def test_split_events_sets_the_named_checkbox(self, npm_template_two_timestamp_columns):
+        testing_api._drive_npm_configuration_form(
+            template=npm_template_two_timestamp_columns,
+            npm_timestamp_column_name="ComputerTimestamp",
+            npm_time_unit="milliseconds",
+            npm_split_events={"ttls.csv": True},
+        )
+        instructions = npm_template_two_timestamp_columns._widgets["instructions"]
+        assert instructions.get_npm_split_events() == {"ttls.csv": True}
+
+    def test_split_events_naming_an_unknown_file_raises(self, npm_template_two_timestamp_columns):
+        # signals.csv is a data file, not an event file, so it has no split-events answer.
+        with pytest.raises(ValueError, match="not one of the session's NPM event files"):
             testing_api._drive_npm_configuration_form(
                 template=npm_template_two_timestamp_columns,
                 npm_timestamp_column_name=None,
                 npm_time_unit=None,
-                npm_split_events=[True],
+                npm_split_events={"signals.csv": True},
             )
 
-    def test_split_true_without_checkbox_raises(self, npm_template_two_timestamp_columns):
-        # File 0 has a single event TTL, so the form renders no split checkbox for it.
+    def test_split_true_without_checkbox_raises(self, npm_template_single_ttl_value):
+        # The event file holds a single TTL value, so the form renders no split checkbox for it.
         with pytest.raises(ValueError, match="nothing to split"):
             testing_api._drive_npm_configuration_form(
-                template=npm_template_two_timestamp_columns,
+                template=npm_template_single_ttl_value,
                 npm_timestamp_column_name=None,
                 npm_time_unit=None,
-                npm_split_events=[True, False],
+                npm_split_events={"PagCeAVgatFear_1512_ts0.csv": True},
             )
 
     def test_timestamp_column_on_single_column_session_raises(self, npm_template_single_timestamp_column):

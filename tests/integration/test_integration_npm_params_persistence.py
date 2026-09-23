@@ -36,7 +36,7 @@ def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         store_id_to_store_label=store_id_to_store_label,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
     )
 
     run_folders = sorted(list(Path(session_copy).glob("sampleData_NPM_4_output_*")))

@@ -73,7 +73,8 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
     ------
     ValueError
         If the file predates the session-wide timestamp unit and so records no
-        unit that can be trusted to match the one its data was read with.
+        unit that can be trusted to match the one its data was read with, or if it
+        records ``npm_split_events`` by file position rather than by event file name.
     """
     npm_params_path = Path(run_folder) / NPM_PARAMS_FILENAME
     if not npm_params_path.exists():
@@ -86,6 +87,15 @@ def load_npm_params(run_folder: str) -> dict[str, object]:
             f"'{npm_params_path}' records no 'npm_time_unit' and was written by a GuPPy version whose "
             "recorded timestamp unit did not always match the one applied. Re-run Step 1 (Label Stores) "
             f"for '{run_folder}' to record the unit this session's timestamps are in."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    if isinstance(npm_params.get("npm_split_events"), list):
+        message = (
+            f"'{npm_params_path}' records 'npm_split_events' by file position, which GuPPy no longer "
+            "reads: split events are now recorded per event file name. Re-run Step 1 (Label Stores) "
+            f"for '{run_folder}' to record them."
         )
         logger.error(message)
         raise ValueError(message)

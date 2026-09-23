@@ -175,25 +175,25 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
             "bl72bl82_12feb2024_fp_470nm_G0": "signal_region",
             "csv_event": "ttl_region",
         },
-        npm_split_events=[False, True],
+        npm_split_events={"bl72bl82_12feb2024_stimuli.csv": True},
     )
     selected_runs = {str(session_copy): ["1"]}
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"bl72bl82_12feb2024_stimuli.csv": True},
         selected_runs=selected_runs,
     )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"bl72bl82_12feb2024_stimuli.csv": True},
         selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"bl72bl82_12feb2024_stimuli.csv": True},
         selected_runs=selected_runs,
     )
 

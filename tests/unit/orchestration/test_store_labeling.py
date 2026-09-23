@@ -944,7 +944,7 @@ def test_read_header_npm_defers_discovery():
     assert events == []
     assert flags == []
     assert npm_interactive == {
-        "multiple_event_ttls": [False, True],
+        "multiple_event_ttls": {"ttls.csv": True},
         "timestamp_column_options": ["SystemTimestamp", "ComputerTimestamp"],
     }
 
@@ -1011,14 +1011,14 @@ def test_confirm_npm_configuration_writes_params_and_populates_page(panel_extens
     instructions = template._widgets["instructions"]
     selector = template._widgets["selector"]
 
-    # The session offers two timestamp columns; file1 gets a split-events checkbox.
+    # The session offers two timestamp columns; ttls.csv gets a split-events checkbox.
     instructions.timestamp_column_select.value = "ComputerTimestamp"
     instructions.time_unit_select.value = "milliseconds"
-    instructions.split_event_checkboxes[1].value = True
+    instructions.split_event_checkboxes["ttls.csv"].value = True
 
     template._hooks["confirm_npm_configuration"]()
 
-    assert input_parameters["npm_split_events"] == [False, True]
+    assert input_parameters["npm_split_events"] == {"ttls.csv": True}
     assert input_parameters["npm_time_unit"] == "milliseconds"
     assert input_parameters["npm_timestamp_column_name"] == "ComputerTimestamp"
 
@@ -1128,9 +1128,9 @@ def test_npm_params_to_persist_records_the_provenance_it_is_given(tmp_path):
 def test_npm_params_to_persist_records_the_unit_that_will_be_applied():
     # An unset unit must not be persisted as-is: .npm_params.json is the only record of
     # the unit a run was read with, so it states the resolved value (issue #411).
-    npm_params = _npm_params_to_persist({"npm_split_events": [False, False], "noChannels": 2}, {})
+    npm_params = _npm_params_to_persist({"npm_split_events": {"ttls.csv": False}, "noChannels": 2}, {})
 
-    assert npm_params["npm_split_events"] == [False, False]
+    assert npm_params["npm_split_events"] == {"ttls.csv": False}
     assert npm_params["npm_time_unit"] == "seconds"
     assert npm_params["npm_timestamp_column_name"] is None
     assert npm_params["noChannels"] == 2
