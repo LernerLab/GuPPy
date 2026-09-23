@@ -229,11 +229,11 @@ A session whose photometry file offers more than one timestamp column needs both
 
 ## `npm/sampleData_NPM_1`
 
-NPM v2 recording with a separate stimuli event file. The stimuli file contains multiple named event types; with `split_events=True`, each type becomes its own event store. Duration: 120.3 s (5th stimuli event at ~120.2 s).
+NPM v2 recording with a separate stimuli event file. The stimuli file contains multiple named event types; with `split_events=True`, each type becomes its own event store. Duration: 161.5 s (5th stimuli event at ~161.4 s after the photometry starts).
 
 **Required settings:** `npm_timestamp_column_name="ComputerTimestamp"`, `npm_time_unit="milliseconds"`.
 The photometry file carries two timestamp columns — `SystemTimestamp` (seconds, raw span
-`[1891.3, 2011.6]`) and `ComputerTimestamp` (milliseconds, raw span `[4.98849e7, 5.00052e7]`) —
+`[1891.3, 2052.8]`) and `ComputerTimestamp` (milliseconds, raw span `[4.98849e7, 5.00464e7]`) —
 which are the same clock at 1000× different scale. The stimuli file is on the `ComputerTimestamp`
 clock. Default resolution picks the *first* timestamp column, `SystemTimestamp`, which leaves the
 events ~48,000,000 s away from the photometry.
