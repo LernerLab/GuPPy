@@ -31,6 +31,7 @@ from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
+    NPM_STORE_PROVENANCE_KEY,
     discover_run_folders,
     parse_run_name,
     run_folder_for_run,
@@ -181,25 +182,35 @@ def _fetchValues(
     return "#### No alerts !!"
 
 
-def _npm_params_to_persist(inputParameters: dict[str, object]) -> dict[str, object]:
+def _npm_params_to_persist(
+    inputParameters: dict[str, object], store_provenance: dict[str, dict[str, object]]
+) -> dict[str, object]:
     """Snapshot the NPM decomposition parameters as the extractor will apply them.
 
     The timestamp unit is recorded resolved rather than left unset, so
-    ``.npm_params.json`` always states the unit the run was read with.
+    ``.npm_params.json`` always states the unit the run was read with. The store provenance is
+    recorded alongside it: NPM store names are invented during demultiplexing, so a run folder
+    that names its stores without saying what they were read from leaves a consumer to re-derive
+    that from the names themselves.
 
     Parameters
     ----------
     inputParameters : dict
         Full pipeline input parameters.
+    store_provenance : dict
+        What each store was demultiplexed from, as the decomposition behind the page's channel
+        previews recorded it. Empty where the NPM configuration was never confirmed, which is
+        also when no NPM store can have been selected.
 
     Returns
     -------
     dict
-        The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist.
+        The NPM parameters (keys in :data:`NPM_PARAM_KEYS`) to persist, plus ``"stores"``.
     """
     npm_params = {key: inputParameters.get(key) for key in NPM_PARAM_KEYS}
     if npm_params["npm_time_unit"] is None:
         npm_params["npm_time_unit"] = DEFAULT_TIME_UNIT
+    npm_params[NPM_STORE_PROVENANCE_KEY] = store_provenance
     return npm_params
 
 
@@ -341,6 +352,9 @@ def build_store_labeling_template(
     else:
         store_labeling_instructions = StoreLabelingInstructions(folder_path=folder_path)
     store_labeling_selector = StoreLabelingSelector(allnames=allnames)
+    # What the confirmed NPM configuration demultiplexed, held for Save to persist. Empty until
+    # the configuration is confirmed, which is also when the page offers no NPM store to select.
+    npm_store_provenance: dict[str, dict[str, object]] = {}
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions
@@ -406,9 +420,12 @@ def build_store_labeling_template(
         store_labeling_config = store_labeling_selector.get_literal_input_2()
         select_location = store_labeling_selector.get_select_location()
         # Read the NPM choices at save time so the values confirmed on the page
-        # (not any build-time snapshot) are persisted next to storesList.csv.
+        # (not any build-time snapshot) are persisted next to storesList.csv. The store
+        # provenance comes from the decomposition the confirm already ran, rather than a
+        # second one here: a failure has then already been reported on the page, and the
+        # session's raw files are read once instead of twice per save.
         is_npm = npm_interactive is not None or "data_np_v2" in flags or "data_np" in flags or "event_np" in flags
-        npm_params = _npm_params_to_persist(inputParameters) if is_npm else None
+        npm_params = _npm_params_to_persist(inputParameters, npm_store_provenance) if is_npm else None
         alert_message = _save(
             store_labeling_config=store_labeling_config,
             select_location=select_location,
@@ -435,15 +452,31 @@ def build_store_labeling_template(
 
         inputParameters["noChannels"] = store_labeling_instructions.get_number_of_channels()
 
-        num_ch = inputParameters["noChannels"]
-        events, _ = NpmRecordingExtractor.discover_events_and_flags(
-            folder_path=folder_path, num_ch=num_ch, inputParameters=inputParameters
+        nonlocal npm_store_provenance
+        # A raise out of a Panel on_click reaches only the terminal running the server, so
+        # report what went wrong on the page instead (issue #337).
+        extractor = NpmRecordingExtractor(
+            folder_path=folder_path,
+            num_ch=inputParameters["noChannels"],
+            npm_timestamp_column_name=inputParameters["npm_timestamp_column_name"],
+            npm_time_unit=inputParameters["npm_time_unit"],
+            npm_split_events=inputParameters["npm_split_events"],
         )
+        try:
+            events, _ = NpmRecordingExtractor.discover_events_and_flags(
+                folder_path=folder_path, num_ch=inputParameters["noChannels"], inputParameters=inputParameters
+            )
+            # NPM reads nothing from outputPath, and Confirm has no output folder yet.
+            output_dicts = extractor.read(events=events, outputPath=None)
+        except ValueError as exc:
+            store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
+            return
+        npm_store_provenance = extractor.get_store_provenance()
+        channel_previews = _npm_channel_previews(output_dicts)
         # Keep the non-NPM events discovered at build time selectable alongside the
         # freshly discovered NPM events (mixed-modality sessions).
         merged_events = [*events, *(name for name in allnames if name not in events)]
         store_labeling_selector.set_events(events=merged_events)
-        channel_previews = _compute_npm_channel_previews(inputParameters, folder_path)
         store_labeling_instructions.set_channel_previews(channel_previews=channel_previews)
         store_labeling_selector.set_alert_message("#### No alerts !!")
 
@@ -474,42 +507,27 @@ def build_store_labeling_template(
     return template
 
 
-def _compute_npm_channel_previews(
-    inputParameters: dict[str, object], folder_path: str
-) -> dict[str, dict[str, np.ndarray]]:
-    """Decompose the NPM session in memory and return chev/chod/chpr preview traces.
+def _npm_channel_previews(output_dicts: list[dict[str, object]]) -> dict[str, dict[str, np.ndarray]]:
+    """Return the photometry preview traces of an NPM session.
 
     Parameters
     ----------
-    inputParameters : dict
-        Full pipeline input parameters; supplies ``noChannels`` and the NPM
-        configuration populated by :func:`read_header`.
-    folder_path : str
-        Absolute path to the NPM session directory.
+    output_dicts : list of dict
+        The session's stores, as returned by
+        :meth:`~guppy.extractors.npm_recording_extractor.NpmRecordingExtractor.read`.
 
     Returns
     -------
     dict
-        Maps each chev/chod/chpr channel name to ``{"x": timestamps, "y": data}``.
+        Maps each photometry channel's store ID to ``{"x": timestamps, "y": data}``.
     """
-    extractor = NpmRecordingExtractor(
-        folder_path=folder_path,
-        num_ch=inputParameters.get("noChannels", DEFAULT_NUM_CHANNELS),
-        npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
-        npm_time_unit=inputParameters.get("npm_time_unit"),
-        npm_split_events=inputParameters.get("npm_split_events"),
-    )
-    streams = extractor.decompose()
-    previews = {}
-    for name, stream in streams.items():
-        if "data" in stream and ("chev" in name or "chod" in name or "chpr" in name):
-            x = stream["timestamps"]
-            y = stream["data"]
-            # chod/chpr borrow chev's timestamps, which can be one sample shorter
-            # than their own data (ragged interleaving); align lengths for plotting.
-            n = min(len(x), len(y))
-            previews[name] = {"x": x[:n], "y": y[:n]}
-    return previews
+    # A photometry channel is a store carrying data; an event store carries only timestamps.
+    channel_previews = {}
+    for output_dict in output_dicts:
+        if "data" not in output_dict:
+            continue
+        channel_previews[output_dict["store_id"]] = {"x": output_dict["timestamps"], "y": output_dict["data"]}
+    return channel_previews
 
 
 def read_header(
@@ -556,7 +574,7 @@ def read_header(
     if "npm" in all_formats:
         npm_interactive = {
             "multiple_event_ttls": NpmRecordingExtractor.has_multiple_event_ttls(folder_path=folder_path),
-            "timestamp_column_options": NpmRecordingExtractor.timestamp_column_options(folder_path=folder_path),
+            "timestamp_column_options": NpmRecordingExtractor.get_timestamp_column_options(folder_path=folder_path),
         }
 
     events, flags = [], []

@@ -25,8 +25,8 @@ def test_mixed_modality(tmp_path):
     doric_session_subdir = "doric/sample_doric_3"
 
     npm_store_id_to_store_label = {
-        "file0_chev1": "control_region1",
-        "file0_chod1": "signal_region1",
+        "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+        "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
     doric_store_id_to_store_label = {
@@ -81,19 +81,19 @@ def test_mixed_modality(tmp_path):
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[True, True],
+        npm_split_events=[False, True],
         selected_runs=selected_runs,
     )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[True, True],
+        npm_split_events=[False, True],
         selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[True, True],
+        npm_split_events=[False, True],
         selected_runs=selected_runs,
     )
 
@@ -189,8 +189,8 @@ def test_mixed_modality_tdt_npm(tmp_path):
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
         store_id_to_store_label={
-            "file0_chev1": "control_region1",
-            "file0_chod1": "signal_region1",
+            "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+            "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
         npm_split_events=[False, True],
@@ -199,13 +199,22 @@ def test_mixed_modality_tdt_npm(tmp_path):
     selected_folders = [str(tdt_session), str(npm_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
     step2(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
     step3(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
     step4(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
 
     _assert_pipeline_outputs(tdt_session, expected_recording_site="dms", expected_ttl="port_entries_dms")
@@ -419,8 +428,8 @@ def test_mixed_modality_nwb_npm(tmp_path):
         base_dir=base_dir,
         selected_folders=[str(npm_session)],
         store_id_to_store_label={
-            "file0_chev1": "control_region1",
-            "file0_chod1": "signal_region1",
+            "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+            "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
         npm_split_events=[False, True],
@@ -429,13 +438,22 @@ def test_mixed_modality_nwb_npm(tmp_path):
     selected_folders = [str(nwb_session), str(npm_session)]
     selected_runs = {folder: ["1"] for folder in selected_folders}
     step2(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
     step3(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
     step4(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
 
     _assert_pipeline_outputs(nwb_session, expected_recording_site="region", expected_ttl="ttl")
