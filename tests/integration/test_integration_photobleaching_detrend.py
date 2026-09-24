@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from guppy.analysis.io_utils import read_hdf5
-from guppy.testing.api import step1, step2, step3
+from guppy.testing.api import locate_run_folder, step1, step2, step3
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
@@ -48,7 +48,7 @@ def run_preprocessing(tmp_path):
         step2(**common_kwargs, selected_runs=selected_runs)
         step3(**common_kwargs, selected_runs=selected_runs, **step3_kwargs)
 
-        output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
+        output_directories = [locate_run_folder(session=str(session_copy))]
         for candidate in output_directories:
             if (Path(candidate) / "storesList.csv").exists():
                 return candidate

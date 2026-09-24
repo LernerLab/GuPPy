@@ -10,7 +10,7 @@ import pytest
 from guppy.analysis.io_utils import read_hdf5
 from guppy.analysis.standard_io import read_transients_from_hdf5
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
-from guppy.testing.api import step1, step2, step3, step4, step5
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4, step5
 from guppy.utils.utils import read_Df
 from guppy_test_data import STUBBED_TESTING_DATA
 
@@ -58,7 +58,7 @@ def run_pipeline(tmp_path):
         step4(**common_kwargs, selected_runs=selected_runs, **step4_kwargs)
 
         return {
-            "output_directory": Path(session_copy) / (f"{session_name}_output_1"),
+            "output_directory": Path(locate_run_folder(session=str(session_copy))),
             "common_kwargs": common_kwargs,
             "selected_runs": selected_runs,
         }

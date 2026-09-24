@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -36,15 +36,7 @@ def _stage_session(src_base_dir, session_subdir, tmp_base):
 
 
 def _assert_intra_session_outputs(session_copy, expected_recording_site, expected_ttl):
-    dest_name = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-    out_dir = None
-    for d in run_folders:
-        if (Path(d) / "storesList.csv").exists():
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found under {session_copy}"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     timecorr = Path(out_dir) / (f"timeCorrection_{expected_recording_site}.hdf5")
     assert Path(timecorr).exists(), f"Missing {timecorr}"
@@ -201,7 +193,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
 
     # The TTLs must land inside the NPM recording, not merely be written out: an event
     # outside the signal span yields an empty PSTH that the checks above still accept.
-    run_folder = sorted(list(Path(session_copy).glob(f"{Path(session_copy).name}_output_*")))[0]
+    run_folder = Path(locate_run_folder(session=str(session_copy)))
     psth = pd.read_hdf(Path(run_folder) / "ttl_region_region_z_score_region.h5")
     trial_times = sorted(float(column) for column in psth.columns if _is_float_label(column))
     np.testing.assert_allclose(trial_times, csv_ttl_timestamps)
