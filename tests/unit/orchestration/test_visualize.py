@@ -160,7 +160,7 @@ class TestVisualizeResultsSelectionSources:
         plotted = []
         monkeypatch.setattr(
             "guppy.orchestration.visualize.createPlots",
-            lambda filepath, event, inputParameters: plotted.append(filepath),
+            lambda filepath, event, inputParameters, *, label: plotted.append(filepath),
         )
         parameters["session_folders"] = [str(session_dir)]
         parameters["selected_group_folders"] = [str(group_with_results)]
@@ -207,19 +207,29 @@ class TestHelperPlots:
 
     def test_no_dashboard_is_opened_without_psth_results(self, run_folder_without_psth):
         with patch("guppy.orchestration.visualize.VisualizationDashboard") as dashboard_class:
-            helper_plots(str(run_folder_without_psth), ["ttl_region"], {"nSecPrev": -10, "nSecPost": 20})
+            helper_plots(
+                str(run_folder_without_psth),
+                ["ttl_region"],
+                {"nSecPrev": -10, "nSecPost": 20},
+                label="session1_output_1",
+            )
 
         dashboard_class.assert_not_called()
 
     def test_the_skipped_directory_is_named_in_a_warning(self, run_folder_without_psth, caplog):
         with caplog.at_level(logging.WARNING, logger="guppy.orchestration.visualize"):
-            helper_plots(str(run_folder_without_psth), ["ttl_region"], {"nSecPrev": -10, "nSecPost": 20})
+            helper_plots(
+                str(run_folder_without_psth),
+                ["ttl_region"],
+                {"nSecPrev": -10, "nSecPost": 20},
+                label="session1_output_1",
+            )
 
         assert str(run_folder_without_psth) in caplog.text
         assert "No PSTH results were found" in caplog.text
 
     def test_no_dashboard_is_opened_without_behavior_events(self, run_folder_without_psth):
         with patch("guppy.orchestration.visualize.VisualizationDashboard") as dashboard_class:
-            helper_plots(str(run_folder_without_psth), [], {"nSecPrev": -10, "nSecPost": 20})
+            helper_plots(str(run_folder_without_psth), [], {"nSecPrev": -10, "nSecPost": 20}, label="session1_output_1")
 
         dashboard_class.assert_not_called()

@@ -22,6 +22,7 @@ from guppy.utils.utils import (
     parse_run_name,
     read_Df,
     read_group_members,
+    relative_output_labels,
     resolve_run_folders,
     run_folder_for_run,
     select_run_folders,
@@ -613,3 +614,46 @@ class TestCommonParentDirectory:
             str(pathlib.Path("/data", "batch_a", "cohort_b", "s2")),
         ]
         assert common_parent_directory(paths=paths) == str(pathlib.Path("/data"))
+
+
+# ── relative_output_labels ────────────────────────────────────────────────────
+
+
+class TestRelativeOutputLabels:
+    def test_one_directory_is_named_by_its_own_folder(self):
+        assert relative_output_labels(["/data/session1/session1_output_1"]) == {
+            "/data/session1/session1_output_1": "session1_output_1"
+        }
+
+    def test_runs_of_one_session_are_told_apart_by_their_run_names(self):
+        paths = ["/data/session1/session1_output_1", "/data/session1/session1_output_baseline"]
+        assert relative_output_labels(paths) == {
+            "/data/session1/session1_output_1": "session1_output_1",
+            "/data/session1/session1_output_baseline": "session1_output_baseline",
+        }
+
+    def test_runs_of_different_sessions_carry_the_session(self):
+        paths = ["/data/sessionA/sessionA_output_1", "/data/sessionB/sessionB_output_1"]
+        assert relative_output_labels(paths) == {
+            "/data/sessionA/sessionA_output_1": "sessionA/sessionA_output_1",
+            "/data/sessionB/sessionB_output_1": "sessionB/sessionB_output_1",
+        }
+
+    def test_sessions_sharing_a_name_carry_their_parents_too(self):
+        paths = ["/data/subject1/session1/session1_output_1", "/data/subject2/session1/session1_output_1"]
+        assert relative_output_labels(paths) == {
+            "/data/subject1/session1/session1_output_1": "subject1/session1/session1_output_1",
+            "/data/subject2/session1/session1_output_1": "subject2/session1/session1_output_1",
+        }
+
+    def test_every_label_is_the_real_path_below_the_shared_root(self):
+        paths = ["/data/subject1/session1/session1_output_1", "/data/subject2/session1/session1_output_1"]
+        for path, label in relative_output_labels(paths).items():
+            assert path.endswith("/" + label)
+
+    def test_a_group_folder_sits_alongside_run_folders(self):
+        paths = ["/data/saline_group", "/data/session1/session1_output_1"]
+        assert relative_output_labels(paths) == {
+            "/data/saline_group": "saline_group",
+            "/data/session1/session1_output_1": "session1/session1_output_1",
+        }
