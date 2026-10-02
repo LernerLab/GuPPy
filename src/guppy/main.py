@@ -52,13 +52,13 @@ def main(*, argv: list[str] | None = None) -> None:
         "--input-root",
         type=str,
         default=None,
-        help="Folder your session folders live under",
+        help="Folder your session folders live under; remembered for the next launch",
     )
     parser.add_argument(
         "--output-root",
         type=str,
         default=None,
-        help="Folder the mirrored output tree is written into",
+        help="Folder the mirrored output tree is written into; remembered for the next launch",
     )
 
     args = parser.parse_args(argv)
