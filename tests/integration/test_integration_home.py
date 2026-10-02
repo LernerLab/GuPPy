@@ -17,6 +17,7 @@ EXPECTED_JSON_KEYS = {
     "combine_data",
     "isosbestic_control",
     "control_fit_method",
+    "pair_timestamps_channel",
     "controlFitWindowMode",
     "controlFitWindowStart",
     "controlFitWindowEnd",
