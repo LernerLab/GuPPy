@@ -224,6 +224,14 @@ class ParameterForm:
             description="How the control channel is rescaled onto the signal before subtraction. IRWLS down-weights outlier samples so transients do not distort the fit; OLS is a plain least-squares fit.",
         )
 
+        self.pair_timestamps_channel = pn.widgets.Select(
+            name="Timestamps for Each Control/Signal Pair",
+            options=["signal", "control"],
+            value="signal",
+            width=310,
+            description="Which channel's sample times a control/signal pair is analyzed on, for systems that sample the two channels at different moments. 'signal' keeps the signal's own sample times; 'control' puts the pair on the control's, which reproduces Neurophotometrics results from GuPPy 1.3.0. The longer channel is trimmed to the length of the shorter.",
+        )
+
         self.control_fit_window_mode = pn.widgets.Select(
             name="Control Fit Window",
             options=["full trace", "baseline epoch"],
@@ -570,6 +578,7 @@ class ParameterForm:
                 pn.Row(self.isosbestic_control, self.control_fit_method),
                 pn.Row(self.photobleaching_detrend, self.control_fit_window_mode),
                 pn.Row(self.control_fit_window_strt, self.control_fit_window_end),
+                pn.Row(self.pair_timestamps_channel),
             ],
             width=SECTION_WIDTH,
         )
@@ -1005,6 +1014,7 @@ class ParameterForm:
             "combine_data": self.combine_data.value,
             "isosbestic_control": self.isosbestic_control.value,
             "control_fit_method": self.control_fit_method.value,
+            "pair_timestamps_channel": self.pair_timestamps_channel.value,
             "controlFitWindowMode": self.control_fit_window_mode.value,
             "controlFitWindowStart": self.control_fit_window_strt.value,
             "controlFitWindowEnd": self.control_fit_window_end.value,
@@ -1059,6 +1069,7 @@ class ParameterForm:
             "combine_data": self.combine_data,
             "isosbestic_control": self.isosbestic_control,
             "control_fit_method": self.control_fit_method,
+            "pair_timestamps_channel": self.pair_timestamps_channel,
             "controlFitWindowMode": self.control_fit_window_mode,
             "controlFitWindowStart": self.control_fit_window_strt,
             "controlFitWindowEnd": self.control_fit_window_end,
