@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
@@ -62,14 +62,7 @@ def test_zscore_method(tmp_path, zscore_method, step3_extra_kwargs):
     step3(**common_kwargs, zscore_method=zscore_method, selected_runs=selected_runs, **step3_extra_kwargs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
-    assert output_directories, f"No output directories found in {session_copy}"
-    output_directory = None
-    for candidate in output_directories:
-        if (Path(candidate) / "storesList.csv").exists():
-            output_directory = candidate
-            break
-    assert output_directory is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    output_directory = locate_run_folder(session=str(session_copy))
 
     psth_file_path = Path(output_directory) / (
         f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"

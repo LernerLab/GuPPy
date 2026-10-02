@@ -281,6 +281,33 @@ class TestNormalizeSelectedRuns:
             )
 
 
+class TestLocateRunFolder:
+    @pytest.fixture
+    def session(self, tmp_path):
+        session_directory = tmp_path / "session_one"
+        session_directory.mkdir()
+        return session_directory
+
+    def test_skips_run_folders_without_a_stores_list(self, session):
+        (session / "session_one_output_1").mkdir()
+        run_folder_with_stores_list = session / "session_one_output_2"
+        run_folder_with_stores_list.mkdir()
+        (run_folder_with_stores_list / "storesList.csv").write_text("storenames,storesList\n")
+
+        assert testing_api.locate_run_folder(session=str(session)) == str(run_folder_with_stores_list)
+
+    def test_raises_when_no_run_folder_exists(self, session):
+        with pytest.raises(AssertionError, match="no output directory was created"):
+            testing_api.locate_run_folder(session=str(session))
+
+    def test_raises_when_no_run_folder_holds_a_stores_list(self, session):
+        (session / "session_one_output_1").mkdir()
+        (session / "session_one_output_2").mkdir()
+
+        with pytest.raises(AssertionError, match="contains storesList.csv"):
+            testing_api.locate_run_folder(session=str(session))
+
+
 class TestParseStoreLabel:
     @pytest.mark.parametrize(
         "store_label, expected",

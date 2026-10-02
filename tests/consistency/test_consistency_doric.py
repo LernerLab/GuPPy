@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 # The last field of each case is timeForLightsTurnOn. It now means "seconds of warm-up measured
@@ -124,9 +124,7 @@ def test_consistency(
     )
     step4(**common_kwargs, selected_runs=selected_runs, time_for_lights_turn_on=time_for_lights_turn_on)
 
-    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
-    assert run_folders, f"No output directory found under {session_copy}"
-    actual_output_dir = run_folders[0]
+    actual_output_dir = locate_run_folder(session=str(session_copy))
 
     compare_output_folders(
         actual_dir=actual_output_dir,

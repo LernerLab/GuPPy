@@ -4,7 +4,15 @@ from pathlib import Path
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import group_analysis, label_groups, step1, step2, step3, step4
+from guppy.testing.api import (
+    group_analysis,
+    label_groups,
+    locate_run_folder,
+    step1,
+    step2,
+    step3,
+    step4,
+)
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 SESSION_SUBDIRS = [
@@ -70,7 +78,7 @@ def test_consistency_group_analysis(tmp_path):
     step4(**common_kwargs, selected_runs=selected_runs)
 
     label_groups(
-        member_run_folders=[Path(folder) / (f"{Path(folder).name}_output_1") for folder in selected_folders],
+        member_run_folders=[locate_run_folder(session=folder) for folder in selected_folders],
         destination_directory=str(tmp_base),
         group_name="consistency",
     )

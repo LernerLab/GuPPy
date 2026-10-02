@@ -39,7 +39,32 @@ from guppy.orchestration.store_labeling import (
 )
 from guppy.orchestration.transients import executeFindFreqAndAmp
 from guppy.orchestration.visualize import visualizeResults
-from guppy.utils.utils import resolve_run_folders, run_folder_for_run
+from guppy.utils.utils import (
+    discover_run_folders,
+    resolve_run_folders,
+    run_folder_for_run,
+)
+
+
+def locate_run_folder(*, session: str) -> str:
+    """Return the run folder Step 1 wrote for ``session``.
+
+    Parameters
+    ----------
+    session : str
+        Session folder the run was created for.
+
+    Returns
+    -------
+    str
+        Path of the session's first run folder holding a ``storesList.csv``.
+    """
+    run_folders = discover_run_folders(str(session))
+    assert run_folders, f"no output directory was created for {session}"
+    for run_folder in run_folders:
+        if (Path(run_folder) / "storesList.csv").exists():
+            return run_folder
+    raise AssertionError(f"no output directory for {session} contains storesList.csv")
 
 
 def _validate_sessions_under_base_dir(*, abs_sessions: list[str], base_dir: str) -> None:

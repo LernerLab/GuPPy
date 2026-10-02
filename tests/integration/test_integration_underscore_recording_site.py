@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIR = "csv/sample_data_csv_1"
@@ -68,14 +68,7 @@ def test_underscore_recording_site_runs_end_to_end(tmp_path, isosbestic_control,
     step3(**common_kwargs, isosbestic_control=isosbestic_control, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
-    assert output_directories, f"No output directories found in {session_copy}"
-    output_directory = None
-    for candidate in output_directories:
-        if (Path(candidate) / "storesList.csv").exists():
-            output_directory = candidate
-            break
-    assert output_directory is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    output_directory = locate_run_folder(session=str(session_copy))
 
     # The full underscore recording site must appear intact in every derived artifact name.
     psth_file_path = Path(output_directory) / (
