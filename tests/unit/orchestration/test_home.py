@@ -25,9 +25,18 @@ def poll_until_stopped(capture_periodic, timeout=3.0):
 
 
 @pytest.fixture
-def homepage(panel_extension):
-    """Build a fresh homepage template for each test."""
-    return build_homepage()
+def homepage(panel_extension, tmp_path):
+    """Build a fresh homepage template for each test, pointed at ``tmp_path``.
+
+    Sessions selected by the tests below live under ``tmp_path``, so it serves as the
+    data root; the output tree is mirrored into a sibling directory.
+    """
+    template = build_homepage()
+    output_root_folder = tmp_path / "guppy_output"
+    output_root_folder.mkdir(parents=True, exist_ok=True)
+    template._widgets["input_root_selector"].value = [str(tmp_path)]
+    template._widgets["output_root_selector"].value = [str(output_root_folder)]
+    return template
 
 
 def test_returns_bootstrap_template(homepage):

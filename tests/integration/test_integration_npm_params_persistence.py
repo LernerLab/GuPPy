@@ -20,7 +20,7 @@ from guppy_test_data import STUBBED_TESTING_DATA
 
 def test_step2_reproduces_split_events_from_persisted_params(tmp_path):
     src_session = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_4"
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     session_copy = tmp_base / "sampleData_NPM_4"
     shutil.copytree(src_session, session_copy)
@@ -61,7 +61,7 @@ def test_step2_reads_timestamps_on_the_unit_recorded_by_step1(tmp_path):
     # sampleData_NPM_5 is header-less: nothing in the file says its clock is in
     # milliseconds, so .npm_params.json is the only record of it (issue #411).
     src_session = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_5"
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     session_copy = tmp_base / "sampleData_NPM_5"
     shutil.copytree(src_session, session_copy)

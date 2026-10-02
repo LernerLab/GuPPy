@@ -60,7 +60,7 @@ def test_mixed_modality_tdt_csv_ttl(tmp_path):
     TDT stores to TdtRecordingExtractor and the CSV event file to CsvRecordingExtractor.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     session_copy = _stage_session(src_base_dir, "tdt/Photo_63_207-181030-103332", tmp_base)
@@ -100,7 +100,7 @@ def test_mixed_modality_doric_csv_ttl(tmp_path):
     The Doric recording window for sample_doric_3 runs from 0 to ~16 seconds (relative time).
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     session_copy = _stage_session(src_base_dir, "doric/sample_doric_3", tmp_base)
@@ -146,7 +146,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     domain so PSTH alignment succeeds.
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     session_copy = _stage_session(src_base_dir, "npm/sampleData_NPM_1", tmp_base)
@@ -212,7 +212,7 @@ def test_mixed_modality_nwb_csv_ttl(tmp_path):
     The mock NWB recording window runs from 0 to ~99.97 seconds (3000 samples at 30 Hz).
     """
     src_base_dir = str(STUBBED_TESTING_DATA)
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     session_copy = _stage_session(src_base_dir, "nwb/mock_nwbfile_ndx_fiber_photometry_v0_2_ndx_events_v0_2", tmp_base)

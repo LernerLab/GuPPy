@@ -31,7 +31,7 @@ def test_consistency_dff(tmp_path):
     standard_output_dir = TESTING_DATA / STANDARD_OUTPUT_SUBDIR
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     dest_name = src_session.name
     session_copy = tmp_base / dest_name

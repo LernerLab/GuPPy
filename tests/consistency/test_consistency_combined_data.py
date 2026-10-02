@@ -43,7 +43,7 @@ def test_consistency(tmp_path):
     for ref in standard_output_dirs:
         assert ref.is_dir(), f"Standard output not found: {ref}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     session_copies = []
     for src in src_sessions:

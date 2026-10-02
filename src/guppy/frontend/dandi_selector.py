@@ -10,8 +10,6 @@ import panel as pn
 from dandi.dandiapi import DandiAPIClient
 from dandi.exceptions import NotFoundError
 
-from .frontend_utils import default_root_path
-
 logger = logging.getLogger(__name__)
 
 _DANDISET_ID_PATTERN = re.compile(r"^\d{6}$")
@@ -66,9 +64,6 @@ class DandiSelector:
         Panel styles applied to the composed layout.
     mirror_parent : str or None
         Parent directory the placeholder asset tree is materialized under.
-    start_path : str or None
-        Initial directory shown in the local output-directory selector. Falls back to
-        ``default_root_path()`` when not supplied or when the path does not exist.
 
     Attributes
     ----------
@@ -77,14 +72,9 @@ class DandiSelector:
     selected_uris : list[str]
         Read-only property returning the currently-selected DANDI URIs in the
         form ``dandi://<dandiset_id>/<asset_path>``.
-    output_root : str | None
-        Read-only property returning the selected local output directory, or
-        ``None`` if none is selected.
     """
 
-    def __init__(
-        self, *, styles: dict[str, str] | None = None, mirror_parent: str | None = None, start_path: str | None = None
-    ) -> None:
+    def __init__(self, *, styles: dict[str, str] | None = None, mirror_parent: str | None = None) -> None:
         self.styles = styles or dict(background="WhiteSmoke")
         # Allow tests to inject a tmp_path-based parent; default to the
         # module-level stable location.
@@ -110,13 +100,6 @@ class DandiSelector:
         self.asset_file_selector = self._make_asset_file_selector(self._mirror_parent)
         self._asset_file_selector_slot = pn.Column(self.asset_file_selector)
 
-        self.output_root_selector = pn.widgets.FileSelector(
-            start_path if start_path and Path(start_path).is_dir() else default_root_path(),
-            root_directory="/",
-            name="Local output directory",
-            width=950,
-        )
-
         self.status = pn.pane.Markdown("", width=950)
 
         self.panel = pn.Column(
@@ -138,10 +121,9 @@ class DandiSelector:
             ),
             self._asset_file_selector_slot,
             pn.pane.Markdown(
-                "**Step 3:** Choose a local directory where pipeline outputs will be written. "
-                "One subfolder will be created per selected asset."
+                "One session folder is created per selected asset, under the data root chosen "
+                "in the Root Directory Selection card."
             ),
-            self.output_root_selector,
         )
 
     def _make_asset_file_selector(self, root_directory: str) -> pn.widgets.FileSelector:
@@ -247,18 +229,3 @@ class DandiSelector:
         if not dandiset_id:
             return []
         return [f"dandi://{dandiset_id}/{path}" for path in self._selected_relative_paths()]
-
-    @property
-    def output_root(self) -> str | None:
-        """Return the local output directory selected by the user.
-
-        Returns
-        -------
-        str or None
-            Absolute path of the first entry in the output-root
-            ``FileSelector``'s value, or ``None`` when nothing is selected.
-        """
-        selected = self.output_root_selector.value
-        if not selected:
-            return None
-        return selected[0]

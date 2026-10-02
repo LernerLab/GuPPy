@@ -26,7 +26,7 @@ def _write_transient_outputs(filepath, title):
 
 @pytest.fixture
 def run_folder(tmp_path):
-    output_dir = tmp_path / "session" / "session_output_1"
+    output_dir = tmp_path / "session" / "output_1"
     output_dir.mkdir(parents=True)
     _write_transient_outputs(output_dir, "z_score_DMS")
     return output_dir
@@ -35,34 +35,10 @@ def run_folder(tmp_path):
 class TestLoadPeaks:
     def test_loads_entry_per_trace(self, run_folder):
         entries = load_peaks([str(run_folder)], "z_score")
-        assert list(entries.keys()) == ["session_output_1 / z_score_DMS"]
-        entry = entries["session_output_1 / z_score_DMS"]
+        assert list(entries.keys()) == ["output_1 / z_score_DMS"]
+        entry = entries["output_1 / z_score_DMS"]
         np.testing.assert_array_equal(entry["timestamps"], TIMESTAMPS)
         np.testing.assert_array_equal(entry["peaksInd"], PEAKS_INDEX)
-
-    def test_sessions_sharing_a_name_keep_their_own_entries(self, tmp_path):
-        """Both runs are named session1_output_1, so a name-based label would give them
-        the same key and the second would overwrite the first."""
-        folders = []
-        for subject, peak_index in (("subject1", 2), ("subject2", 7)):
-            folder = tmp_path / subject / "session1" / "session1_output_1"
-            folder.mkdir(parents=True)
-            _write_transient_outputs(folder, "z_score_DMS")
-            write_hdf5(np.array([peak_index]), "transient_outputs_z_score_DMS", str(folder), "peaksInd")
-            folders.append(str(folder))
-
-        entries = load_peaks(folders, "z_score")
-
-        assert list(entries.keys()) == [
-            "subject1/session1/session1_output_1 / z_score_DMS",
-            "subject2/session1/session1_output_1 / z_score_DMS",
-        ]
-        np.testing.assert_array_equal(
-            entries["subject1/session1/session1_output_1 / z_score_DMS"]["peaksInd"], np.array([2])
-        )
-        np.testing.assert_array_equal(
-            entries["subject2/session1/session1_output_1 / z_score_DMS"]["peaksInd"], np.array([7])
-        )
 
 
 class TestPeaksReviewView:

@@ -134,7 +134,7 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
     belong to another clock. Steps 1-3 therefore succeed and the mismatch used to surface as an
     out-of-range index inside the PSTH pools.
     """
-    base_directory = tmp_path / "data_root"
+    base_directory = tmp_path / "input_root_folder"
     base_directory.mkdir()
     session_copy = base_directory / "sample_data_csv_1"
     shutil.copytree(Path(STUBBED_TESTING_DATA) / "csv" / "sample_data_csv_1", session_copy)

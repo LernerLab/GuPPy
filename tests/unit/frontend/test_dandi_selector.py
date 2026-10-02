@@ -131,10 +131,11 @@ class TestDandiSelector:
     def test_selected_uris_empty_when_no_dandiset(self, selector):
         assert selector.selected_uris == []
 
-    def test_output_root_returns_first_selected(self, selector, tmp_path):
-        assert selector.output_root is None
-        selector.output_root_selector.value = [str(tmp_path)]
-        assert selector.output_root == str(tmp_path)
+    def test_the_panel_offers_no_output_directory_of_its_own(self, selector):
+        """Assets materialize under the shared input root folder, so there is nothing
+        DANDI-specific left to pick."""
+        assert not hasattr(selector, "output_root_selector")
+        assert not hasattr(selector, "output_root")
 
     def test_directory_path_input_hidden(self, selector):
         assert selector.asset_file_selector._directory.visible is False

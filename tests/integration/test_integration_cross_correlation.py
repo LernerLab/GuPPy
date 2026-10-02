@@ -43,7 +43,7 @@ def test_cross_correlation(tmp_path):
     assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     dest_name = Path(src_session).name
     session_copy = tmp_base / dest_name

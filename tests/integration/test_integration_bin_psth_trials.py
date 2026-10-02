@@ -37,7 +37,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     source_session = Path(str(STUBBED_TESTING_DATA)) / session_subdir
     assert Path(source_session).is_dir(), f"Sample data not available at expected path: {source_session}"
 
-    temporary_base = tmp_path / "data_root"
+    temporary_base = tmp_path / "input_root_folder"
     temporary_base.mkdir(parents=True, exist_ok=True)
     session_name = Path(source_session).name
     session_copy = temporary_base / session_name

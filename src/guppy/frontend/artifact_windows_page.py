@@ -22,7 +22,7 @@ from ..utils.artifact_windows import (
     merge_windows,
     windows_to_coords,
 )
-from ..utils.utils import discover_run_folders, parse_run_name
+from ..utils.utils import parse_run_name, sibling_run_folders
 from ..visualization.preprocessing import (
     build_markable_trace,
     make_spans_pipe,
@@ -174,7 +174,7 @@ def _runs_with_saved_windows(filepath: str) -> dict[str, str]:
     """
     return {
         parse_run_name(run_folder): run_folder
-        for run_folder in discover_run_folders(str(Path(filepath).parent))
+        for run_folder in sibling_run_folders(filepath)
         if Path(run_folder).resolve() != Path(filepath).resolve()
         and any(Path(run_folder).glob("coordsForPreProcessing_*.npy"))
     }
