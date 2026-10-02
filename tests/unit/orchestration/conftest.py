@@ -17,6 +17,7 @@ def base_input_parameters(tmp_path) -> dict[str, object]:
         "noChannels": 2,
         "isosbestic_control": True,
         "control_fit_method": "IRWLS",
+        "pair_timestamps_channel": "signal",
         "controlFitWindowMode": "full trace",
         "controlFitWindowStart": 0,
         "controlFitWindowEnd": 0,

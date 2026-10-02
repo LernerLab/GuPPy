@@ -120,8 +120,8 @@ def _sessions() -> list[tuple[BaseRecordingExtractor, float | None, Path]]:
         ),
         # CSV — 5th TTL (Sample_TTL) at ~410.9 s
         (CsvRecordingExtractor(str(csv / "sample_data_csv_1")), 411.0, dest_csv / "sample_data_csv_1"),
-        # NPM v2 (LedState header) — 5th TTL (stimuli) at ~120.2 s relative
-        (NpmRecordingExtractor(str(npm / "sampleData_NPM_1")), 120.3, dest_npm / "sampleData_NPM_1"),
+        # NPM v2 (LedState header) — 5th TTL (stimuli) at ~161.4 s after the photometry starts
+        (NpmRecordingExtractor(str(npm / "sampleData_NPM_1")), 161.5, dest_npm / "sampleData_NPM_1"),
         # NPM v2 (LedState header, two files) — no TTL events
         (NpmRecordingExtractor(str(npm / "sampleData_NPM_2")), 16.0, dest_npm / "sampleData_NPM_2"),
         # NPM v2 (LedState header, 4 channels) — copied as-is (small enough; stubbing causes test failures)
