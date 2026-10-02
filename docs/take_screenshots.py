@@ -17,6 +17,7 @@ public dandiset is unauthenticated (only streaming an asset's data authenticates
 from __future__ import annotations
 
 import math
+import os
 import socket
 import time
 from pathlib import Path
@@ -42,6 +43,7 @@ from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.orchestration.home import build_homepage
 from guppy.orchestration.metadata import build_metadata_template
 from guppy.orchestration.store_labeling import build_store_labeling_template
+from guppy.settings import SETTINGS_PATH_VARIABLE
 from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
@@ -61,6 +63,9 @@ OUTPUT_DIR = Path(__file__).parent / "_static" / "images"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 VIEWPORT = {"width": 1280, "height": 900}
+# The homepage's cards are 1000px wide and sit beside a ~350px sidebar, so the shots that
+# have to show a whole card render wider than the default viewport.
+WIDE_VIEWPORT = {"width": 1450, "height": 900}
 SAMPLE_DATA_DIR = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_1"
 
 # Public dandiset used for the DANDI how-to screenshots. The asset is the same one
@@ -110,16 +115,22 @@ def _sidebar_clip(page: Page, from_step: str | None) -> dict[str, float]:
 
 
 def screenshot_homepage(page: Page) -> None:
-    """Screenshot 1: the Input Parameters GUI landing page."""
+    """Screenshot 1: the Input Parameters GUI landing page, as a first launch shows it.
+
+    Rendered wide enough that the 1000px cards clear the sidebar without being cut off,
+    which the default viewport is too narrow for once a card carries prose.
+    """
     template = build_homepage()
     url = _serve(template)
 
+    page.set_viewport_size(WIDE_VIEWPORT)
     page.goto(url)
     page.get_by_text("Parameter Selection").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(path=OUTPUT_DIR / "01_homepage.png", full_page=False)
     print("Saved 01_homepage.png")
 
+    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
@@ -187,8 +198,8 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     The selector is built against synthetic traces rather than a preprocessed run folder
     so the screenshot does not depend on running Steps 1-3 first.
     """
-    run_folder = tmp_path / "sample_data_csv_1_output_1"
-    run_folder.mkdir(exist_ok=True)
+    run_folder = tmp_path / "sample_data_csv_1" / "output_1"
+    run_folder.mkdir(parents=True, exist_ok=True)
 
     selector = ArtifactWindowSelector(str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]))
     selector.set_windows("DMS", [(128.0, 140.0)])
@@ -266,8 +277,8 @@ def screenshot_tonic_analysis_button(page: Page) -> None:
 
 def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
     """How-to: the Tonic Analysis page with the three injection phases filled in."""
-    run_folder = tmp_path / "sample_data_csv_injection_1_output_1"
-    run_folder.mkdir(exist_ok=True)
+    run_folder = tmp_path / "sample_data_csv_injection_1" / "output_1"
+    run_folder.mkdir(parents=True, exist_ok=True)
 
     config = TonicEpochConfig(str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"]))
     config.set_epochs("DMS", TONIC_EPOCHS)
@@ -454,35 +465,44 @@ def screenshot_label_stores(page: Page, tmp_path: Path) -> None:
     pn.state.kill_all_servers()
 
 
-def screenshot_data_selection(page: Page) -> None:
-    """Screenshot for Step 2 substep 1: the file-selector portion of the homepage.
+def screenshot_data_selection(page: Page, tmp_path: Path) -> None:
+    """Screenshot for Step 0: the session-folder browser in Input Folder Selection.
 
-    Captures the top of the Parameter Selection card so the reader can see the
-    file browser they are about to interact with.
+    The roots are pre-selected, which is where the tutorial's reader is by this point:
+    Root Folder Selection has folded itself away and the session browser underneath is
+    already listing the sample sessions.
     """
-    template = build_homepage()
+    template = build_homepage(
+        input_root_folder=str(SAMPLE_DATA_DIR.parent),
+        output_root_folder=str(tmp_path),
+    )
     url = _serve(template)
+    page.set_viewport_size(WIDE_VIEWPORT)
     page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
+    page.get_by_text("Pick the sessions to analyze").first.wait_for()
     page.wait_for_timeout(1000)
     page.screenshot(
         path=OUTPUT_DIR / "02_data_selection.png",
-        clip={"x": 0, "y": 0, "width": 1280, "height": 480},
+        clip={"x": 0, "y": 0, "width": WIDE_VIEWPORT["width"], "height": 720},
     )
     print("Saved 02_data_selection.png")
+    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
-def screenshot_parameters(page: Page) -> None:
-    """Screenshot for Step 2 substep 2: the parameter widgets in the Individual
-    Analysis card.
+def screenshot_parameters(page: Page, tmp_path: Path) -> None:
+    """Screenshot for Step 0: the first sections of the Parameter Selection card.
 
     The homepage uses a sticky header and sticky sidebar, so window-level
     scrolling does not move the parameters into view. Instead we render with a
     tall viewport so the whole Parameter Selection card lays out without
-    scrolling, then clip to the parameter region in absolute page coordinates.
+    scrolling, then clip to the top of the card. The clip is measured off the
+    rendered card, since where it lands depends on how much of the page is above it.
     """
-    template = build_homepage()
+    template = build_homepage(
+        input_root_folder=str(SAMPLE_DATA_DIR.parent),
+        output_root_folder=str(tmp_path),
+    )
     # The Parameter Selection card is collapsed by default; expand it so the
     # parameter widgets render and fall inside the clip region below.
     for card in template.main:
@@ -491,13 +511,14 @@ def screenshot_parameters(page: Page) -> None:
     url = _serve(template)
     # Wide enough that the 1000px card clears the sidebar without being cut off on the
     # right, tall enough that the card lays out without scrolling.
-    page.set_viewport_size({"width": 1450, "height": 1800})
+    page.set_viewport_size({"width": WIDE_VIEWPORT["width"], "height": 2000})
     page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
+    page.get_by_text("Parallel Execution").first.wait_for()
     page.wait_for_timeout(1500)
+    card_top = page.get_by_text("Parameter Selection").first.bounding_box()
     page.screenshot(
         path=OUTPUT_DIR / "02_parameters.png",
-        clip={"x": 355, "y": 665, "width": 1030, "height": 900},
+        clip={"x": card_top["x"] - 32, "y": card_top["y"] + 45, "width": 1030, "height": 900},
     )
     print("Saved 02_parameters.png")
     page.set_viewport_size(VIEWPORT)
@@ -753,29 +774,47 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
     print(f"Saved {filename}")
 
 
-def screenshot_dandi_source_selection(page: Page) -> None:
-    """How-to: the DANDI panel, reached with the Data Source toggle set to ``dandi``.
+def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
+    """How-to: the Data Source toggle set to ``dandi``, and the DANDI panel it reveals.
 
     Assigning ``source_mode`` and ``dandiset_input`` fires their param watchers
     synchronously, so the DANDI panel is swapped in and the dandiset's assets are
     fetched before the template is served (mirroring screenshot_label_stores_configured).
     Fetching the asset list touches one zero-byte placeholder per NWB asset under the
     system temp dir; the tree is reused on subsequent runs.
+
+    The roots are pre-selected so Root Folder Selection folds away, which keeps the
+    toggle and the panel it drives in one shot rather than a card's height apart.
     """
-    template = build_homepage()
+    template = build_homepage(
+        input_root_folder=str(SAMPLE_DATA_DIR.parent),
+        output_root_folder=str(tmp_path),
+    )
     template._widgets["source_mode"].value = "dandi"
     template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
     url = _serve(template)
 
+    page.set_viewport_size(WIDE_VIEWPORT)
     page.goto(url)
     page.get_by_text("DANDI source").first.wait_for()
-    page.wait_for_timeout(1500)
+    # The status line is the bottom of the crop, so wait for the asset count rather than
+    # for a fixed interval that a slow archive response would outlast.
+    page.get_by_text("NWB asset(s) loaded").first.wait_for(timeout=60000)
+    page.wait_for_timeout(1000)
+    status_line = page.get_by_text("NWB asset(s) loaded").first.bounding_box()
+    top = page.get_by_text("Data Source:").first.bounding_box()["y"] - 20
     page.screenshot(
         path=OUTPUT_DIR / "dandi_source_selection.png",
-        clip={"x": 0, "y": 80, "width": 1280, "height": 355},
+        clip={
+            "x": 0,
+            "y": top,
+            "width": WIDE_VIEWPORT["width"],
+            "height": status_line["y"] + status_line["height"] + 20 - top,
+        },
     )
     print("Saved dandi_source_selection.png")
 
+    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
@@ -784,11 +823,14 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
 
     The three runs match what a reader following the tutorial sees: the unnamed run left
     by the first-analysis tutorial, plus the two named ones this tutorial builds. The run
-    folders are created inside the real sample-data directory, and removed afterwards, so
-    the Directory field shows a normal session path rather than a temp-dir basename.
+    folders are created in a real output directory beside the sample data, and removed
+    afterwards, so the Directory field shows a normal path rather than a temp-dir basename.
     """
     run_names = ("1", "filter_100", "filter_250")
-    run_folders = [SAMPLE_DATA_DIR / f"sample_data_csv_1_output_{name}" for name in run_names]
+    output_root_folder = SAMPLE_DATA_DIR.parent / "guppy_output"
+    mirrored_session = output_root_folder / SAMPLE_DATA_DIR.name
+    mirrored_session.mkdir(parents=True, exist_ok=True)
+    run_folders = [mirrored_session / f"output_{name}" for name in run_names]
     for run_folder in run_folders:
         run_folder.mkdir(exist_ok=True)
 
@@ -801,7 +843,9 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         form = ParameterForm(
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
         )
-        form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
+        form.input_root_selector.value = [str(SAMPLE_DATA_DIR.parent)]
+        form.output_root_selector.value = [str(output_root_folder)]
+        form.outputs_selector._directory.value = str(mirrored_session)
         form.outputs_selector._update_files()
         form.outputs_selector._selector.value = [str(run_folders[2])]
         form.output_folder_selection.collapsed = False
@@ -823,6 +867,8 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
     finally:
         for run_folder in run_folders:
             run_folder.rmdir()
+        mirrored_session.rmdir()
+        output_root_folder.rmdir()
 
 
 def screenshot_dandi_asset_browser(page: Page) -> None:
@@ -852,6 +898,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1700})
+    page.set_viewport_size(WIDE_VIEWPORT)
     page.goto(url)
     page.get_by_text("DANDI source").first.wait_for()
     page.wait_for_timeout(1500)
@@ -991,12 +1038,16 @@ def main() -> None:
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
+            # The root folders GuPPy remembers decide whether the Root Folder Selection
+            # card opens itself, so point the settings at the temp dir: every shot is then
+            # of a first-time page rather than of whoever ran the script last.
+            os.environ[SETTINGS_PATH_VARIABLE] = str(tmp_path / "settings.json")
             screenshot_homepage(page)
             screenshot_import_custom_events_button(page)
             screenshot_import_custom_events(page)
-            screenshot_data_selection(page)
-            screenshot_parameters(page)
-            screenshot_dandi_source_selection(page)
+            screenshot_data_selection(page, tmp_path)
+            screenshot_parameters(page, tmp_path)
+            screenshot_dandi_source_selection(page, tmp_path)
             screenshot_dandi_asset_browser(page)
             screenshot_label_stores(page, tmp_path)
             screenshot_label_stores_configured(page, tmp_path)

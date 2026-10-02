@@ -29,11 +29,12 @@ GuPPy reads the dandiset's `draft` version.
 
 ## Choosing a dandiset and assets
 
-1. In **Input Folder Selection**, set **Data Source** to `dandi`. The local file
-   browser is replaced by the DANDI browser.
+1. Set **Data Source**, above the cards at the top of the page, to `dandi`. In
+   **Input Folder Selection** the local file browser is replaced by the DANDI
+   browser.
 
    ```{image} ../_static/images/dandi_source_selection.png
-   :alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) loaded."
+   :alt: The Data Source toggle at the top of the page switched from local to dandi, with the Input Folder Selection card below it showing the DANDI source panel, a Dandiset ID field containing 000971, and a status line reading "Dandiset 000971: 4139 NWB asset(s) loaded."
    :width: 100%
    ```
 
@@ -52,8 +53,15 @@ GuPPy reads the dandiset's `draft` version.
    :width: 100%
    ```
 
-4. Choose a local output directory. GuPPy creates one session folder per
-   selected asset, named after the asset filename minus `.nwb`.
+4. Set the **output root folder** in the **Root Folder Selection** card, if you have
+   not already. GuPPy creates one session folder per selected asset inside it, named
+   after the asset filename minus `.nwb`, and writes that session's runs there. The
+   recording itself is streamed and never downloaded, so the session folder holds only
+   what the analysis writes into it.
+
+   DANDI mode asks for no input root folder, and the card hides it: a streamed session
+   has no local raw data to sit under. This is why the assets land in the output root —
+   it keeps GuPPy from creating folders inside whatever you use for your own recordings.
 
 ## Labeling the streamed stores
 
@@ -91,12 +99,13 @@ preprocessing, PSTH, and visualization offline and without a key.
 
 ## What lands on disk
 
-Nothing from the archive is cached. Under the output directory you chose:
+Nothing from the archive is cached. Assets materialize as session folders inside the output
+root folder, and each session's runs are written in it:
 
 | Path | Contents |
 |------|----------|
-| `<asset name>/` | Session folder, one per selected asset |
-| `<asset name>/<asset name>_output_1/` | Run folder |
+| `<output root folder>/<asset name>/` | Session folder, one per selected asset |
+| `<output root folder>/<asset name>/output_1/` | Run folder |
 | `.../storesList.csv` | Store-to-label mapping from Step 1 |
 | `.../<store id>.hdf5` | One raw stream per store from Step 2, named by store id (e.g. `fiber_photometry_response_series_0.hdf5`) |
 
@@ -112,6 +121,6 @@ Step 3 onward writes the usual per-site files (`signal_DMS.hdf5`,
   real files, so you can navigate it without downloading anything. They live
   under your system temp directory.
 - Re-selecting an asset reuses its existing session folder; Step 1 then creates
-  an `_output_2` run alongside the first.
+  an `output_2` run alongside the first.
 - After Step 2 the sessions are ordinary local folders, so group analysis and
   **Combine Data?** apply normally.

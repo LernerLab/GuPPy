@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SAMPLE_SESSION = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_1"
@@ -91,7 +91,7 @@ def run_pipeline(*, base_directory: Path) -> Path:
     step3(base_dir=str(base_directory), selected_folders=selected_folders, selected_runs=selected_runs)
     step4(base_dir=str(base_directory), selected_folders=selected_folders, selected_runs=selected_runs)
 
-    return session / f"{session.name}_output_{RUN_NAME}"
+    return Path(locate_run_folder(session=str(session)))
 
 
 # --------------------------------------------------------------------------------------
