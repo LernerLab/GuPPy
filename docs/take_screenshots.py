@@ -111,7 +111,7 @@ def _sidebar_clip(page: Page, from_step: str | None) -> dict[str, float]:
 
 def screenshot_homepage(page: Page) -> None:
     """Screenshot 1: the Input Parameters GUI landing page."""
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     url = _serve(template)
 
     page.goto(url)
@@ -125,7 +125,7 @@ def screenshot_homepage(page: Page) -> None:
 
 def screenshot_import_custom_events_button(page: Page) -> None:
     """How-to: the sidebar top showing the Import Custom Events button above Step 1."""
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     url = _serve(template)
     page.goto(url)
     page.get_by_text("Parameter Selection").first.wait_for()
@@ -141,7 +141,7 @@ def screenshot_import_custom_events_button(page: Page) -> None:
 
 def screenshot_select_artifact_windows_button(page: Page) -> None:
     """How-to: the sidebar showing the two optional artifact steps between Step 3 and Step 4."""
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     url = _serve(template)
     page.goto(url)
     page.get_by_text("Parameter Selection").first.wait_for()
@@ -246,7 +246,7 @@ def _synthetic_site_traces(*, recording_sites: list[str]) -> dict[str, dict[str,
 
 def screenshot_tonic_analysis_button(page: Page) -> None:
     """How-to: the sidebar showing the optional tonic step between Remove Artifacts and Step 4."""
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     url = _serve(template)
     # The crop has to reach Step 4 to show where the optional step falls in the order, which
     # runs past the bottom of the default viewport — a clip beyond it is silently truncated.
@@ -460,7 +460,7 @@ def screenshot_data_selection(page: Page) -> None:
     Captures the top of the Parameter Selection card so the reader can see the
     file browser they are about to interact with.
     """
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     url = _serve(template)
     page.goto(url)
     page.get_by_text("Parameter Selection").first.wait_for()
@@ -482,7 +482,7 @@ def screenshot_parameters(page: Page) -> None:
     tall viewport so the whole Parameter Selection card lays out without
     scrolling, then clip to the parameter region in absolute page coordinates.
     """
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     # The Parameter Selection card is collapsed by default; expand it so the
     # parameter widgets render and fall inside the clip region below.
     for card in template.main:
@@ -632,7 +632,7 @@ def screenshot_sidebar_progress(
     anchored on the step they belong to rather than on the top of the page — pass
     viewport_height and clip_from_step (the sidebar label to start the crop at) for those.
     """
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
 
     progress_bars = [w for w in template.sidebar if isinstance(w, pn.indicators.Progress)]
     progress_bars[progress_index].value = 60
@@ -762,7 +762,7 @@ def screenshot_dandi_source_selection(page: Page) -> None:
     Fetching the asset list touches one zero-byte placeholder per NWB asset under the
     system temp dir; the tree is reused on subsequent runs.
     """
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     template._widgets["source_mode"].value = "dandi"
     template._widgets["dandi_selector"].dandiset_input.value = DANDI_DEMO_DANDISET_ID
     url = _serve(template)
@@ -800,7 +800,6 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         # updates the parameter without redrawing the panes.
         form = ParameterForm(
             template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
-            start_path=str(SAMPLE_DATA_DIR.parent),
         )
         form.outputs_selector._directory.value = str(SAMPLE_DATA_DIR)
         form.outputs_selector._update_files()
@@ -866,7 +865,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
 
 def screenshot_export_to_nwb_button(page: Page) -> None:
     """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
-    template = build_homepage(start_path=str(SAMPLE_DATA_DIR.parent))
+    template = build_homepage()
     url = _serve(template)
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
     page.goto(url)
