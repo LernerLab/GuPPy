@@ -586,11 +586,13 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         """
         Create a stubbed copy of the NPM folder with truncated signal files.
 
-        Copies the folder to ``folder_path``, then truncates each raw NPM CSV
-        (multi-column signal files and 2-column event/stimuli files) to
-        approximately ``duration_in_seconds``. The cutoff timestamp is computed
+        Copies the folder to ``folder_path``, then truncates each raw NPM data
+        CSV to approximately ``duration_in_seconds``. The cutoff timestamp is computed
         as the first value in the timestamp column plus ``duration_in_seconds``
-        (scaled to milliseconds when the first timestamp value exceeds ``1e6``).
+        (scaled to milliseconds when the first timestamp value exceeds ``1e6``). Each
+        two-column event file then keeps only the events that fall inside the span a
+        truncated data file retains on any of its timestamp columns, so no event outlasts
+        the photometry it belongs to; an event file left with no events is removed.
 
         Parameters
         ----------
@@ -604,6 +606,8 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             shutil.rmtree(folder_path)
         shutil.copytree(self.folder_path, folder_path)
 
+        retained_spans = []
+        event_csv_paths = []
         for csv_path in sorted(folder_path.glob("*.csv")):
             if _classify_csv_file(str(csv_path)) != "npm":
                 continue
@@ -612,21 +616,38 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
             if len(float_conversions) > 0:
                 # No text header — first column is the timestamp
                 dataframe = pd.read_csv(csv_path, header=None)
-                timestamp_column = 0
+                timestamp_columns = [0]
                 has_text_header = False
             else:
                 dataframe = df_probe
-                timestamp_column = next(
-                    (column for column in dataframe.columns if "timestamp" in column.lower()),
-                    dataframe.columns[0],
-                )
+                timestamp_columns = [column for column in dataframe.columns if "timestamp" in column.lower()]
+                if not timestamp_columns:
+                    timestamp_columns = [dataframe.columns[0]]
                 has_text_header = True
+            if len(dataframe.columns) == 2:
+                event_csv_paths.append(csv_path)
+                continue
+
+            timestamp_column = timestamp_columns[0]
             first_timestamp = float(dataframe[timestamp_column].iloc[0])
             # Heuristic: timestamps > 1e6 are in milliseconds (e.g. ComputerTimestamp)
             unit_factor = 1000.0 if first_timestamp > 1e6 else 1.0
             cutoff = first_timestamp + duration_in_seconds * unit_factor
             dataframe = dataframe[dataframe[timestamp_column] <= cutoff]
             dataframe.to_csv(csv_path, index=False, header=has_text_header)
+            for column in timestamp_columns:
+                retained_spans.append((float(dataframe[column].min()), float(dataframe[column].max())))
+
+        for csv_path in event_csv_paths:
+            dataframe = pd.read_csv(csv_path, header=None)
+            event_timestamps = np.asarray(dataframe.iloc[:, 0], dtype=float)
+            inside_retained_data = np.zeros(event_timestamps.shape[0], dtype=bool)
+            for span_start, span_end in retained_spans:
+                inside_retained_data |= (event_timestamps >= span_start) & (event_timestamps <= span_end)
+            if inside_retained_data.any():
+                dataframe[inside_retained_data].to_csv(csv_path, index=False, header=False)
+            else:
+                csv_path.unlink()
 
     @classmethod
     def has_multiple_event_ttls(cls, folder_path: str) -> list[bool]:

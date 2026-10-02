@@ -714,6 +714,7 @@ def _build_preprocess_input_parameters(
     baseline_window_end: int,
     isosbestic_control: bool,
     control_fit_method: Literal["IRWLS", "OLS"],
+    pair_timestamps_channel: Literal["signal", "control"],
     control_fit_window_mode: Literal["full trace", "baseline epoch"],
     control_fit_window_start: int,
     control_fit_window_end: int,
@@ -793,6 +794,9 @@ def _build_preprocess_input_parameters(
     # Inject control fitting method
     input_params["control_fit_method"] = control_fit_method
 
+    # Inject the channel each control/signal pair is timed by
+    input_params["pair_timestamps_channel"] = pair_timestamps_channel
+
     # Inject control fit window parameters
     input_params["controlFitWindowMode"] = control_fit_window_mode
     input_params["controlFitWindowStart"] = control_fit_window_start
@@ -821,6 +825,7 @@ def step3(
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
     control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    pair_timestamps_channel: Literal["signal", "control"] = "signal",
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
@@ -869,6 +874,9 @@ def step3(
         Regression method for fitting the control channel to the signal. One of
         ``'IRWLS'`` (robust, down-weights outliers) or ``'OLS'`` (ordinary least
         squares). Defaults to ``'IRWLS'``.
+    pair_timestamps_channel : str
+        Which channel's sample times each control/signal pair is analyzed on: ``'signal'``
+        (default) or ``'control'``. The longer channel is trimmed to the shorter.
     control_fit_window_mode : str
         Control-fit mode. ``'full trace'`` (default) re-fits within each artifact-removal
         chunk. ``'baseline epoch'`` estimates fit coefficients once from the fit window
@@ -904,6 +912,7 @@ def step3(
         baseline_window_end=baseline_window_end,
         isosbestic_control=isosbestic_control,
         control_fit_method=control_fit_method,
+        pair_timestamps_channel=pair_timestamps_channel,
         control_fit_window_mode=control_fit_window_mode,
         control_fit_window_start=control_fit_window_start,
         control_fit_window_end=control_fit_window_end,
@@ -965,6 +974,7 @@ def tonic_analysis(
         baseline_window_end=0,
         isosbestic_control=True,
         control_fit_method="IRWLS",
+        pair_timestamps_channel="signal",
         control_fit_window_mode="full trace",
         control_fit_window_start=0,
         control_fit_window_end=0,
@@ -1000,6 +1010,7 @@ def select_artifact_windows(
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
     control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    pair_timestamps_channel: Literal["signal", "control"] = "signal",
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
@@ -1047,6 +1058,7 @@ def select_artifact_windows(
         baseline_window_end=baseline_window_end,
         isosbestic_control=isosbestic_control,
         control_fit_method=control_fit_method,
+        pair_timestamps_channel=pair_timestamps_channel,
         control_fit_window_mode=control_fit_window_mode,
         control_fit_window_start=control_fit_window_start,
         control_fit_window_end=control_fit_window_end,
@@ -1075,6 +1087,7 @@ def remove_artifacts(
     baseline_window_end: int = 0,
     isosbestic_control: bool = True,
     control_fit_method: Literal["IRWLS", "OLS"] = "IRWLS",
+    pair_timestamps_channel: Literal["signal", "control"] = "signal",
     control_fit_window_mode: Literal["full trace", "baseline epoch"] = "full trace",
     control_fit_window_start: int = 0,
     control_fit_window_end: int = 0,
@@ -1116,6 +1129,7 @@ def remove_artifacts(
         baseline_window_end=baseline_window_end,
         isosbestic_control=isosbestic_control,
         control_fit_method=control_fit_method,
+        pair_timestamps_channel=pair_timestamps_channel,
         control_fit_window_mode=control_fit_window_mode,
         control_fit_window_start=control_fit_window_start,
         control_fit_window_end=control_fit_window_end,
