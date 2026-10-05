@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
-from .dandi_selector import DandiSelector
+from .dandi_file_panel import DandiFilePanel
 from .frontend_utils import default_root_path
 from ..settings import remember_root_folders, remembered_root_folders
 from ..utils.utils import (
@@ -200,7 +200,7 @@ class ParameterForm:
         self.same_root_checkbox.param.watch(self._on_same_root_toggled, "value")
         self.output_root_selector.param.watch(self._on_output_location_changed, "value")
         self.input_root_selector.param.watch(self._on_input_root_folder_changed, "value")
-        self.dandi_selector.attach_asset_selection_watcher(callback=self._on_sessions_changed)
+        self.dandi_file_panel.attach_asset_selection_watcher(callback=self._on_sessions_changed)
 
         # The root folders a user keeps across analyses, so only the session folders are
         # left to pick each time. What the command line names wins; otherwise the pair
@@ -275,9 +275,9 @@ class ParameterForm:
         )
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
-        self.dandi_selector = DandiSelector(styles=self.styles)
+        self.dandi_file_panel = DandiFilePanel(styles=self.styles)
         # Hidden by default; shown when source_mode == "dandi"
-        self.dandi_selector.panel.visible = False
+        self.dandi_file_panel.panel.visible = False
 
         self.timeForLightsTurnOn = pn.widgets.IntInput(
             name="Eliminate first few seconds (int)",
@@ -729,7 +729,7 @@ class ParameterForm:
         self.input_folder_selection_widget = pn.Column(
             self.session_selector_header,
             self.files_1,
-            self.dandi_selector.panel,
+            self.dandi_file_panel.panel,
             self.combine_data,
         )
         self.root_folder_selection_widget = pn.Column(
@@ -780,7 +780,11 @@ class ParameterForm:
         # The header describes the browser it sits above, down to the input root the
         # sessions have to sit under, neither of which DANDI mode has.
         self.session_selector_header.visible = not is_dandi
-        self.dandi_selector.panel.visible = is_dandi
+        self.dandi_file_panel.panel.visible = is_dandi
+        if is_dandi:
+            # The catalog runs its default search the first time it is looked at, so that a
+            # local-mode session never reaches the archive.
+            self.dandi_file_panel.open_catalog()
         # Stash before re-pointing the roots, which re-reads the runs on disk and would
         # otherwise clear the outgoing mode's selection before it was put away.
         self._run_selection_by_source_mode[event.old] = (
@@ -1153,7 +1157,7 @@ class ParameterForm:
         if not input_root_folder:
             return []
         sessions = []
-        for uri in self.dandi_selector.selected_uris:
+        for uri in self.dandi_file_panel.selected_uris:
             asset_path = uri.split("/", 3)[-1]
             session_stem = Path(asset_path).stem
             sessions.append(str(Path(input_root_folder) / session_stem))
@@ -1178,7 +1182,7 @@ class ParameterForm:
         dandi_uri_map : dict[str, str]
             Mapping from session directory to the originating DANDI URI.
         """
-        selected_uris = self.dandi_selector.selected_uris
+        selected_uris = self.dandi_file_panel.selected_uris
         input_root_folder = self.input_root_folder
         if not selected_uris:
             logger.error("DANDI mode: no NWB assets selected")

@@ -9,5 +9,6 @@ oriented in the codebase.
 architecture
 testing
 new_recording_format
+dandi
 development_environment
 ```

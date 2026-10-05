@@ -82,8 +82,9 @@ full-length recordings plottable.
 ### `frontend/`
 
 The Panel widget components: the sidebar, the folder and run selectors, the parameter form, the
-store-label configuration page, the artifact-window editor, and the visualization dashboard. Each is
-a class that builds its own widgets and exposes their values.
+store-label configuration page, the artifact-window editor, the three DANDI panels (see [How the
+DANDI browser works](dandi.md)), and the visualization dashboard. Each is a class that builds its
+own widgets and exposes their values.
 
 Validation at this layer covers only what the form can judge by itself — a required folder that was
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
@@ -100,6 +101,15 @@ handles run-folder discovery and naming; `progress.py` provides the step progres
 `@step_error_handler` decorator that surfaces a failed step in the GUI; `validation.py` holds the
 validation helpers reused across layers (`validate_window_bounds`, `validate_peak_windows`,
 `validate_required_folder_selection`, and friends).
+
+Three DANDI modules sit here too, as the archive-side counterpart to the DANDI extractor, forming
+a pipeline in which each imports only the one before it. `dandi_search.py` reports what the archive
+says about dandisets and their assets; `dandi_filter.py` reads those assets' bytes to decide which
+of them, and which whole dandisets, hold photometry GuPPy can read; `dandi_preview.py` opens one
+asset and reports what it holds in detail. The split is forced by the archive: DANDI's structured
+metadata carries no notion of fiber photometry, so the search can only propose candidates and
+anything authoritative has to be read out of the files. See [DANDI browser](dandi.md)
+for the reading strategy that makes that affordable.
 
 ### `testing/`
 
