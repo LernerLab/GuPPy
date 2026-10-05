@@ -398,6 +398,63 @@ class TestCompareOutputFolders:
             )
         assert "UNEXPECTEDLY PRESENT (mapped to None): PAB_.csv" in str(raised_error.value)
 
+    def test_compare_output_folders_label_map_reconciles_renamed_csv_index(self, tmp_path):
+        # A group labels its members by a path below the output root; the reference was
+        # written when the run folder carried its session in its own name.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"amplitude": [1.5]}, index=["session_a_output_1"]).to_csv(
+            expected_directory / "freqAndAmp_z_score_region.csv"
+        )
+        pd.DataFrame({"amplitude": [1.5]}, index=["session_a/output_1"]).to_csv(
+            actual_directory / "freqAndAmp_z_score_region.csv"
+        )
+
+        compare_output_folders(
+            actual_dir=str(actual_directory),
+            expected_dir=str(expected_directory),
+            label_map={"session_a_output_1": "session_a/output_1"},
+        )
+
+    def test_compare_output_folders_label_map_reconciles_renamed_hdf5_labels(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        with h5py.File(expected_directory / "plain_data.h5", "w") as expected_file:
+            expected_file.create_dataset("labels", data=np.array([b"session_a_output_1", b"mean"]))
+        with h5py.File(actual_directory / "plain_data.h5", "w") as actual_file:
+            actual_file.create_dataset("labels", data=np.array([b"session_a/output_1", b"mean"]))
+
+        compare_output_folders(
+            actual_dir=str(actual_directory),
+            expected_dir=str(expected_directory),
+            label_map={"session_a_output_1": "session_a/output_1"},
+        )
+
+    def test_compare_output_folders_label_map_still_reports_unmapped_label_mismatch(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        with h5py.File(expected_directory / "plain_data.h5", "w") as expected_file:
+            expected_file.create_dataset("labels", data=np.array([b"session_a_output_1", b"mean"]))
+        with h5py.File(actual_directory / "plain_data.h5", "w") as actual_file:
+            actual_file.create_dataset("labels", data=np.array([b"session_a/output_1", b"median"]))
+
+        with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
+            compare_output_folders(
+                actual_dir=str(actual_directory),
+                expected_dir=str(expected_directory),
+                label_map={"session_a_output_1": "session_a/output_1"},
+            )
+        assert "plain_data.h5: 'labels' string data differs" in str(raised_error.value)
+
 
 class TestCompareJsonFilePath:
     def test_compare_output_folders_reports_json_value_differences(self, tmp_path):

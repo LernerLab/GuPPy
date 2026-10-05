@@ -36,17 +36,20 @@ class TestServeApp:
         assert served["routes"]["/preprocess-view"] is app.build_preprocess_view
         assert served["routes"]["/transients-view"] is app.build_transients_view
 
-    def test_homepage_route_roots_the_file_selector_at_start_path(self, served, panel_extension, tmp_path):
-        """The ``/`` route is a closure over ``start_path``; invoking it must build a
-        homepage whose session-folder selector opens at that directory."""
-        app.serve_app(start_path=str(tmp_path))
+    def test_homepage_route_opens_the_session_browser_in_the_input_root(self, served, panel_extension, tmp_path):
+        """The ``/`` route is a closure over the roots; invoking it must build a homepage
+        whose session-folder browser opens inside the input root folder."""
+        input_root_folder = tmp_path / "raw"
+        input_root_folder.mkdir()
+
+        app.serve_app(input_root_folder=str(input_root_folder))
         template = served["routes"]["/"]()
 
         assert isinstance(template, pn.template.BootstrapTemplate)
-        assert template._widgets["files_1"].directory == str(tmp_path)
+        assert template._widgets["files_1"].directory == str(input_root_folder)
 
     def test_homepage_route_falls_back_to_the_default_root(self, served, panel_extension, tmp_path):
-        """With no start_path the selector falls back to the default root rather than
+        """With no input root the browser falls back to the default root rather than
         inheriting a stale directory."""
         app.serve_app()
         template = served["routes"]["/"]()

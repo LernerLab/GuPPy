@@ -85,8 +85,8 @@ cache.
 ## The headless testing pattern
 
 Most integration and orchestration tests never touch a browser. They call
-`build_homepage(start_path=...)` to assemble the Panel template with its file selectors rooted at
-the test's data directory, and then drive the pipeline through `step1()` through `step5()` from
+`build_homepage()` to assemble the Panel template, point its Root Folder Selection card at the
+test's data directory, and then drive the pipeline through `step1()` through `step5()` from
 [`guppy.testing.api`](https://github.com/LernerLab/GuPPy/blob/main/src/guppy/testing/api.py). This
 mirrors the production call chain, so a test exercises the same code path a click does.
 

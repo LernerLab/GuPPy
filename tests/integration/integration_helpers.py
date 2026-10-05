@@ -8,6 +8,7 @@ directly via a package-relative import, instead of relying on the ambiguous bare
 from datetime import datetime
 from pathlib import Path
 
+from guppy.testing.api import locate_run_folder
 from guppy.utils.acquisition_format import acquisition_supplies_session_start_time
 from guppy.utils.nwb_metadata import (
     build_metadata_dict,
@@ -127,15 +128,7 @@ REPRESENTATIVE_SESSIONS = {
 
 
 def _locate_output_directory(*, session_copy: str) -> str:
-    session_name = Path(session_copy).name
-    output_directories = sorted(list(Path(session_copy).glob(f"{session_name}_output_*")))
-    assert output_directories, f"No output directories found in {session_copy}"
-
-    for output_directory in output_directories:
-        if (Path(output_directory) / "storesList.csv").exists():
-            return output_directory
-
-    raise AssertionError(f"No storesList.csv found in any output directory under {session_copy}")
+    return locate_run_folder(session=str(session_copy))
 
 
 def write_metadata_yaml(*, session_folder_path: str, output_directory: str, acquisition_format: str, path: Path) -> str:

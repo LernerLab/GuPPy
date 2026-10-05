@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 STORE_ID_TO_STORE_LABEL = {
@@ -50,7 +50,7 @@ def test_consistency_zscore_method(
     standard_output_dir = TESTING_DATA / standard_output_subdir
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     dest_name = src_session.name
     session_copy = tmp_base / dest_name
@@ -73,9 +73,7 @@ def test_consistency_zscore_method(
     step3(**common_kwargs, control_fit_method="OLS", selected_runs=selected_runs, **step3_extra_kwargs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
-    assert run_folders, f"No output directory found under {session_copy}"
-    actual_output_dir = run_folders[0]
+    actual_output_dir = locate_run_folder(session=str(session_copy))
 
     compare_output_folders(
         actual_dir=actual_output_dir,

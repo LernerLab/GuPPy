@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from guppy.testing.api import step1
+from guppy.testing.api import locate_run_folder, step1
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -194,7 +194,7 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
     assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
     # Stage a clean copy of the session into a temporary workspace
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     dest_name = Path(src_session).name
     session_copy = tmp_base / dest_name
@@ -221,16 +221,7 @@ def test_step1(tmp_path, session_subdir, store_id_to_store_label):
     )
 
     # Validate storesList.csv exists and matches the mapping exactly (order-preserved)
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-
-    out_dir = None
-    for d in run_folders:
-        if (Path(d) / "storesList.csv").exists():
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     out_fp = Path(out_dir) / "storesList.csv"
     assert Path(out_fp).exists(), f"Missing storesList.csv: {out_fp}"
