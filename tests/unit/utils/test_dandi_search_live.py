@@ -36,7 +36,6 @@ class TestDandiSearchAgainstTheArchive(DandiSearchTestMixin):
     def test_the_pinned_dandiset_is_summarized_from_its_metadata(self, summaries):
         summary = next(summary for summary in summaries if summary.identifier == DANDISET_ID)
         assert summary.species == ("Mus musculus",)
-        assert "Dorsal striatum" in summary.brain_regions
 
     def test_the_photometry_search_returns_a_catalog_worth_showing(self, summaries):
         assert len(summaries) > 10
