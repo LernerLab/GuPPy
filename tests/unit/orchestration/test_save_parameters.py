@@ -19,6 +19,7 @@ PARAMETER_KEYS = {
     "combine_data",
     "isosbestic_control",
     "control_fit_method",
+    "pair_timestamps_channel",
     "controlFitWindowMode",
     "controlFitWindowStart",
     "controlFitWindowEnd",
@@ -77,9 +78,12 @@ def base_input_parameters(tmp_path):
     folder.mkdir()
     return {
         "session_folders": [str(folder)],
+        "input_root_folder": str(tmp_path),
+        "output_root_folder": str(tmp_path),
         "combine_data": False,
         "isosbestic_control": True,
         "control_fit_method": "IRWLS",
+        "pair_timestamps_channel": "signal",
         "controlFitWindowMode": "full trace",
         "controlFitWindowStart": 0,
         "controlFitWindowEnd": 0,
@@ -184,9 +188,12 @@ def test_save_parameters_single_folder(tmp_path):
     folder.mkdir()
     input_parameters = {
         "session_folders": [str(folder)],
+        "input_root_folder": str(tmp_path),
+        "output_root_folder": str(tmp_path),
         "combine_data": True,
         "isosbestic_control": False,
         "control_fit_method": "OLS",
+        "pair_timestamps_channel": "control",
         "controlFitWindowMode": "full trace",
         "controlFitWindowStart": 0,
         "controlFitWindowEnd": 0,
@@ -233,7 +240,7 @@ def test_save_parameters_single_folder(tmp_path):
 
 
 def _make_output_dir(session_path, run_name):
-    run_folder = Path(session_path) / (f"{Path(session_path).name}_output_{run_name}")
+    run_folder = Path(session_path) / f"output_{run_name}"
     Path(run_folder).mkdir()
     # storesList.csv must exist so select_run_folders accepts the run name.
     (Path(run_folder) / "storesList.csv").open("w").close()

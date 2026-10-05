@@ -14,7 +14,7 @@ STUBBED_CSV_SESSION = PROJECT_ROOT / "stubbed_testing_data" / "csv" / "sample_da
 
 @pytest.fixture
 def base_dir_with_session(tmp_path):
-    base_dir = tmp_path / "data_root"
+    base_dir = tmp_path / "input_root_folder"
     base_dir.mkdir()
     session_copy = base_dir / "sample_data_csv_1"
     shutil.copytree(STUBBED_CSV_SESSION, session_copy)

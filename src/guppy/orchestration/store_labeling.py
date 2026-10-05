@@ -52,7 +52,13 @@ def store_label_cache_path() -> Path:
     return Path.home() / ".storesList.json"
 
 
-def show_dir(filepath: str, run_name: str | None = None) -> str:
+def show_dir(
+    filepath: str,
+    run_name: str | None = None,
+    *,
+    output_root_folder: str,
+    input_root_folder: str,
+) -> str:
     """Return the path of an output directory without creating it.
 
     Parameters
@@ -60,27 +66,40 @@ def show_dir(filepath: str, run_name: str | None = None) -> str:
     filepath : str
         Path to the session folder.
     run_name : str or None, optional
-        Explicit run-name suffix.  When ``None`` (the default) the legacy
-        next-available-integer behaviour is used.
+        Explicit run-name suffix.  When ``None`` (the default) the next
+        available integer is used.
+    output_root_folder : str
+        Folder the mirrored output tree is written into.
+    input_root_folder : str
+        Folder the session folders are selected inside.
 
     Returns
     -------
     str
-        Path of the form ``<filepath>/<basename>_output_<run_name>``.  When
-        ``run_name`` is ``None`` the suffix is the lowest integer for which
-        the directory does not yet exist.
+        Path of the run folder.  When ``run_name`` is ``None`` the run name is the
+        lowest integer the session is not already using.
     """
     if run_name is not None:
         validate_run_name(run_name)
-        return run_folder_for_run(filepath, run_name)
+        return run_folder_for_run(
+            filepath, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        )
 
+    # Compare run names rather than paths: a run folder carrying the pre-2.0.0-beta4 name
+    # occupies its run name just as much as one carrying the current name, and handing both
+    # the name "1" would put two runs called "1" in one session.
+    taken = {
+        parse_run_name(run_folder)
+        for run_folder in discover_run_folders(
+            filepath, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        )
+    }
     i = 1
-    while True:
-        run_folder = run_folder_for_run(filepath, str(i))
-        if not Path(run_folder).exists():
-            break
+    while str(i) in taken:
         i += 1
-    return run_folder
+    return run_folder_for_run(
+        filepath, str(i), output_root_folder=output_root_folder, input_root_folder=input_root_folder
+    )
 
 
 def _fetchValues(
@@ -277,7 +296,7 @@ def _save(
         # Overwrite mode: clear all derived data from the previous run before saving the new store_array.
         shutil.rmtree(select_location)
         logger.info("Cleared output directory for overwrite: %s", select_location)
-    Path(select_location).mkdir()
+    Path(select_location).mkdir(parents=True)
 
     write_stores_list(run_folder=select_location, store_array=store_array)
     if npm_params is not None:
@@ -312,8 +331,10 @@ def build_store_labeling_template(
     isosbestic_control : bool, optional
         Whether isosbestic-control naming applies. Default is False.
     inputParameters : dict, optional
-        Full pipeline input parameters. Required for interactive NPM sessions so
-        the confirm callback can decompose the session and persist the choices.
+        Full pipeline input parameters. Supplies ``output_root_folder`` and
+        ``input_root_folder``, and is
+        required for interactive NPM sessions so the confirm callback can decompose
+        the session and persist the choices.
     npm_interactive : dict, optional
         NPM configuration-form probe data (``multiple_event_ttls``,
         ``timestamp_column_options``). When set, the NPM configuration form is
@@ -328,6 +349,8 @@ def build_store_labeling_template(
         Fully configured Panel template ready to be served.
     """
     allnames = events
+    output_root_folder = inputParameters["output_root_folder"]
+    input_root_folder = inputParameters["input_root_folder"]
 
     template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {Path(folder_path).name}")
 
@@ -347,11 +370,20 @@ def build_store_labeling_template(
     # on switching between creating a new run and overwriting one, following function is executed
     def overwrite_button_actions(event: object) -> None:
         if event.new == "over_write_file":
-            options = discover_run_folders(folder_path)
+            options = discover_run_folders(
+                folder_path, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+            )
             store_labeling_selector.set_select_location_options(options=options)
         else:
             run_name = store_labeling_selector.get_run_name()
-            options = [show_dir(folder_path, run_name=run_name or None)]
+            options = [
+                show_dir(
+                    folder_path,
+                    run_name=run_name or None,
+                    output_root_folder=output_root_folder,
+                    input_root_folder=input_root_folder,
+                )
+            ]
             store_labeling_selector.set_select_location_options(options=options)
 
     def run_name_input_changed(event: object) -> None:
@@ -359,7 +391,14 @@ def build_store_labeling_template(
             return
         run_name = event.new or None
         try:
-            options = [show_dir(folder_path, run_name=run_name)]
+            options = [
+                show_dir(
+                    folder_path,
+                    run_name=run_name,
+                    output_root_folder=output_root_folder,
+                    input_root_folder=input_root_folder,
+                )
+            ]
         except ValueError as exc:
             store_labeling_selector.set_alert_message(f"####Alert !! \n {exc}")
             return
@@ -460,7 +499,11 @@ def build_store_labeling_template(
     store_labeling_selector.attach_run_name_watcher(run_name_input_changed)
     # The page opens in create-new-run mode, so fill the run name with the next free integer;
     # the run-name watcher resolves it to the run folder Save will create.
-    store_labeling_selector.set_run_name(parse_run_name(show_dir(folder_path)))
+    store_labeling_selector.set_run_name(
+        parse_run_name(
+            show_dir(folder_path, output_root_folder=output_root_folder, input_root_folder=input_root_folder)
+        )
+    )
 
     if npm_interactive is not None:
         store_labeling_instructions.confirm_button.on_click(confirm_npm_configuration)

@@ -108,7 +108,8 @@ def test_execute_zscore_computes_and_writes(monkeypatch, base_input_parameters):
 def stub_artifact_removal_io(monkeypatch):
     """Patch execute_artifact_removal's disk I/O so only its compute/write path is exercised."""
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
+        "guppy.orchestration.preprocess.select_run_folders",
+        lambda session, *, inputParameters: ["/tmp/session_1/run_1"],
     )
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.np.genfromtxt", lambda *a, **k: np.array([["ctrl0"], ["control_dms"]])
@@ -175,7 +176,8 @@ def stub_entry_point_io(monkeypatch, recorded_calls, marked_run_folder):
         ),
     )
     monkeypatch.setattr(
-        "guppy.orchestration.preprocess.select_run_folders", lambda session, selected: ["/tmp/session_1/run_1"]
+        "guppy.orchestration.preprocess.select_run_folders",
+        lambda session, *, inputParameters: ["/tmp/session_1/run_1"],
     )
     monkeypatch.setattr(
         "guppy.orchestration.preprocess.execute_timestamp_correction",

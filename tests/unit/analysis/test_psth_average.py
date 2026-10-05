@@ -100,10 +100,10 @@ def group_folder(tmp_path):
 
 
 def test_average_psth_for_group_averages_the_members_means(tmp_path, group_folder):
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     # Stub HDF5 files so the recording-site glob finds them
     (session1 / "z_score_dms.hdf5").touch()
@@ -120,7 +120,7 @@ def test_average_psth_for_group_averages_the_members_means(tmp_path, group_folde
         str(session2), "event_lever_dms", "z_score_dms", np.array([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]]), columns=columns
     )
 
-    input_parameters = {"selectForComputePsth": "z_score"}
+    input_parameters = {"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)}
     wrote_psth = average_psth_for_group(
         member_run_folders=[str(session1), str(session2)],
         event="event_lever",
@@ -130,8 +130,8 @@ def test_average_psth_for_group_averages_the_members_means(tmp_path, group_folde
 
     assert wrote_psth is True
     result = pd.read_hdf(group_folder / "event_lever_dms_z_score_dms.h5", key="df", mode="r")
-    np.testing.assert_allclose(result["session1"].values, np.array([1.0, 2.0, 3.0]))
-    np.testing.assert_allclose(result["session2"].values, np.array([3.0, 4.0, 5.0]))
+    np.testing.assert_allclose(result["session1/output_1"].values, np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_allclose(result["session2/output_1"].values, np.array([3.0, 4.0, 5.0]))
     # Group mean is the across-session mean; err is the SEM over the 2 sessions:
     # mean = [2, 3, 4], std (population, ddof=0) = 1.0 → 1.0 / sqrt(2) ≈ 0.7071068
     np.testing.assert_allclose(result["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-6)
@@ -140,8 +140,8 @@ def test_average_psth_for_group_averages_the_members_means(tmp_path, group_folde
 
 
 def test_average_psth_for_group_writes_into_the_given_group_folder(tmp_path, group_folder):
-    session = tmp_path / "session1"
-    session.mkdir()
+    session = tmp_path / "session1" / "output_1"
+    session.mkdir(parents=True)
     (session / "z_score_dms.hdf5").touch()
     create_Df_for_psth(
         str(session),
@@ -155,7 +155,7 @@ def test_average_psth_for_group_writes_into_the_given_group_folder(tmp_path, gro
         member_run_folders=[str(session)],
         event="event_lever",
         group_folder=str(group_folder),
-        inputParameters={"selectForComputePsth": "z_score"},
+        inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
     assert (group_folder / "event_lever_dms_z_score_dms.h5").exists()
@@ -164,15 +164,15 @@ def test_average_psth_for_group_writes_into_the_given_group_folder(tmp_path, gro
 
 
 def test_average_psth_for_group_reports_false_when_no_member_has_the_event(tmp_path, group_folder):
-    session = tmp_path / "session1"
-    session.mkdir()
+    session = tmp_path / "session1" / "output_1"
+    session.mkdir(parents=True)
     (session / "z_score_dms.hdf5").touch()
 
     wrote_psth = average_psth_for_group(
         member_run_folders=[str(session)],
         event="event_never_recorded",
         group_folder=str(group_folder),
-        inputParameters={"selectForComputePsth": "z_score"},
+        inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
     assert wrote_psth is False
@@ -180,10 +180,10 @@ def test_average_psth_for_group_reports_false_when_no_member_has_the_event(tmp_p
 
 
 def test_average_psth_for_group_dff_mode_averages_the_dff_files(tmp_path, group_folder):
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     # A z-score trace is present but must be ignored in dff mode.
     for session in (session1, session2):
@@ -202,7 +202,7 @@ def test_average_psth_for_group_dff_mode_averages_the_dff_files(tmp_path, group_
         member_run_folders=[str(session1), str(session2)],
         event="event_lever",
         group_folder=str(group_folder),
-        inputParameters={"selectForComputePsth": "dff"},
+        inputParameters={"selectForComputePsth": "dff", "output_root_folder": str(tmp_path)},
     )
 
     assert wrote_psth is True
@@ -212,8 +212,8 @@ def test_average_psth_for_group_dff_mode_averages_the_dff_files(tmp_path, group_
 
 
 def test_average_psth_for_group_both_modes_averages_z_score_and_dff(tmp_path, group_folder):
-    session = tmp_path / "session1"
-    session.mkdir()
+    session = tmp_path / "session1" / "output_1"
+    session.mkdir(parents=True)
     (session / "z_score_dms.hdf5").touch()
     (session / "dff_dms.hdf5").touch()
 
@@ -229,7 +229,7 @@ def test_average_psth_for_group_both_modes_averages_z_score_and_dff(tmp_path, gr
         member_run_folders=[str(session)],
         event="event_lever",
         group_folder=str(group_folder),
-        inputParameters={"selectForComputePsth": "both"},
+        inputParameters={"selectForComputePsth": "both", "output_root_folder": str(tmp_path)},
     )
 
     assert wrote_psth is True
@@ -241,10 +241,10 @@ def test_average_psth_for_group_both_modes_averages_z_score_and_dff(tmp_path, gr
 
 def test_average_psth_for_group_averages_the_members_cross_correlations(tmp_path, group_folder):
     """Two recording sites give one correlated pair, whose per-member results are averaged."""
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     for session, first_lag_values in ((session1, [1.0, 2.0, 3.0]), (session2, [3.0, 4.0, 5.0])):
         (session / "z_score_dms.hdf5").touch()
@@ -263,14 +263,14 @@ def test_average_psth_for_group_averages_the_members_cross_correlations(tmp_path
         member_run_folders=[str(session1), str(session2)],
         event="event_lever",
         group_folder=str(group_folder),
-        inputParameters={"selectForComputePsth": "z_score"},
+        inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
     averaged = pd.read_hdf(
         group_folder / "cross_correlation_output" / "corr_event_lever_z_score_dms_nac.h5", key="df", mode="r"
     )
-    np.testing.assert_allclose(averaged["session1"].values, np.array([1.0, 2.0, 3.0]), atol=1e-6)
-    np.testing.assert_allclose(averaged["session2"].values, np.array([3.0, 4.0, 5.0]), atol=1e-6)
+    np.testing.assert_allclose(averaged["session1/output_1"].values, np.array([1.0, 2.0, 3.0]), atol=1e-6)
+    np.testing.assert_allclose(averaged["session2/output_1"].values, np.array([3.0, 4.0, 5.0]), atol=1e-6)
     # Across-member mean, and the SEM over the 2 members: std (ddof=0) = 1.0 -> 1.0 / sqrt(2)
     np.testing.assert_allclose(averaged["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-6)
     np.testing.assert_allclose(averaged["err"].values, np.full(3, 0.7071068), atol=1e-6)
@@ -285,10 +285,10 @@ def test_average_psth_for_group_handles_non_overlapping_stores_without_indexerro
     unique basenames and caused ``list index out of range`` at
     ``new_path[idx].append(path[i])``.
     """
-    session1 = tmp_path / "session1"
-    session2 = tmp_path / "session2"
-    session1.mkdir()
-    session2.mkdir()
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
 
     # Non-overlapping recording-site labels across sessions
     (session1 / "z_score_regionA.hdf5").touch()
@@ -303,7 +303,7 @@ def test_average_psth_for_group_handles_non_overlapping_stores_without_indexerro
         member_run_folders=[str(session1), str(session2)],
         event="event_lever",
         group_folder=str(group_folder),
-        inputParameters={"selectForComputePsth": "z_score"},
+        inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
     assert (group_folder / "event_lever_regionA_z_score_regionA.h5").exists()

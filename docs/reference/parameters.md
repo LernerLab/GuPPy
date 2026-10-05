@@ -1,48 +1,83 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the four cards on the homepage (**Input Folder Selection**, **Output Folder Selection**, **Parameter Selection**, **Group Output Folder Selection**) and the titled sections inside each card. The GUI answers what a single parameter does, through the **?** beside each control; this page is where they are documented together, in relation to each other and in more detail. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the homepage top to bottom: the **Data Source** toggle above the cards, then the five cards (**Root Folder Selection**, **Input Folder Selection**, **Output Folder Selection**, **Parameter Selection**, **Group Output Folder Selection**) and the titled sections inside each card. The GUI answers what a single parameter does, through the **?** beside each control; this page is where they are documented together, in relation to each other and in more detail. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
 The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 2 (Load the raw data), Step 3 (Preprocess the signal), Step 4 (Compute the PSTH), Step 5 (Visualize the results).
 
 ---
 
+## Data Source
+
+The toggle above the cards. Decides where the sessions come from.
+
+*Used by: Step 1 (Label Stores) and Step 2 (Load the raw data).*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| Data Source | Local-folder mode vs DANDI streaming. | radio | `local` | `local`, `dandi` |
+
+**Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. It sits above the cards because it changes what two of them show: the session-folder browser is replaced by the DANDI browser, and Root Folder Selection drops the input root folder a streamed session has no use for. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
+
+---
+
+## Root Folder Selection
+
+The first card on the homepage. Holds the two folders a project keeps for the life of its analyses, and opens itself while either is unset.
+
+*Used by: Step 1 (which creates the run folders) and every later step that reads them.*
+
+| Parameter | Description | Type | Default | Options / range |
+|-----------|-------------|------|---------|-----------------|
+| (input root folder browser) | The directory your session folders live under. | path | remembered from the last launch | any directory containing every selected session |
+| Output root folder is the same as the input root folder | Point both roots at one folder, so each session's runs are written inside it. | bool | `False` | `True`, `False` |
+| (output root folder browser) | The directory the mirrored output tree is written into. | path | remembered from the last launch | any directory |
+
+Both roots rarely change between analyses, so GuPPy remembers them between launches and `guppy --input-root <path> --output-root <path>` sets them at launch, leaving only the session folders to pick each time. Once both are known the card folds away.
+
+**Input root folder** is the directory your session folders live under. GuPPy mirrors each session's path below it into the output root folder, so `<input root folder>/subject1/session1` writes its runs to `<output root folder>/subject1/session1`. Naming the root yourself is what makes that mapping predictable — you can read a run folder's path straight off the session's, without knowing what else was selected alongside it. Every selected session has to sit under the root; a session outside it has no place in the mirror, and GuPPy refuses the run rather than guessing one.
+
+**Output root folder** is where that mirror is written. Because the mapping depends only on the session and the two roots, two sessions sharing a folder name never collide, and a session's runs stay put however you change the selection between steps. Choosing one is required; GuPPy refuses to start rather than picking a location for you.
+
+**Output root folder is the same as the input root folder** points both roots at one folder, which makes each session mirror onto itself: its run folders are created inside the session folder, so the session travels as one self-contained directory. It also means GuPPy writes into your raw data, which is why it is off by default. Ticking it hides the output-root browser, since there is nothing left to choose.
+
+In `dandi` mode the input root folder and the checkbox are hidden, and only the output root folder is asked for: a streamed session has no local raw data to sit under, so its session folder is created inside the output root folder instead.
+
+---
+
 ## Input Folder Selection
 
-The first card on the homepage, open by default. Selects the session data the pipeline reads.
+The second card on the homepage, open by default. Selects the session data the pipeline reads.
 
 *Used by: Step 2 (Load the raw data); **Combine Data?** is also read by Steps 3-7.*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Data Source | Local-folder mode vs DANDI streaming. | radio | `local` | `local`, `dandi` |
-| (file browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories |
+| (session folders browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories under the input root folder |
 | (DANDI selector) | DANDI assets to materialize as sessions. | dict | `None` (local mode) | per-session mapping of `dandi://` URIs |
 | Combine Data? | Concatenate two split files into one trace. | bool | `False` | `True`, `False` |
 
-**Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. The browser is hidden when `dandi` is selected and the DANDI selector takes its place. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
+**Session folders** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different sub-directories of the input root folder can be analyzed together in a single run, and their differing depths carry straight through into the output tree.
 
-**File browser** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different folders can be analyzed together in a single run. Each session's results are written inside that session's own folder. The pipeline records the directory that contains all of the selected sessions automatically; this is not a configurable knob.
+**DANDI selector** replaces the session-folder browser in `dandi` mode. Each selected DANDI asset URI is materialized into a session directory inside the output root folder, and the pipeline records the URI that backed each session.
 
 **Combine Data?** is for the unusual case where one recording session was split across two data files (for example a system that wrote separate files for two halves of a recording). When `True`, the pipeline concatenates the matching channels across both files into a single trace before preprocessing.
-
-**DANDI selector** is populated only in `dandi` mode. Each selected DANDI asset URI is materialized into a session directory under a user-chosen output root, and the pipeline records the URI that backed each session.
 
 ---
 
 ## Output Folder Selection
 
-The second card on the homepage, collapsed by default. Selects which existing per-session output run the later steps read and write.
+The third card on the homepage, collapsed by default. Selects which existing per-session run the later steps read and write. Where those runs live is set in Root Folder Selection, not here.
 
 *Used by: Steps 2–5 (every step that operates on an existing output run: Load the raw data, Preprocess the signal, Compute the PSTH, Visualize the results).*
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
 | Run name(s) for all sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
-| (existing-runs browser) | Existing `*_output_*` run directories the later steps act on. | list of paths | empty | one or more `*_output_*` directories, at least one per selected session |
+| (existing-runs browser) | Existing run directories the later steps act on. | list of paths | empty | one or more run directories, at least one per selected session |
 
-**Existing-runs browser** lists the `*_output_*` directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
+**Existing-runs browser** lists the run directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
 
-**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `sample_data_csv_1_output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
+**Run name(s) for all sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
 
 Changing which sessions are selected does not discard these choices: sessions that stay selected keep the runs you picked for them, and a session you add picks up the run names currently named above.
 
@@ -52,7 +87,7 @@ Steps 2-4 need at least one run per session that has output directories on disk,
 
 ## Parameter Selection
 
-The largest card on the homepage, collapsed by default (only Input Folder Selection is open on launch). It holds one column of titled sections, each named for the operation its parameters configure and each stating the pipeline steps that read it, ordered by the step that consumes them. The card is not specific to a single analysis level: several of its sections are read by the Group Analysis step as well.
+The fourth card on the homepage, and the largest, collapsed by default. It holds one column of titled sections, each named for the operation its parameters configure and each stating the pipeline steps that read it, ordered by the step that consumes them. The card is not specific to a single analysis level: several of its sections are read by the Group Analysis step as well.
 
 ### Parallel Execution
 
@@ -76,6 +111,7 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 | Control Fit Window Start Time (s) | Start of the baseline epoch used to estimate the fit. | int | `0` | seconds, must be `< Control Fit Window End Time` and within the signal's recorded timespan |
 | Control Fit Window End Time (s) | End of the baseline epoch used to estimate the fit. | int | `0` | seconds, must be `> Control Fit Window Start Time` and within the signal's recorded timespan |
 | Photobleaching Detrend? | Add an exponential decay term to the control fit. | bool | `False` | `True`, `False` |
+| Timestamps for Each Control/Signal Pair | Which channel's sample times a control/signal pair is analyzed on. | str | `signal` | `signal`, `control` |
 
 **Isosbestic Control Channel?** declares whether the recording includes an isosbestic control channel. When `True`, preprocessing fits the isosbestic control channel to the signal trace and subtracts the fitted control to remove motion artifacts and photobleaching that affect both wavelengths equally. When `False`, GuPPy synthesizes a stand-in control channel by fitting an exponential decay curve (`a + b·exp(-x/c)`) to the signal itself, then runs the same fit-and-subtract step using this synthetic trace as the control channel that gets fitted and subtracted. Because a synthetic control carries no motion information, this mode removes the photobleaching trend but not motion artifacts. See the [isosbestic correction explainer](../explanation/isosbestic_correction.md) for the underlying biology and math.
 
@@ -84,6 +120,8 @@ The largest card on the homepage, collapsed by default (only Input Folder Select
 **Control Fit Window** chooses which part of the recording the control-to-signal fit is estimated from. `full trace` (the default) estimates the fit coefficients over the whole recording, matching prior behavior. `baseline epoch` estimates the coefficients from only the window set by **Control Fit Window Start Time (s)** and **Control Fit Window End Time (s)**, then applies those fixed coefficients across the entire recording. Use it when a sustained step-change in the signal — such as a drug injection — would otherwise distort a full-trace fit: fitting on the clean pre-injection window keeps the coefficients stable while the measured control channel continues to correct motion and photobleaching after the injection. This mode requires an isosbestic control channel (**Isosbestic Control Channel?** set to `True`). Both time bounds are in seconds; the validator enforces start < end and that both fall within the signal's recorded timespan, and it reports an error if the window contains no data after artifact removal.
 
 **Photobleaching Detrend?** extends the control fit with an exponential decay term, for the photobleaching the isosbestic control channel does not see. Fitting and subtracting the control cancels the bleaching the two wavelengths share, but the indicator bleaches by its own kinetics as well, and no rescaling of the control can remove that part — on long recordings it survives into the corrected ΔF/F as a slow drift, which confounds any comparison between an early part of the session and a late one. When `True`, the fitted baseline becomes `slope·control + intercept + b·exp(-x/c)` instead of `slope·control + intercept`, and ΔF/F is computed against that. The decay term is part of the fit, so it appears in `cntrl_sig_fit_<recording site>` and in the preprocessing review page. Its time constant is held within the length of the recording, since a decay slower than the recording cannot be measured from it. This parameter requires an isosbestic control channel (**Isosbestic Control Channel?** set to `True`), and requires **Control Channel Fitting Method** to be `OLS` — the decay term makes the fit nonlinear, and the nonlinear fit has no robust variant.
+
+**Timestamps for Each Control/Signal Pair** chooses whose sample times a control/signal pair is analyzed on. It matters for systems that do not sample the two channels at the same moments — Neurophotometrics lights one LED per camera frame, so a 415 nm control and a 470 nm signal sit one frame apart, and pyPhotometry reads its inputs one timer tick apart. Preprocessing puts both channels of a pair on one timeline before fitting, so one channel's sample times stand in for the other's. `signal` (the default) keeps the signal's own sample times, so ΔF/F and z-score are placed where the signal was measured; `control` uses the control's, which reproduces Neurophotometrics results from GuPPy 1.3.0. When the two channels hold different numbers of samples, the longer one is trimmed to the length of the shorter. The choice sets the pair's `timeCorrection_<recording site>` timeline, and every event time downstream is measured against it.
 
 ### Signal Filtering
 
@@ -235,7 +273,7 @@ Both settings still appear in `GuPPyParamtersUsed.json` as a record of what was 
 
 ## Group Output Folder Selection
 
-Collapsed by default on the homepage. Picks which defined groups the pipeline works with.
+The last card on the homepage, collapsed by default. Picks which defined groups the pipeline works with.
 
 *Used by: the Group Analysis step, and Step 5 (Visualize the results).*
 
@@ -281,14 +319,16 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `controlFitWindowStart` | Control Fit Window Start Time (s) | [Control Channel Fitting](#control-channel-fitting) |
 | `dandi_uri_map` | (DANDI selector) | [Input Folder Selection](#input-folder-selection) |
 | `filter_window` | Window for Moving Average filter | [Signal Filtering](#signal-filtering) |
-| `session_folders` | (file browser, Input Folder Selection) | [Input Folder Selection](#input-folder-selection) |
 | `highAmpFilt` | HAFT | [Transient Detection](#transient-detection) |
+| `input_root_folder` | (input root folder browser) | [Root Folder Selection](#root-folder-selection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Control Channel Fitting](#control-channel-fitting) |
-| `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
+| `mode` | Data Source | [Data Source](#data-source) |
 | `moving_window` | Moving Window for transients detection (s) | [Transient Detection](#transient-detection) |
 | `nSecPost` | Seconds after 0 | [PSTH Computation](#psth-computation) |
 | `nSecPrev` | Seconds before 0 | [PSTH Computation](#psth-computation) |
 | `numberOfCores` | # of cores | [Parallel Execution](#parallel-execution) |
+| `output_root_folder` | (output root folder browser) | [Root Folder Selection](#root-folder-selection) |
+| `pair_timestamps_channel` | Timestamps for Each Control/Signal Pair | [Control Channel Fitting](#control-channel-fitting) |
 | `peak_endPoint` | Peak End time | [Peak and AUC Measurement](#peak-and-auc-measurement) |
 | `peak_startPoint` | Peak Start time | [Peak and AUC Measurement](#peak-and-auc-measurement) |
 | `psthComparisonsA` | Event A (comparison table) | [Significance Testing](#significance-testing) |
@@ -299,6 +339,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `removeArtifacts` | (recorded provenance; not user-set) | [Artifact Removal](#artifact-removal) |
 | `selectForComputePsth` | z_score and/or ΔF/F? (psth) | [PSTH Computation](#psth-computation) |
 | `selectForTransientsComputation` | z_score and/or ΔF/F? (transients) | [Transient Detection](#transient-detection) |
+| `session_folders` | (session folders browser) | [Input Folder Selection](#input-folder-selection) |
 | `timeForLightsTurnOn` | Eliminate first few seconds | [Signal Filtering](#signal-filtering) |
 | `timeInterval` | Time Interval (s) | [PSTH Computation](#psth-computation) |
 | `transientsThresh` | TD Thresh | [Transient Detection](#transient-detection) |

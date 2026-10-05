@@ -16,11 +16,7 @@ from dandi.exceptions import NotFoundError
 
 from .dandi_preview_panel import DandiPreviewPanel
 from .dandi_search_panel import DandiSearchPanel
-from .frontend_utils import (
-    DANDI_PANEL_WIDTH,
-    SECONDARY_BUTTON_STYLESHEET,
-    default_root_path,
-)
+from .frontend_utils import DANDI_PANEL_WIDTH, SECONDARY_BUTTON_STYLESHEET
 from ..utils.dandi_filter import filter_assets, scan_assets_for_photometry
 from ..utils.dandi_preview import preview_asset
 from ..utils.dandi_search import AssetSummary, format_byte_size, list_nwb_assets
@@ -88,9 +84,6 @@ class DandiFilePanel:
         Panel styles applied to the composed layout.
     mirror_parent : str or None
         Parent directory the placeholder asset tree is materialized under.
-    start_path : str or None
-        Initial directory shown in the local output-directory selector. Falls back to
-        ``default_root_path()`` when not supplied or when the path does not exist.
     list_assets_function : callable, optional
         Injection point for the asset listing; defaults to
         :func:`~guppy.utils.dandi_search.list_nwb_assets`.
@@ -110,9 +103,6 @@ class DandiFilePanel:
     selected_uris : list[str]
         Read-only property returning the currently-selected DANDI URIs in the
         form ``dandi://<dandiset_id>/<asset_path>``.
-    output_root : str | None
-        Read-only property returning the selected local output directory, or
-        ``None`` if none is selected.
     """
 
     def __init__(
@@ -120,7 +110,6 @@ class DandiFilePanel:
         *,
         styles: dict[str, str] | None = None,
         mirror_parent: str | None = None,
-        start_path: str | None = None,
         list_assets_function: object = list_nwb_assets,
         preview_function: object = preview_asset,
         scan_function: object = scan_assets_for_photometry,
@@ -202,13 +191,6 @@ class DandiFilePanel:
         self.hide_preview_button.on_click(self.hide_preview)
         self.preview_panel = DandiPreviewPanel(preview_function=preview_function, width=DANDI_PANEL_WIDTH)
 
-        self.output_root_selector = pn.widgets.FileSelector(
-            start_path if start_path and Path(start_path).is_dir() else default_root_path(),
-            root_directory="/",
-            name="Local output directory",
-            width=DANDI_PANEL_WIDTH,
-        )
-
         self.status = pn.pane.Markdown("", width=DANDI_PANEL_WIDTH)
         self.asset_status = pn.pane.Markdown("", width=DANDI_PANEL_WIDTH)
 
@@ -249,11 +231,11 @@ class DandiFilePanel:
             pn.Row(self.preview_select, self.preview_button, self.hide_preview_button),
             self.preview_panel.panel,
             pn.pane.Markdown(
-                "Choose a local directory where pipeline outputs will be written. One "
-                "subfolder is created per selected asset.",
+                "One session folder is created per selected asset, inside the output root folder "
+                "chosen in the Root Folder Selection card. The recording itself is streamed, so "
+                "the folder holds only what the analysis writes into it.",
                 width=DANDI_PANEL_WIDTH,
             ),
-            self.output_root_selector,
             visible=False,
         )
         self.panel = pn.Column(self.catalog_view, self.files_view)
@@ -528,18 +510,3 @@ class DandiFilePanel:
         if not dandiset_id:
             return []
         return [f"dandi://{dandiset_id}/{path}" for path in self._selected_relative_paths()]
-
-    @property
-    def output_root(self) -> str | None:
-        """Return the local output directory selected by the user.
-
-        Returns
-        -------
-        str or None
-            Absolute path of the first entry in the output-root
-            ``FileSelector``'s value, or ``None`` when nothing is selected.
-        """
-        selected = self.output_root_selector.value
-        if not selected:
-            return None
-        return selected[0]

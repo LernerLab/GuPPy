@@ -35,7 +35,7 @@ def metric_selectors(tab):
         ("step5_output_nwb", "ttl"),
         ("step5_output_pyphotometry", "ttl"),
     ],
-    ids=["csv_generic", "tdt_clean", "sample_npm_1", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
+    ids=["csv_generic", "tdt_clean", "sample_npm_5", "sample_doric_1", "nwb_mock", "pyphotometry_pulsed"],
 )
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_step5(step5_fixture_name, expected_event_substring, request):
@@ -89,7 +89,7 @@ def test_step5_offers_only_the_metric_step4_computed(tmp_path):
     source_session = STUBBED_TESTING_DATA / SESSION_SUBDIR
     assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
 
-    temporary_base_directory = tmp_path / "data_root"
+    temporary_base_directory = tmp_path / "input_root_folder"
     temporary_base_directory.mkdir(parents=True, exist_ok=True)
     session_name = source_session.name
     session_copy = temporary_base_directory / session_name

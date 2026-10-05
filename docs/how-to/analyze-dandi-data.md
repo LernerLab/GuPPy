@@ -29,12 +29,13 @@ GuPPy reads the dandiset's `draft` version.
 
 ## Choosing a dandiset and assets
 
-In **Input Folder Selection**, set **Data Source** to `dandi`. The local file
-browser is replaced by the DANDI panel, which walks you through three screens: a
-list of dandisets, one dandiset's page, and that dandiset's files.
+Set **Data Source**, above the cards at the top of the page, to `dandi`. In
+**Input Folder Selection** the local file browser is replaced by the DANDI panel,
+which walks you through three screens: a list of dandisets, one dandiset's page,
+and that dandiset's files.
 
 ```{image} ../_static/images/dandi_source_selection.png
-:alt: The Input Folder Selection card with the Data Source toggle switched from local to dandi, showing the DANDI source panel with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
+:alt: The Data Source toggle at the top of the page switched from local to dandi, with the Input Folder Selection card below it showing the DANDI source panel with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
 :width: 100%
 ```
 
@@ -142,10 +143,17 @@ open its files.
 
 3. Click **Hide preview** when you are done with it.
 
-### Choosing an output directory
+### Choosing the output root folder
 
-Choose where GuPPy should write. It creates one session folder per selected
-asset, named after the asset filename minus `.nwb`.
+Set the **output root folder** in the **Root Folder Selection** card, if you have
+not already. GuPPy creates one session folder per selected asset inside it, named
+after the asset filename minus `.nwb`, and writes that session's runs there. The
+recording itself is streamed and never downloaded, so the session folder holds only
+what the analysis writes into it.
+
+DANDI mode asks for no input root folder, and the card hides it: a streamed session
+has no local raw data to sit under. This is why the assets land in the output root —
+it keeps GuPPy from creating folders inside whatever you use for your own recordings.
 
 ## Labeling the streamed stores
 
@@ -182,12 +190,13 @@ and without a key, since Steps 3–5 read the local files Step 2 wrote.
 
 ## What lands on disk
 
-Nothing from the archive is cached. Under the output directory you chose:
+Nothing from the archive is cached. Assets materialize as session folders inside the output
+root folder, and each session's runs are written in it:
 
 | Path | Contents |
 |------|----------|
-| `<asset name>/` | Session folder, one per selected asset |
-| `<asset name>/<asset name>_output_1/` | Run folder |
+| `<output root folder>/<asset name>/` | Session folder, one per selected asset |
+| `<output root folder>/<asset name>/output_1/` | Run folder |
 | `.../storesList.csv` | Store-to-label mapping from Step 1 |
 | `.../<store id>.hdf5` | One raw stream per store from Step 2, named by store id (e.g. `fiber_photometry_response_series_0.hdf5`) |
 
@@ -200,7 +209,7 @@ Step 3 onward writes the usual per-site files (`signal_DMS.hdf5`,
 - Select several assets to queue them as separate sessions, streamed one after
   another.
 - Re-select an asset to reuse its existing session folder; Step 1 then creates an
-  `_output_2` run alongside the first.
+  `output_2` run alongside the first.
 - The asset browser lists zero-byte placeholders standing in for the dandiset's
   real files, so you can navigate it without downloading anything. They live
   under your system temp directory.

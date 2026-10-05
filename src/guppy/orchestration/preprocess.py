@@ -58,17 +58,17 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
     session_folders : list of str
         Session directories to process.
     inputParameters : dict
-        Pipeline configuration; must include ``'timeForLightsTurnOn'`` and
-        ``'isosbestic_control'``.
+        Pipeline configuration; must include ``'timeForLightsTurnOn'``,
+        ``'isosbestic_control'`` and ``'pair_timestamps_channel'``.
     """
 
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
     isosbestic_control = inputParameters["isosbestic_control"]
+    pair_timestamps_channel = inputParameters["pair_timestamps_channel"]
 
-    selected_runs = inputParameters.get("selected_runs") or {}
     for i in range(len(session_folders)):
         filepath = session_folders[i]
-        run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+        run_folders = select_run_folders(filepath, inputParameters=inputParameters)
         mode = "tdt" if check_TDT(session_folders[i]) else "csv"
         logger.debug("Timestamps corrections started for %s", filepath)
         for j in range(len(run_folders)):
@@ -93,11 +93,13 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
                 store_label_to_npoints,
                 store_label_to_timestamps_ttl,
                 mode=mode,
+                pair_timestamps_channel=pair_timestamps_channel,
             )
             (
                 store_label_to_corrected_timestamps,
                 store_label_to_correction_index,
                 store_label_to_corrected_data,
+                store_label_to_timeline_label,
                 compound_name_to_corrected_ttl_timestamps,
             ) = timestamps_dicts
 
@@ -107,6 +109,7 @@ def execute_timestamp_correction(session_folders: list[str], inputParameters: di
                 store_label_to_timestamps,
                 store_label_to_sampling_rate,
                 store_label_to_correction_index,
+                store_label_to_timeline_label,
                 mode,
             )
             write_corrected_data(filepath, store_label_to_corrected_data)
@@ -177,7 +180,7 @@ def execute_zscore(session_folders: list[str], inputParameters: dict[str, object
             run_folders.append([session_folders[i][0]])
         else:
             filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
+            run_folders.append(select_run_folders(filepath, inputParameters=inputParameters))
     run_folders = np.concatenate(run_folders)
 
     for j in range(len(run_folders)):
@@ -238,7 +241,7 @@ def execute_artifact_removal(session_folders: list[str], inputParameters: dict[s
             run_folders.append([session_folders[i][0]])
         else:
             filepath = session_folders[i]
-            run_folders.append(select_run_folders(filepath, (inputParameters.get("selected_runs") or {}).get(filepath)))
+            run_folders.append(select_run_folders(filepath, inputParameters=inputParameters))
 
     run_folders = np.concatenate(run_folders)
 
@@ -293,17 +296,16 @@ def execute_combine_data(
     """
     logger.debug("Combining Data from different data files...")
     timeForLightsTurnOn = inputParameters["timeForLightsTurnOn"]
-    selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
         filepath = session_folders[i]
-        run_folders.append(select_run_folders(filepath, selected_runs.get(filepath)))
+        run_folders.append(select_run_folders(filepath, inputParameters=inputParameters))
 
     run_folders = list(np.concatenate(run_folders).flatten())
     sampling_rate_filepaths = []
     for i in range(len(session_folders)):
         filepath = session_folders[i]
-        session_run_folders = select_run_folders(filepath, selected_runs.get(filepath))
+        session_run_folders = select_run_folders(filepath, inputParameters=inputParameters)
         for j in range(len(session_run_folders)):
             filepath = session_run_folders[j]
             sampling_rate_filepaths.append(list(Path(filepath).glob("timeCorrection_*")))
@@ -366,10 +368,9 @@ def _start_progress(inputParameters: dict[str, object], *, passes_per_folder: in
         Number of passes that will run over each folder.
     """
     session_folders = inputParameters["session_folders"]
-    selected_runs = inputParameters.get("selected_runs") or {}
     run_folders = []
     for i in range(len(session_folders)):
-        run_folders.append(select_run_folders(session_folders[i], selected_runs.get(session_folders[i])))
+        run_folders.append(select_run_folders(session_folders[i], inputParameters=inputParameters))
     run_folders = np.concatenate(run_folders)
 
     if inputParameters["combine_data"] == False:
@@ -400,7 +401,12 @@ def _correct_and_maybe_combine(session_folders: list[str], inputParameters: dict
     if inputParameters["combine_data"] == False:
         return session_folders
 
-    store_array = check_storeslistfile(session_folders)
+    run_folders = [
+        run_folder
+        for session_folder in session_folders
+        for run_folder in select_run_folders(session_folder, inputParameters=inputParameters)
+    ]
+    store_array = check_storeslistfile(run_folders)
     combined_output_folders = execute_combine_data(session_folders, inputParameters, store_array)
     write_combined_stores_list(combined_output_folders, store_array)
     return combined_output_folders
