@@ -143,7 +143,6 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     inputParameters = inputParameters
     session_folders = inputParameters["session_folders"]
     numProcesses = inputParameters["numberOfCores"]
-    selected_runs = inputParameters.get("selected_runs", {}) or {}
     if numProcesses == 0:
         numProcesses = mp.cpu_count()
     elif numProcesses > mp.cpu_count():
@@ -162,7 +161,7 @@ def orchestrate_read_raw_data(inputParameters: dict[str, object]) -> None:
     tasks = []
     total_samples = 0
     for filepath in session_folders:
-        for run_folder in select_run_folders(filepath, selected_runs.get(filepath)):
+        for run_folder in select_run_folders(filepath, inputParameters=inputParameters):
             store_array = _load_stores_list(run_folder)
             events = np.unique(store_array[0, :])
             # NPM decomposition params chosen in Step 1 are persisted in the output dir;

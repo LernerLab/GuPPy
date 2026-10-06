@@ -41,6 +41,7 @@ def compare_output_folders(
     actual_dir: str,
     expected_dir: str,
     name_map: dict[str, str | None] | None = None,
+    label_map: dict[str, str] | None = None,
     rtol: float = 1e-5,
     atol: float = 1e-8,
     event_ts_offset: float = 0.0,
@@ -69,6 +70,12 @@ def compare_output_folders(
         value (a rename), and ``None`` marks a reference file the current code
         intentionally no longer produces (its absence is required, not a
         failure). Expected paths not in the map compare by identical name.
+    label_map : dict, optional
+        Renames applied to the reference's own data values before comparison, as
+        ``{expected label: actual label}``. Row and column labels naming an output
+        directory are written into the data itself, so a directory-naming change makes
+        the reference disagree with current output on the label while the numbers still
+        match. Only whole values are renamed, in CSV indices and HDF5 string datasets.
     rtol : float
         Relative tolerance for numeric comparisons (default 1e-5).
     atol : float
@@ -99,6 +106,7 @@ def compare_output_folders(
     actual_dir = str(Path(actual_dir).resolve())
     expected_dir = str(Path(expected_dir).resolve())
     name_map = name_map or {}
+    label_map = label_map or {}
 
     expected_files = _collect_relative_paths(expected_dir)
 
@@ -127,11 +135,27 @@ def compare_output_folders(
         extension = Path(rel_path).suffix.lower()
         if extension in {".hdf5", ".h5"}:
             _compare_hdf5(
-                actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset, continuous_ts_offset
+                actual_path,
+                expected_path,
+                rel_path,
+                mismatches,
+                rtol,
+                atol,
+                event_ts_offset,
+                continuous_ts_offset,
+                label_map,
             )
         elif extension == ".csv":
             _compare_csv(
-                actual_path, expected_path, rel_path, mismatches, rtol, atol, event_ts_offset, continuous_ts_offset
+                actual_path,
+                expected_path,
+                rel_path,
+                mismatches,
+                rtol,
+                atol,
+                event_ts_offset,
+                continuous_ts_offset,
+                label_map,
             )
         elif extension == ".json":
             _compare_json(actual_path, expected_path, rel_path, mismatches)
@@ -205,6 +229,21 @@ def _normalize_psth_str_array(
     return np.array(flat, dtype=object).reshape(string_array.shape)
 
 
+def _rename_string_array(string_array: np.ndarray, label_map: dict[str, str]) -> np.ndarray:
+    """Decode a string/bytes array and apply whole-value renames from ``label_map``.
+
+    The result is a unicode array rather than the fixed-width bytes dtype HDF5 uses, so
+    a rename that lengthens a label is not truncated. Values absent from the map are
+    carried over unchanged. Both sides of a comparison go through this so their dtypes
+    agree.
+    """
+    renamed = []
+    for item in string_array.flat:
+        text = item.decode("utf-8", errors="replace") if isinstance(item, (bytes, np.bytes_)) else str(item)
+        renamed.append(label_map.get(text, text))
+    return np.array(renamed, dtype=str).reshape(string_array.shape)
+
+
 def _collect_relative_paths(root: str) -> list[str]:
     """Return all file paths under *root* as paths relative to *root*, skipping _SKIP_DIRS."""
     result: list[str] = []
@@ -226,11 +265,21 @@ def _compare_hdf5(
     atol: float,
     event_ts_offset: float = 0.0,
     continuous_ts_offset: float = 0.0,
+    label_map: dict[str, str] | None = None,
 ) -> None:
     """Compare all datasets in two HDF5 files, accumulating mismatches."""
     with h5py.File(actual_path, "r") as actual_f, h5py.File(expected_path, "r") as expected_f:
         _walk_hdf5_group(
-            actual_f, expected_f, rel_path, "", mismatches, rtol, atol, event_ts_offset, continuous_ts_offset
+            actual_f,
+            expected_f,
+            rel_path,
+            "",
+            mismatches,
+            rtol,
+            atol,
+            event_ts_offset,
+            continuous_ts_offset,
+            label_map,
         )
 
 
@@ -244,6 +293,7 @@ def _walk_hdf5_group(
     atol: float,
     event_ts_offset: float = 0.0,
     continuous_ts_offset: float = 0.0,
+    label_map: dict[str, str] | None = None,
 ) -> None:
     """Recursively walk HDF5 groups, comparing all datasets."""
     for key in expected_group.keys():
@@ -272,6 +322,7 @@ def _walk_hdf5_group(
                     atol,
                     event_ts_offset,
                     continuous_ts_offset,
+                    label_map,
                 )
         elif isinstance(expected_item, h5py.Dataset):
             if not isinstance(actual_item, h5py.Dataset):
@@ -287,6 +338,7 @@ def _walk_hdf5_group(
                     atol,
                     event_ts_offset,
                     continuous_ts_offset,
+                    label_map,
                 )
 
 
@@ -300,6 +352,7 @@ def _compare_hdf5_dataset(
     atol: float,
     event_ts_offset: float = 0.0,
     continuous_ts_offset: float = 0.0,
+    label_map: dict[str, str] | None = None,
 ) -> None:
     """Compare two HDF5 datasets, handling numeric and string dtypes."""
     actual_data = actual_ds[()]
@@ -318,6 +371,11 @@ def _compare_hdf5_dataset(
     # String / bytes datasets: exact equality, with targeted tolerance for
     # pandas axis metadata that encodes PSTH floating-point timestamps.
     if expected_data.dtype.kind in {"S", "U", "O"}:
+        if label_map:
+            # Decoding the actual side too (with nothing to rename) keeps the two dtypes
+            # comparable, since renaming widens the reference's fixed-width bytes dtype.
+            actual_data = _rename_string_array(actual_data, {})
+            expected_data = _rename_string_array(expected_data, label_map)
         item_name = item_path.split("/")[-1]
         filename = Path(rel_path).name
         is_peak_auc = "peak_AUC" in filename
@@ -368,10 +426,14 @@ def _compare_csv(
     atol: float,
     event_ts_offset: float = 0.0,
     continuous_ts_offset: float = 0.0,
+    label_map: dict[str, str] | None = None,
 ) -> None:
     """Compare two CSV files as DataFrames."""
     actual_df = pd.read_csv(actual_path, index_col=0)
     expected_df = pd.read_csv(expected_path, index_col=0)
+
+    if label_map:
+        expected_df = expected_df.rename(index=label_map, columns=label_map)
 
     # peak_AUC CSVs use PSTH timestamp labels (prefixed event times) as row indices;
     # normalize float-repr noise and shift the reference index into the current

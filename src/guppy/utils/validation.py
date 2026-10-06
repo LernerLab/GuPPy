@@ -36,7 +36,13 @@ from pathlib import Path
 
 import numpy as np
 
-from .utils import _RUN_NAME_MARKER, GROUP_MEMBERS_FILENAME, is_group_folder
+from .utils import (
+    GROUP_MEMBERS_FILENAME,
+    _normalize,
+    is_group_folder,
+    is_run_folder,
+    session_is_under_input_root,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -332,6 +338,59 @@ def validate_required_folder_selection(*, file_selectors: Sequence) -> None:
         raise ValueError(message)
 
 
+def validate_output_root_folder(
+    *, session_folders: Sequence[str], output_root_folder: str, input_root_folder: str
+) -> None:
+    """Validate that the output root folder can mirror every selected session.
+
+    Pointing the output root at the input root is allowed: each session then mirrors onto
+    itself, so its runs are written inside the session folder. What is rejected is an
+    output root *inside* a selected session, which would nest each run inside the previous
+    one's results.
+
+    Parameters
+    ----------
+    session_folders : sequence of str
+        The session folders whose runs the output root folder will hold.
+    output_root_folder : str
+        The folder the mirrored output tree is written into.
+    input_root_folder : str
+        The folder the session folders are selected inside.
+
+    Raises
+    ------
+    ValueError
+        If a selected session sits outside the input root folder, or if the output root
+        folder sits inside one of the selected sessions.
+    """
+    root = Path(_normalize(input_root_folder))
+    base = Path(_normalize(output_root_folder))
+
+    outside = sorted(
+        str(session)
+        for session in session_folders
+        if not session_is_under_input_root(session_path=str(session), input_root_folder=input_root_folder)
+    )
+    if outside:
+        message = (
+            f"Session folder(s) {outside!r} are not inside the input root folder {str(root)!r}, so "
+            f"GuPPy cannot mirror them into the output root folder. Choose an input root folder "
+            f"that contains every selected session."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    enclosing = sorted(str(session) for session in session_folders if Path(_normalize(session)) in base.parents)
+    if enclosing:
+        message = (
+            f"The output root folder {str(base)!r} is inside the selected session(s) {enclosing!r}, "
+            f"which would write each run inside the previous run's results. Choose the session's "
+            f"own folder, or one outside it."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
 def validate_artifact_coords_present(*, run_folders: Sequence[str]) -> None:
     """Validate that artifact windows have been selected for every run folder.
 
@@ -395,18 +454,17 @@ def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> N
     """
     if not member_run_folders:
         message = (
-            "No member runs selected for group averaging. Pick at least one "
-            "'<session>_output_<run>' directory in the Group Analysis card before running the step."
+            "No member runs selected for group averaging. Pick at least one run "
+            "directory in the Group Analysis card before running the step."
         )
         logger.error(message)
         raise ValueError(message)
 
-    not_output_directories = [path for path in member_run_folders if _RUN_NAME_MARKER not in Path(path).name]
+    not_output_directories = [path for path in member_run_folders if not is_run_folder(path)]
     if not_output_directories:
         message = (
             f"Group members must be output directories, but these are not: {not_output_directories!r}. "
-            "Select the '<session>_output_<run>' directories inside each session, not the session folders "
-            "themselves."
+            "Select each session's run directories, not the session folders themselves."
         )
         logger.error(message)
         raise ValueError(message)
