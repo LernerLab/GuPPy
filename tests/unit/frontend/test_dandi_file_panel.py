@@ -7,6 +7,7 @@ import pytest
 from dandi.exceptions import NotFoundError
 
 from guppy.frontend.dandi_file_panel import DandiFilePanel
+from guppy.utils.dandi_filter import PhotometryVerdictCache
 from guppy.utils.dandi_search import AssetSummary
 
 from .test_dandi_preview_panel import RecordingPreview, make_preview, make_probe
@@ -74,11 +75,13 @@ class RecordingScan:
     def __init__(self, verdicts=None):
         self.verdicts = dict(PHOTOMETRY_BY_PATH if verdicts is None else verdicts)
         self.calls = []
+        self.caches = []
         self.gate = Event()
         self.gate.set()
 
-    def __call__(self, assets, progress_callback=None):
+    def __call__(self, assets, progress_callback=None, cache=None):
         self.calls.append([asset.path for asset in assets])
+        self.caches.append(cache)
         self.gate.wait()
         verdicts = {}
         for asset in assets:
@@ -89,12 +92,18 @@ class RecordingScan:
 
 
 @pytest.fixture
-def file_panel(panel_extension, tmp_path):
+def verdict_cache(tmp_path):
+    return PhotometryVerdictCache(path=tmp_path / "verdicts.json")
+
+
+@pytest.fixture
+def file_panel(panel_extension, tmp_path, verdict_cache):
     return DandiFilePanel(
         mirror_parent=str(tmp_path / "mirror"),
         list_assets_function=RecordingAssetListing(),
         preview_function=RecordingPreview(),
         scan_function=RecordingScan(),
+        verdict_cache=verdict_cache,
     )
 
 
@@ -328,6 +337,29 @@ class TestDandiFilePanelPhotometryScan:
                 "sub-02/ses-1_behavior.nwb",
             ]
         ]
+
+    def test_the_scan_shares_the_catalogs_verdict_cache(self, file_panel, verdict_cache):
+        file_panel.load_dandiset("000971")
+        run_scan(file_panel)
+        assert file_panel.search_panel.verdict_cache is verdict_cache
+        assert file_panel.scan_function.caches == [verdict_cache]
+
+    def test_a_scan_answers_cached_assets_without_reading_them(self, panel_extension, tmp_path, verdict_cache):
+        """The real scan, over assets whose URLs could not be read: only the cache can answer."""
+        verdict_cache.record({"a": False, "b": True, "c": False})
+        file_panel = DandiFilePanel(
+            mirror_parent=str(tmp_path / "mirror"),
+            list_assets_function=RecordingAssetListing(),
+            preview_function=RecordingPreview(),
+            verdict_cache=verdict_cache,
+        )
+        file_panel.load_dandiset("000971")
+        run_scan(file_panel)
+        assert file_panel._photometry_by_path == {
+            "sub-01/ses-1_behavior.nwb": False,
+            "sub-01/ses-2_behavior.nwb": True,
+            "sub-02/ses-1_behavior.nwb": False,
+        }
 
     def test_scanning_does_not_relist_the_dandiset(self, file_panel):
         file_panel.load_dandiset("000971")

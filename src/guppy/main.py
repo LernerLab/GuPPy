@@ -26,6 +26,7 @@ def main(*, argv: list[str] | None = None) -> None:
     Supports command-line flags:
     - --version: Print the installed GuPPy version and exit
     - --export-logs: Export the log file to Desktop for sharing with support
+    - --clear-dandi-cache: Delete the cached DANDI photometry scan results and exit
     - --input-root: Set the folder the session folders live under
     - --output-root: Set the folder the mirrored output tree is written into
     - (no flags): Launch the GUI application
@@ -49,6 +50,11 @@ def main(*, argv: list[str] | None = None) -> None:
         help="Export log file to Desktop with timestamped name for support purposes",
     )
     parser.add_argument(
+        "--clear-dandi-cache",
+        action="store_true",
+        help="Delete the cached results of DANDI fiber photometry scans, so the next scan reads every file again",
+    )
+    parser.add_argument(
         "--input-root",
         type=str,
         default=None,
@@ -65,6 +71,17 @@ def main(*, argv: list[str] | None = None) -> None:
 
     if args.export_logs:
         logging_config.export_log_file()
+        return
+
+    if args.clear_dandi_cache:
+        # Deferred for the same reason as the app import below: the scan module pulls in h5py.
+        from .utils import dandi_filter
+
+        cleared = dandi_filter.clear_verdict_cache()
+        if cleared is None:
+            print(f"No DANDI scan cache to clear at {dandi_filter.default_verdict_cache_path()}")
+        else:
+            print(f"Cleared the DANDI scan cache at {cleared}")
         return
 
     # Deferred so that merely importing this module stays cheap -- see the module docstring.

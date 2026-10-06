@@ -1213,6 +1213,24 @@ class TestRootFolderSelection:
 
         assert remembered_root_folders() == (str(tmp_path), str(output_root_folder))
 
+    def test_a_dandi_analysis_leaves_the_remembered_input_root_alone(
+        self, bare_parameter_form, tmp_path, patched_dandi_client
+    ):
+        """DANDI mode names its output root as the input root, which is not a folder the user picked."""
+        remember_root_folders(input_root_folder=str(tmp_path), output_root_folder=None)
+        output_root = tmp_path / "dandi_output"
+        _dandi_form_with_existing_runs(
+            form=bare_parameter_form,
+            patched_dandi_client=patched_dandi_client,
+            output_root=output_root,
+            asset_paths=["sub-01/data.nwb"],
+            run_names=[],
+        )
+
+        bare_parameter_form.getInputParameters()
+
+        assert remembered_root_folders() == (str(tmp_path), str(output_root))
+
     def test_browsing_alone_does_not_rewrite_the_remembered_roots(self, bare_parameter_form, tmp_path):
         """Idly navigating while looking for a folder must not become the next default."""
         elsewhere = tmp_path / "elsewhere"
