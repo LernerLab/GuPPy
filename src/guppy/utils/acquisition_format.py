@@ -12,11 +12,12 @@ from ..extractors.nwb_recording_extractor import _find_nwb_file
 # The acquisition formats NWB export can read: every format GuPPy reads raw acquisition files for.
 # ``"nwb"`` is not a converter format -- a session already in NWB is exported by adding the GuPPy
 # outputs to the file it came from, rather than by bundling raw acquisition files.
-SUPPORTED_ACQUISITION_FORMATS = ("tdt", "doric", "npm", "csv", "nwb")
+SUPPORTED_ACQUISITION_FORMATS = ("tdt", "doric", "npm", "pyphotometry", "csv", "nwb")
 
-# The formats whose raw files record the session's start time. Only a TDT tank's header always does;
-# a session already in NWB carries one because NWB requires it.
-_FORMATS_RECORDING_SESSION_START_TIME = ("tdt", "nwb")
+# The formats whose raw files record the session's start time. A TDT tank's header always does, and so
+# does every generation of the pyPhotometry ``.ppd`` header; a session already in NWB carries one
+# because NWB requires it.
+_FORMATS_RECORDING_SESSION_START_TIME = ("tdt", "pyphotometry", "nwb")
 
 
 def resolve_acquisition_format(session_folder_path: str) -> str:
@@ -126,8 +127,8 @@ def acquisition_supplies_session_start_time(*, session_folder_path: str, acquisi
     Returns
     -------
     bool
-        ``True`` for TDT tanks and for sessions already in NWB, ``False`` otherwise. A ``.doric``
-        HDF5 export carries a creation timestamp only when the acquisition software wrote one, so
-        Doric is not counted here.
+        ``True`` for TDT tanks, pyPhotometry recordings and sessions already in NWB, ``False``
+        otherwise. A ``.doric`` HDF5 export carries a creation timestamp only when the acquisition
+        software wrote one, so Doric is not counted here.
     """
     return acquisition_format in _FORMATS_RECORDING_SESSION_START_TIME

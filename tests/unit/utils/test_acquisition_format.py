@@ -38,6 +38,10 @@ def write_npm(session_path):
     (session_path / "raw.csv").write_text("Timestamp,LedState,Region0G,Region1G\n0.0,1,10.0,11.0\n")
 
 
+def write_pyphotometry(session_path):
+    (session_path / "recording.ppd").write_bytes(b"\x00")
+
+
 def write_csv_data(session_path):
     (session_path / "signal_dms.csv").write_text("timestamps,data,sampling_rate\n0.0,1.0,100.0\n")
 
@@ -58,6 +62,7 @@ class TestResolveAcquisitionFormat:
             (write_doric_hdf5, "doric"),
             (write_doric_csv, "doric"),
             (write_npm, "npm"),
+            (write_pyphotometry, "pyphotometry"),
             (write_csv_data, "csv"),
             (write_nwb, "nwb"),
         ],
@@ -127,8 +132,8 @@ class TestResolveSessionSource:
 
 
 class TestAcquisitionSuppliesSessionStartTime:
-    @pytest.mark.parametrize("acquisition_format", ["tdt", "nwb"])
-    def test_tdt_and_nwb_supply_it(self, session_path, acquisition_format):
+    @pytest.mark.parametrize("acquisition_format", ["tdt", "pyphotometry", "nwb"])
+    def test_tdt_pyphotometry_and_nwb_supply_it(self, session_path, acquisition_format):
         write_tdt(session_path)
         assert acquisition_supplies_session_start_time(
             session_folder_path=str(session_path), acquisition_format=acquisition_format

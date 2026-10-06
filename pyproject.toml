@@ -62,7 +62,10 @@ dependencies = [
     "remfile",
     "requests",
     "pyyaml",
-    "neuroconv[guppy]>=0.10.2",
+    # TODO: back to a released pin once a neuroconv release ships catalystneuro/neuroconv#2077, which
+    # teaches GuppyConverter the pyphotometry acquisition format NWB export needs. A direct URL cannot be
+    # uploaded to PyPI.
+    "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv.git@guppy_pyphotometry",
     "ndx-guppy>=0.2.1",
     "tornado>=6.5.10",  # 6.5.9 breaks Bokeh's static-file handler, so Panel pages fail to load
     "zarr<3",  # zarr 3 breaks the hdmf-zarr/dandi stack; remove once supported
