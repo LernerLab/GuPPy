@@ -206,14 +206,8 @@ class ParameterForm:
         # left to pick each time. What the command line names wins; otherwise the pair
         # remembered from the last analysis stands in.
         remembered_input_root_folder, remembered_output_base = remembered_root_folders()
-        chosen_input_root_folder = (
-            input_root_folder
-            if input_root_folder and Path(input_root_folder).is_dir()
-            else remembered_input_root_folder
-        )
-        chosen_output_base = (
-            output_root_folder if output_root_folder and Path(output_root_folder).is_dir() else remembered_output_base
-        )
+        chosen_input_root_folder = input_root_folder or remembered_input_root_folder
+        chosen_output_base = output_root_folder or remembered_output_base
         if chosen_input_root_folder:
             _preselect(self.input_root_selector, str(Path(chosen_input_root_folder)))
         if chosen_output_base:
