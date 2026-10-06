@@ -32,7 +32,7 @@ The first card on the homepage. Holds the two folders a project keeps for the li
 | Output root folder is the same as the input root folder | Point both roots at one folder, so each session's runs are written inside it. | bool | `False` | `True`, `False` |
 | (output root folder browser) | The directory the mirrored output tree is written into. | path | remembered from the last launch | any directory |
 
-Both roots rarely change between analyses, so GuPPy remembers them between launches and `guppy --input-root <path> --output-root <path>` sets them at launch, leaving only the session folders to pick each time. Once both are known the card folds away.
+Both roots rarely change between analyses, so GuPPy remembers them between launches and `guppy --input-root <path> --output-root <path>` sets them at launch, leaving only the session folders to pick each time. Each must name a folder that already exists; GuPPy refuses to start otherwise. Once both are known the card folds away.
 
 **Input root folder** is the directory your session folders live under. GuPPy mirrors each session's path below it into the output root folder, so `<input root folder>/subject1/session1` writes its runs to `<output root folder>/subject1/session1`. Naming the root yourself is what makes that mapping predictable — you can read a run folder's path straight off the session's, without knowing what else was selected alongside it. Every selected session has to sit under the root; a session outside it has no place in the mirror, and GuPPy refuses the run rather than guessing one.
 

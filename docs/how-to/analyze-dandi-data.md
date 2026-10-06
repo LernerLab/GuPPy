@@ -92,7 +92,9 @@ open its files.
    The scan reads every listed file's header straight from the archive, then
    ticks **Show only files GuPPy can read** so the tree holds just those. Expect
    a couple of seconds for a typical dandiset and well under a minute for one the
-   size of `000971`. Untick the box to bring the whole listing back.
+   size of `000971`. Untick the box to bring the whole listing back. Its verdicts
+   are remembered alongside the dandiset filter's, so scanning the same files
+   again is immediate.
 
 2. Browse the subject folders and select one or more NWB files. Navigation works
    as in local mode — click a folder to descend, Ctrl/Cmd-click to multi-select.
@@ -190,8 +192,11 @@ and without a key, since Steps 3–5 read the local files Step 2 wrote.
 
 ## What lands on disk
 
-Nothing from the archive is cached. Assets materialize as session folders inside the output
-root folder, and each session's runs are written in it:
+No recording data from the archive is cached. What GuPPy does keep is the dandiset filter's and
+the file scan's verdicts on which files hold fiber photometry, in its user cache directory;
+`guppy --clear-dandi-cache` deletes them, so the next filter or scan reads every file again.
+Assets materialize as session folders inside the output root folder, and each session's runs are
+written in it:
 
 | Path | Contents |
 |------|----------|

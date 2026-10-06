@@ -19,6 +19,7 @@ preview module builds the full picture on top of them.
 import io
 import json
 import logging
+import threading
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -267,6 +268,9 @@ class PhotometryVerdictCache:
     can be recomputed from the archive -- so a corrupt or unwritable file costs time, not
     correctness.
 
+    One instance can be written from several threads at once -- the catalog's dandiset filter
+    and a dandiset's file scan share it -- so recording and saving are serialized.
+
     Parameters
     ----------
     path : Path or None, optional
@@ -277,6 +281,7 @@ class PhotometryVerdictCache:
         self.path = Path(path) if path is not None else default_verdict_cache_path()
         self._assets: dict[str, bool] = {}
         self._dandisets: dict[str, list] = {}
+        self._lock = threading.Lock()
         if self.path.is_file():
             try:
                 stored = json.loads(self.path.read_text())
@@ -304,7 +309,8 @@ class PhotometryVerdictCache:
 
     def record(self, verdicts_by_asset_id: dict[str, bool | None]) -> None:
         """Take note of newly computed asset verdicts, ignoring the reads that failed."""
-        self._assets.update({key: value for key, value in verdicts_by_asset_id.items() if value is not None})
+        with self._lock:
+            self._assets.update({key: value for key, value in verdicts_by_asset_id.items() if value is not None})
 
     def dandiset_verdict(self, reference: "DandisetReference") -> bool | None:
         """Return what is known about a whole dandiset, or None when it must be read.
@@ -322,13 +328,16 @@ class PhotometryVerdictCache:
 
     def record_dandiset(self, reference: "DandisetReference", holds: bool) -> None:
         """Take note of a whole dandiset's settled verdict."""
-        self._dandisets[reference.identifier] = [holds, reference.asset_count]
+        with self._lock:
+            self._dandisets[reference.identifier] = [holds, reference.asset_count]
 
     def save(self) -> None:
         """Write the verdicts out, replacing whatever was there."""
+        with self._lock:
+            serialized = json.dumps({"assets": self._assets, "dandisets": self._dandisets})
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps({"assets": self._assets, "dandisets": self._dandisets}))
+            self.path.write_text(serialized)
         except OSError as error:
             logger.warning("Could not write the photometry verdict cache %s: %s", self.path, error)
 
@@ -336,6 +345,26 @@ class PhotometryVerdictCache:
 def default_verdict_cache_path() -> Path:
     """Return the file GuPPy caches DANDI photometry verdicts in."""
     return Path(user_cache_dir("guppy", "LernerLab")) / "dandi_photometry_verdicts.json"
+
+
+def clear_verdict_cache(*, path: Path | None = None) -> Path | None:
+    """Delete the cached verdicts, so every asset and dandiset is read again.
+
+    Parameters
+    ----------
+    path : Path or None, optional
+        File the verdicts are stored in. Defaults to GuPPy's user cache directory.
+
+    Returns
+    -------
+    Path or None
+        The file that was deleted, or None when there was no cache to delete.
+    """
+    path = Path(path) if path is not None else default_verdict_cache_path()
+    if not path.is_file():
+        return None
+    path.unlink()
+    return path
 
 
 def scan_assets_for_photometry(

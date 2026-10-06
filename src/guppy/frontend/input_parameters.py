@@ -206,14 +206,8 @@ class ParameterForm:
         # left to pick each time. What the command line names wins; otherwise the pair
         # remembered from the last analysis stands in.
         remembered_input_root_folder, remembered_output_base = remembered_root_folders()
-        chosen_input_root_folder = (
-            input_root_folder
-            if input_root_folder and Path(input_root_folder).is_dir()
-            else remembered_input_root_folder
-        )
-        chosen_output_base = (
-            output_root_folder if output_root_folder and Path(output_root_folder).is_dir() else remembered_output_base
-        )
+        chosen_input_root_folder = input_root_folder or remembered_input_root_folder
+        chosen_output_base = output_root_folder or remembered_output_base
         if chosen_input_root_folder:
             _preselect(self.input_root_selector, str(Path(chosen_input_root_folder)))
         if chosen_output_base:
@@ -1354,7 +1348,12 @@ class ParameterForm:
         )
         # Remembered here rather than on every click in the browser, so idly navigating
         # while looking for a folder does not quietly rewrite the next launch's default.
-        remember_root_folders(input_root_folder=input_root_folder, output_root_folder=output_root_folder)
+        # DANDI mode's input root is the output root standing in for one, not a folder the
+        # user picked, so it leaves the remembered input root alone.
+        remember_root_folders(
+            input_root_folder=None if mode == "dandi" else input_root_folder,
+            output_root_folder=output_root_folder,
+        )
         # Created here rather than at save time so every step, and the Label Stores page
         # that writes the first run folder into it, can count on it existing.
         for session in folder_names:

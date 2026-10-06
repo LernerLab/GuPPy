@@ -17,7 +17,11 @@ from dandi.exceptions import NotFoundError
 from .dandi_preview_panel import DandiPreviewPanel
 from .dandi_search_panel import DandiSearchPanel
 from .frontend_utils import DANDI_PANEL_WIDTH, SECONDARY_BUTTON_STYLESHEET
-from ..utils.dandi_filter import filter_assets, scan_assets_for_photometry
+from ..utils.dandi_filter import (
+    PhotometryVerdictCache,
+    filter_assets,
+    scan_assets_for_photometry,
+)
 from ..utils.dandi_preview import preview_asset
 from ..utils.dandi_search import AssetSummary, format_byte_size, list_nwb_assets
 
@@ -95,6 +99,10 @@ class DandiFilePanel:
         :func:`~guppy.utils.dandi_filter.scan_assets_for_photometry`.
     search_panel : DandiSearchPanel or None, optional
         Catalog search panel to embed. One is built when not supplied.
+    verdict_cache : PhotometryVerdictCache or None, optional
+        Where scan verdicts are remembered between sessions, handed to the search panel built
+        when none is supplied. The file scan reads and extends the search panel's cache, so
+        both screens share one.
 
     Attributes
     ----------
@@ -114,6 +122,7 @@ class DandiFilePanel:
         preview_function: object = preview_asset,
         scan_function: object = scan_assets_for_photometry,
         search_panel: DandiSearchPanel | None = None,
+        verdict_cache: PhotometryVerdictCache | None = None,
     ) -> None:
         self.styles = styles or dict(background="WhiteSmoke")
         # Allow tests to inject a tmp_path-based parent; default to the
@@ -138,7 +147,9 @@ class DandiFilePanel:
         self._asset_selection_watchers = []
 
         self.search_panel = (
-            search_panel if search_panel is not None else DandiSearchPanel(on_dandiset_selected=self.load_dandiset)
+            search_panel
+            if search_panel is not None
+            else DandiSearchPanel(on_dandiset_selected=self.load_dandiset, verdict_cache=verdict_cache)
         )
         self.scan_button = pn.widgets.Button(
             name="Scan for fiber photometry",
@@ -393,7 +404,11 @@ class DandiFilePanel:
         self._scan = {"completed": 0, "verdicts": {}, "total": total}
 
         def worker() -> None:
-            self._scan["verdicts"] = self.scan_function(self._assets, progress_callback=self._record_scan_progress)
+            self._scan["verdicts"] = self.scan_function(
+                self._assets,
+                progress_callback=self._record_scan_progress,
+                cache=self.search_panel.verdict_cache,
+            )
 
         self._scan["thread"] = Thread(target=worker)
         self._scan["thread"].start()
