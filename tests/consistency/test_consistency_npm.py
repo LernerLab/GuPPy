@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy.utils.stores_list import read_stores_list, write_stores_list
 from guppy_test_data import TESTING_DATA, event_ts_offset_for, recording_start_for
 
@@ -196,7 +196,7 @@ def test_consistency(
     standard_output_dir = TESTING_DATA / standard_output_subdir
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     dest_name = src_session.name
     session_copy = tmp_base / dest_name
@@ -226,9 +226,7 @@ def test_consistency(
     )
     step4(**common_kwargs, selected_runs=selected_runs, **extra_kwargs)
 
-    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
-    assert run_folders, f"No output directory found under {session_copy}"
-    actual_output_dir = run_folders[0]
+    actual_output_dir = locate_run_folder(session=str(session_copy))
 
     expected_output_dir = _reconcile_reference_store_ids(
         standard_output_dir=standard_output_dir,

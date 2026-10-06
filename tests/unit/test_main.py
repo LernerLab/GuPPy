@@ -5,6 +5,7 @@ import pytest
 from guppy import app
 from guppy import main as main_module
 from guppy.main import main
+from guppy.utils import dandi_filter
 
 
 @pytest.fixture
@@ -27,6 +28,14 @@ def exported(monkeypatch):
     return calls
 
 
+@pytest.fixture
+def verdict_cache_path(monkeypatch, tmp_path):
+    """Point the DANDI scan cache at a temporary file instead of the user's real cache."""
+    path = tmp_path / "dandi_photometry_verdicts.json"
+    monkeypatch.setattr(dandi_filter, "default_verdict_cache_path", lambda: path)
+    return path
+
+
 class TestMain:
     def test_no_arguments_serves_the_app(self, served, exported):
         main(argv=[])
@@ -41,17 +50,80 @@ class TestMain:
         ]
         assert exported == []
 
-    def test_start_path_reaches_the_homepage_route(self, served, exported, panel_extension, tmp_path):
-        main(argv=["--start-path", str(tmp_path)])
+    def test_the_roots_reach_the_homepage_route(self, served, exported, panel_extension, tmp_path):
+        input_root_folder = tmp_path / "data"
+        output_directory = tmp_path / "derivatives"
+        input_root_folder.mkdir()
+        output_directory.mkdir()
+
+        main(argv=["--input-root", str(input_root_folder), "--output-root", str(output_directory)])
         template = served["routes"]["/"]()
 
-        assert template._widgets["files_1"].directory == str(tmp_path)
-        assert exported == []
+        # The visible "Selected files" pane, not just the parameter: assigning value alone
+        # leaves the browser showing nothing until it re-lists its directory.
+        assert template._widgets["input_root_selector"].value == [str(input_root_folder)]
+        assert list(template._widgets["input_root_selector"]._selector.value) == [str(input_root_folder)]
+        assert template._widgets["output_root_selector"].value == [str(output_directory)]
+        assert list(template._widgets["output_root_selector"]._selector.value) == [str(output_directory)]
+
+    @pytest.mark.parametrize("flag", ["--input-root", "--output-root"])
+    def test_a_root_folder_that_does_not_exist_is_refused(self, served, exported, capsys, tmp_path, flag):
+        # Falling back to the remembered folder would quietly write the analysis somewhere else.
+        missing = tmp_path / "missing"
+
+        with pytest.raises(SystemExit) as excinfo:
+            main(argv=[flag, str(missing)])
+
+        assert excinfo.value.code == 2
+        assert f"{flag} '{missing}' is not an existing folder" in capsys.readouterr().err
+        assert served == {}
+
+    def test_a_relative_root_folder_reaches_the_homepage_as_an_absolute_path(
+        self, served, exported, panel_extension, tmp_path, monkeypatch
+    ):
+        # Remembered as typed, a relative folder would only mean something from the directory
+        # GuPPy happened to be launched in.
+        (tmp_path / "data").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        main(argv=["--input-root", "data"])
+        template = served["routes"]["/"]()
+
+        assert template._widgets["input_root_selector"].value == [str(tmp_path.resolve() / "data")]
+
+    def test_a_home_relative_root_folder_is_expanded(self, served, exported, panel_extension, tmp_path, monkeypatch):
+        (tmp_path / "derivatives").mkdir()
+        # Path.expanduser reads HOME on POSIX and USERPROFILE on Windows.
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+
+        main(argv=["--output-root", "~/derivatives"])
+        template = served["routes"]["/"]()
+
+        assert template._widgets["output_root_selector"].value == [str(tmp_path.resolve() / "derivatives")]
 
     def test_export_logs_exports_without_starting_a_server(self, served, exported):
         main(argv=["--export-logs"])
 
         assert exported == [True]
+        assert served == {}
+
+    def test_clear_dandi_cache_deletes_the_cache_without_starting_a_server(
+        self, served, exported, verdict_cache_path, capsys
+    ):
+        verdict_cache_path.write_text('{"assets": {"a": true}, "dandisets": {}}')
+
+        main(argv=["--clear-dandi-cache"])
+
+        assert not verdict_cache_path.exists()
+        assert capsys.readouterr().out.strip() == f"Cleared the DANDI scan cache at {verdict_cache_path}"
+        assert served == {}
+        assert exported == []
+
+    def test_clear_dandi_cache_reports_when_there_is_nothing_to_clear(self, served, verdict_cache_path, capsys):
+        main(argv=["--clear-dandi-cache"])
+
+        assert capsys.readouterr().out.strip() == f"No DANDI scan cache to clear at {verdict_cache_path}"
         assert served == {}
 
     def test_version_prints_the_installed_version_without_starting_a_server(self, served, exported, capsys):

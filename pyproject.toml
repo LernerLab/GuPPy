@@ -60,6 +60,7 @@ dependencies = [
     "selenium",
     "dandi",
     "remfile",
+    "requests",
     "pyyaml",
     # Pinned to the branch of catalystneuro/neuroconv#2058 until it is released; restore a
     # version pin (>= the release carrying it) before merging.
@@ -93,6 +94,7 @@ test = [
 
 dev = [
     "pre-commit",
+    "towncrier",
 ]
 
 [project.scripts]
@@ -151,7 +153,7 @@ fixable = ["ALL"]
 "**__init__.py" = ["F401", "I", "D1"]  # We are not enforcing import or docstring rules in __init__'s
 "test_**.py" = ["D1", "ANN", "RUF012"] # We are not enforcing docstring, type hint, or ClassVar rules in test files.
 "**conftest.py" = ["D1", "ANN", "RUF012"] # conftest.py is test infrastructure; same exemption as test files.
-"**recording_extractor_test_mixin.py" = ["D1", "ANN", "RUF012"] # shared test mixin; test infrastructure, same exemption as test files.
+"**_test_mixin.py" = ["D1", "ANN", "RUF012"] # shared test mixins; test infrastructure, same exemption as test files.
 
 [tool.ruff.lint.isort]
 relative-imports-order = "closest-to-furthest"
@@ -159,6 +161,37 @@ known-first-party = ["guppy", "guppy_test_data"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+
+[tool.towncrier]
+# Each entry is a file under changelog_entries/ named "<PR number>.<type>.md", so two pull requests never
+# touch the same lines and the release notes are assembled at release time.
+directory = "changelog_entries"
+filename = "CHANGELOG.md"
+template = "changelog_entries/template.md"
+title_format = "# v{version} ({project_date})"
+issue_format = "[PR #{issue}](https://github.com/LernerLab/GuPPy/pull/{issue})"
+ignore = ["template.md"]
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Fixes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "improvement"
+name = "Improvements"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecation"
+name = "Deprecations and Removals"
+showcontent = true
 
 
 [tool.codespell]

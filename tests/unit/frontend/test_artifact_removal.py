@@ -28,9 +28,11 @@ def _write_site(filepath, site):
 
 @pytest.fixture
 def run_folder(tmp_path):
+    folder = tmp_path / "session_a" / "output_1"
+    folder.mkdir(parents=True)
     for site in ("DMS", "DLS"):
-        _write_site(tmp_path, site)
-    return tmp_path
+        _write_site(folder, site)
+    return folder
 
 
 @pytest.fixture
@@ -39,6 +41,7 @@ def preprocessing_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
+        label="output_1",
         artifacts_removed=False,
     )
 
@@ -49,6 +52,7 @@ def artifact_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
+        label="output_1",
         artifacts_removed=True,
     )
 
@@ -76,10 +80,10 @@ class TestBuildPreprocessViewPage:
         assert run_folder_selectors == []
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
-        folder_a = tmp_path / "session_a_output_1"
-        folder_b = tmp_path / "session_b_output_1"
+        folder_a = tmp_path / "session_a" / "output_1"
+        folder_b = tmp_path / "session_b" / "output_1"
         for folder in (folder_a, folder_b):
-            folder.mkdir()
+            folder.mkdir(parents=True)
             _write_site(folder, "DMS")
         page = build_preprocess_view_page(run_folders=[str(folder_a), str(folder_b)])
         run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
@@ -127,7 +131,7 @@ class TestPreprocessingReviewView:
     def test_stacks_all_five_traces_for_the_selected_site(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DMS"
         assert _panel_titles(preprocessing_review) == [
-            f"{run_folder.name} — control_DMS",
+            f"output_1 — control_DMS",
             "signal_DMS",
             "cntrl_sig_fit_DMS",
             "z_score_DMS",
@@ -144,7 +148,7 @@ class TestPreprocessingReviewView:
     def test_site_selector_switches_every_panel_together(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DLS"
         assert _panel_titles(preprocessing_review) == [
-            f"{run_folder.name} — control_DLS",
+            f"output_1 — control_DLS",
             "signal_DLS",
             "cntrl_sig_fit_DLS",
             "z_score_DLS",

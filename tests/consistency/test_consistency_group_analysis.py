@@ -4,7 +4,15 @@ from pathlib import Path
 import pytest
 
 from guppy.testing import compare_output_folders
-from guppy.testing.api import group_analysis, label_groups, step1, step2, step3, step4
+from guppy.testing.api import (
+    group_analysis,
+    label_groups,
+    locate_run_folder,
+    step1,
+    step2,
+    step3,
+    step4,
+)
 from guppy_test_data import TESTING_DATA, event_ts_offset_for
 
 SESSION_SUBDIRS = [
@@ -41,7 +49,7 @@ def test_consistency_group_analysis(tmp_path):
     standard_output_dir = TESTING_DATA / STANDARD_OUTPUT_SUBDIR
     assert standard_output_dir.is_dir(), f"Standard output not found: {standard_output_dir}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
 
     session_copies = []
@@ -70,7 +78,7 @@ def test_consistency_group_analysis(tmp_path):
     step4(**common_kwargs, selected_runs=selected_runs)
 
     label_groups(
-        member_run_folders=[Path(folder) / (f"{Path(folder).name}_output_1") for folder in selected_folders],
+        member_run_folders=[locate_run_folder(session=folder) for folder in selected_folders],
         destination_directory=str(tmp_base),
         group_name="consistency",
     )
@@ -87,4 +95,7 @@ def test_consistency_group_analysis(tmp_path):
         # visualizer could read recording-site names off their filenames. Sites now come
         # from storesList.csv, so a group no longer writes them.
         name_map={"z_score_region.hdf5": None},
+        # A group labels each member run by its path below the output root folder, where the
+        # reference was written when a run folder carried its session in its own name.
+        label_map={f"{session}_output_1": f"{session}/output_1" for session in (Path(s).name for s in SESSION_SUBDIRS)},
     )

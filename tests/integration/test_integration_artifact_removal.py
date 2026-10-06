@@ -8,6 +8,7 @@ from bokeh.document import Document
 from bokeh.io.doc import set_curdoc
 
 from guppy.testing.api import (
+    locate_run_folder,
     remove_artifacts,
     select_artifact_windows,
     step1,
@@ -75,7 +76,7 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     src_session = TESTING_DATA / SESSION_SUBDIR
     assert src_session.is_dir(), f"Sample data not available at expected path: {src_session}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     dest_name = src_session.name
     session_copy = tmp_base / dest_name
@@ -106,14 +107,7 @@ def test_artifact_removal(tmp_path, artifact_removal_method, coords):
     remove_artifacts(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
 
-    run_folders = sorted(list(Path(session_copy).glob(f"{dest_name}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-    out_dir = None
-    for d in run_folders:
-        if (Path(d) / "storesList.csv").exists():
-            out_dir = d
-            break
-    assert out_dir is not None, f"No storesList.csv found in any output directory under {session_copy}"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     assert (Path(out_dir) / "storesList.csv").exists(), "Missing storesList.csv"
 
