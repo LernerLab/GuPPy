@@ -1336,7 +1336,12 @@ class ParameterForm:
         )
         # Remembered here rather than on every click in the browser, so idly navigating
         # while looking for a folder does not quietly rewrite the next launch's default.
-        remember_root_folders(input_root_folder=input_root_folder, output_root_folder=output_root_folder)
+        # DANDI mode's input root is the output root standing in for one, not a folder the
+        # user picked, so it leaves the remembered input root alone.
+        remember_root_folders(
+            input_root_folder=None if mode == "dandi" else input_root_folder,
+            output_root_folder=output_root_folder,
+        )
         # Created here rather than at save time so every step, and the Label Stores page
         # that writes the first run folder into it, can count on it existing.
         for session in folder_names:

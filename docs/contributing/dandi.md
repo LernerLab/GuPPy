@@ -111,7 +111,10 @@ off until asked for, so results are on screen before any reading starts.
 ## Verdict cache
 
 `PhotometryVerdictCache` persists to JSON under the user's cache directory, so a repeat of a run
-that has already settled costs no requests at all. It holds two kinds of verdict:
+that has already settled costs no requests at all. The catalog's dandiset filter and the files
+screen's per-asset scan share one instance, owned by the `DandiSearchPanel`, so an asset either of
+them has read is answered from the cache by the other; the instance serializes its writes, since
+both can run at once on their own threads. It holds two kinds of verdict:
 
 - **Per asset**, keyed by the asset's immutable DANDI ID. An asset's content never changes under
   its ID, so this verdict never expires.
@@ -126,7 +129,7 @@ again, which is what to do after a change to the check that would give a file a 
 than the one on disk:
 
 ```bash
-python -c "from guppy.utils.dandi_filter import default_verdict_cache_path; default_verdict_cache_path().unlink(missing_ok=True)"
+guppy --clear-dandi-cache
 ```
 
 ## Panels

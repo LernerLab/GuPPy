@@ -5,6 +5,7 @@ import pytest
 from guppy import app
 from guppy import main as main_module
 from guppy.main import main
+from guppy.utils import dandi_filter
 
 
 @pytest.fixture
@@ -25,6 +26,14 @@ def exported(monkeypatch):
     calls = []
     monkeypatch.setattr(main_module.logging_config, "export_log_file", lambda: calls.append(True))
     return calls
+
+
+@pytest.fixture
+def verdict_cache_path(monkeypatch, tmp_path):
+    """Point the DANDI scan cache at a temporary file instead of the user's real cache."""
+    path = tmp_path / "dandi_photometry_verdicts.json"
+    monkeypatch.setattr(dandi_filter, "default_verdict_cache_path", lambda: path)
+    return path
 
 
 class TestMain:
@@ -70,6 +79,24 @@ class TestMain:
         main(argv=["--export-logs"])
 
         assert exported == [True]
+        assert served == {}
+
+    def test_clear_dandi_cache_deletes_the_cache_without_starting_a_server(
+        self, served, exported, verdict_cache_path, capsys
+    ):
+        verdict_cache_path.write_text('{"assets": {"a": true}, "dandisets": {}}')
+
+        main(argv=["--clear-dandi-cache"])
+
+        assert not verdict_cache_path.exists()
+        assert capsys.readouterr().out.strip() == f"Cleared the DANDI scan cache at {verdict_cache_path}"
+        assert served == {}
+        assert exported == []
+
+    def test_clear_dandi_cache_reports_when_there_is_nothing_to_clear(self, served, verdict_cache_path, capsys):
+        main(argv=["--clear-dandi-cache"])
+
+        assert capsys.readouterr().out.strip() == f"No DANDI scan cache to clear at {verdict_cache_path}"
         assert served == {}
 
     def test_version_prints_the_installed_version_without_starting_a_server(self, served, exported, capsys):
