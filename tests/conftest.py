@@ -6,6 +6,8 @@ import holoviews as hv
 import panel as pn
 import pytest
 
+from guppy.settings import SETTINGS_PATH_VARIABLE
+
 # Use "spawn" start method for all multiprocessing in tests. "fork" (the Linux
 # default) can deadlock when forking a multi-threaded pytest host, and can stall
 # coverage measurement waiting on child-process signals. "spawn" creates a clean
@@ -14,6 +16,30 @@ import pytest
 multiprocessing.set_start_method("spawn", force=True)
 
 PYPROJECT_PATH = Path(__file__).parent.parent / "pyproject.toml"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _settings_file(tmp_path_factory):
+    """Redirect the remembered-settings file away from the developer's real configuration.
+
+    ``getInputParameters`` remembers the root folders, which would otherwise rewrite the
+    roots they use in the GUI with a pytest temporary directory. Session-scoped because
+    servers built once per session read it too, and a function-scoped patch would not be
+    in force when they are constructed.
+    """
+    settings_file = tmp_path_factory.mktemp("guppy_settings") / "settings.json"
+    # An environment variable rather than a patched attribute: the integration tests spawn
+    # subprocesses that re-import GuPPy, and a patch does not cross a process boundary.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv(SETTINGS_PATH_VARIABLE, str(settings_file))
+        yield settings_file
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(_settings_file):
+    """Give every test an empty settings file, so none inherits another's leftovers."""
+    _settings_file.unlink(missing_ok=True)
+    return _settings_file
 
 
 def pytest_configure(config: pytest.Config) -> None:

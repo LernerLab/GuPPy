@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.testing.api import step1, step2, step3, step4
+from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -134,7 +134,7 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
     belong to another clock. Steps 1-3 therefore succeed and the mismatch used to surface as an
     out-of-range index inside the PSTH pools.
     """
-    base_directory = tmp_path / "data_root"
+    base_directory = tmp_path / "input_root_folder"
     base_directory.mkdir()
     session_copy = base_directory / "sample_data_csv_1"
     shutil.copytree(Path(STUBBED_TESTING_DATA) / "csv" / "sample_data_csv_1", session_copy)
@@ -167,5 +167,5 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
     with pytest.raises(ValueError, match=r"no trial overlaps the 'region' signal"):
         step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
-    output_directory = next(session_copy.glob("sample_data_csv_1_output_*"))
+    output_directory = Path(locate_run_folder(session=str(session_copy)))
     assert list(output_directory.glob("ttl_region_z_score_region.h5")) == []

@@ -35,7 +35,8 @@ GuPPy declares its dependency groups under `[dependency-groups]` in `pyproject.t
 
 Three groups are defined:
 
-- `dev` — `pre-commit`, for running the style hooks described below.
+- `dev` — `pre-commit`, for running the style hooks described below, and `towncrier`, for
+  assembling the changelog at release time.
 - `test` — `pytest`, `pytest-cov`, `pytest-xdist`, `pytest-playwright`, `playwright`, and
   `ndx-events==0.2.2` (pinned to the version the mock NWB test files were written with).
 - `docs` — `sphinx`, `pydata-sphinx-theme`, `myst-parser`, `sphinx-autodoc-typehints`, for
@@ -90,6 +91,34 @@ A few conventions apply across the codebase, beyond what the automated hooks cat
 - Docstrings follow the numpydoc style.
 - Avoid broad `try`/`except`. Prefer explicit `if`/`else`, and let real bugs fail loudly instead
   of being caught and hidden.
+
+## Changelog entries
+
+Every pull request that changes `src/`, `tests/`, `pyproject.toml`, or `.github/` adds a changelog
+entry. Entries are not written into `CHANGELOG.md` directly: each one is its own file under
+`changelog_entries/`, named `<PR number>.<type>.md`, so pull requests open at the same time never
+edit the same lines. The type picks the section the entry lands in:
+
+- `feature` — Features
+- `bugfix` — Fixes
+- `improvement` — Improvements
+- `deprecation` — Deprecations and Removals
+
+The file holds a sentence or two of Markdown saying what changed, from a user's point of view:
+
+```bash
+$ cat changelog_entries/503.improvement.md
+The cross-correlation lag axis is now named and documented in seconds, the unit it has always held, rather than milliseconds.
+```
+
+The `[PR #503](...)` link is generated from the file name, so leave it out of the text. Because
+the name carries the pull request's number, open the pull request first and add the entry once
+the number is known. A pull request with a second entry of the same type names it
+`<PR number>.<type>.1.md`.
+
+[towncrier](https://towncrier.readthedocs.io/) assembles the entries into a new section at the
+top of `CHANGELOG.md` when a release is made; see [Making a release](making_a_release.md).
+`towncrier build --draft` prints the section the entries would produce without touching any files.
 
 ## Building the docs locally
 

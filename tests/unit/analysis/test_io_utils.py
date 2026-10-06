@@ -212,16 +212,29 @@ def test_get_coords_with_artifact_removal_delegates_to_fetch_coords(tmp_path):
 # ── check_storeslistfile ──────────────────────────────────────────────────────
 
 
-def test_check_storeslistfile_reads_stores_list_from_output_subdirectory(tmp_path):
-    session_dir = tmp_path / "session"
-    session_dir.mkdir()
-    run_folder = session_dir / "session_output_1"
-    run_folder.mkdir()
-    stores_list = np.array([["sig0", "ctrl0"], ["signal_dms", "control_dms"]])
-    np.savetxt(run_folder / "storesList.csv", stores_list, fmt="%s", delimiter=",")
-    result = check_storeslistfile([str(session_dir)])
-    # np.unique sorts columns; "ctrl0"/"control_dms" < "sig0"/"signal_dms"
-    np.testing.assert_array_equal(result, np.array([["ctrl0", "sig0"], ["control_dms", "signal_dms"]]))
+def test_check_storeslistfile_merges_stores_lists_across_run_folders(tmp_path):
+    first_run_folder = tmp_path / "session1" / "output_1"
+    second_run_folder = tmp_path / "session2" / "output_1"
+    first_run_folder.mkdir(parents=True)
+    second_run_folder.mkdir(parents=True)
+    np.savetxt(
+        first_run_folder / "storesList.csv",
+        np.array([["sig0", "ctrl0"], ["signal_dms", "control_dms"]]),
+        fmt="%s",
+        delimiter=",",
+    )
+    np.savetxt(
+        second_run_folder / "storesList.csv",
+        np.array([["sig0", "evt0"], ["signal_dms", "events_dms"]]),
+        fmt="%s",
+        delimiter=",",
+    )
+    result = check_storeslistfile([str(first_run_folder), str(second_run_folder)])
+    # Duplicated columns collapse and np.unique sorts what remains by store id.
+    np.testing.assert_array_equal(
+        result,
+        np.array([["ctrl0", "evt0", "sig0"], ["control_dms", "events_dms", "signal_dms"]]),
+    )
 
 
 # ── write_combined_stores_list ────────────────────────────────────────────────

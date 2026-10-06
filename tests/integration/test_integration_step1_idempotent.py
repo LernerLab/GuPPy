@@ -2,7 +2,7 @@ import csv
 import shutil
 from pathlib import Path
 
-from guppy.testing.api import step1
+from guppy.testing.api import locate_run_folder, step1
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -26,7 +26,7 @@ def test_step1_npm_idempotent(tmp_path):
     src_session = Path(src_base_dir) / session_subdir
     assert Path(src_session).is_dir(), f"Sample data not available at expected path: {src_session}"
 
-    tmp_base = tmp_path / "data_root"
+    tmp_base = tmp_path / "input_root_folder"
     tmp_base.mkdir(parents=True, exist_ok=True)
     session_copy = tmp_base / Path(src_session).name
     shutil.copytree(src_session, session_copy)
@@ -45,11 +45,7 @@ def test_step1_npm_idempotent(tmp_path):
     step1(**step1_kwargs)
 
     # Validate storesList.csv exists and matches the mapping after the second run
-    basename = Path(session_copy).name
-    run_folders = sorted(list(Path(session_copy).glob(f"{basename}_output_*")))
-    assert run_folders, f"No output directories found in {session_copy}"
-    out_dir = next((d for d in run_folders if (Path(d) / "storesList.csv").exists()), None)
-    assert out_dir is not None, f"No storesList.csv found under {session_copy}"
+    out_dir = locate_run_folder(session=str(session_copy))
 
     with (Path(out_dir) / "storesList.csv").open(newline="") as f:
         rows = list(csv.reader(f))

@@ -28,6 +28,7 @@ from ..utils.utils import (
     GROUP_MEMBERS_FILENAME,
     event_labels_for_analysis,
     parse_group_name,
+    parse_session_basename,
     read_group_members,
 )
 from ..utils.validation import (
@@ -75,7 +76,8 @@ def _validate_fiber_recording_sites_consistent_for_group(*, member_run_folders: 
         return
 
     member_lines = "\n".join(
-        f"  - {Path(run_folder).parent.name}: " f"{', '.join(stores) if stores else '(no control/signal store_ids)'}"
+        f"  - {parse_session_basename(run_folder)}: "
+        f"{', '.join(stores) if stores else '(no control/signal store_ids)'}"
         for run_folder, stores in per_member_fibers.items()
     )
     raise ValueError(

@@ -29,15 +29,18 @@ from ..utils.progress import StepProgress, _current_step
 logger = logging.getLogger(__name__)
 
 
-def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTemplate:
+def build_homepage(
+    *, input_root_folder: str | None = None, output_root_folder: str | None = None
+) -> pn.template.BootstrapTemplate:
     """
     Build and return the GuPPy Panel web-application template.
 
     Parameters
     ----------
-    start_path : str or None, optional
-        Initial directory shown in the folder-selection widget.  When None the
-        widget starts in the current working directory.
+    input_root_folder : str or None, optional
+        Directory the session folders live under, pre-selected in the form.
+    output_root_folder : str or None, optional
+        Directory the mirrored output tree is written into, pre-selected in the form.
 
     Returns
     -------
@@ -60,7 +63,11 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
             styles={"color": "white", "margin-left": "auto", "margin-right": "1em"},
         )
     )
-    parameter_form = ParameterForm(template=template, start_path=start_path)
+    parameter_form = ParameterForm(
+        template=template,
+        input_root_folder=input_root_folder,
+        output_root_folder=output_root_folder,
+    )
     sidebar = Sidebar(template=template)
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -285,12 +292,15 @@ def build_homepage(*, start_path: str | None = None) -> pn.template.BootstrapTem
     template._widgets = {
         "files_1": parameter_form.files_1,
         "source_mode": parameter_form.source_mode,
-        "dandi_selector": parameter_form.dandi_selector,
+        "dandi_file_panel": parameter_form.dandi_file_panel,
         "read_progress": sidebar.read_progress,
         "extract_progress": sidebar.extract_progress,
         "psth_progress": sidebar.psth_progress,
         "group_progress": sidebar.group_progress,
         "group_folders_selector": parameter_form.group_folders_selector,
+        "same_root_checkbox": parameter_form.same_root_checkbox,
+        "output_root_selector": parameter_form.output_root_selector,
+        "input_root_selector": parameter_form.input_root_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
     }
 
