@@ -10,7 +10,6 @@ the user names them, since which contrast is worth drawing is a scientific judge
 """
 
 import logging
-import multiprocessing as mp
 import os
 from itertools import repeat
 from pathlib import Path
@@ -37,6 +36,7 @@ from ..analysis.standard_io import (
     write_psth_significance_to_hdf5,
 )
 from ..utils import progress
+from ..utils.process_pool import run_starmap
 from ..utils.stores_list import read_stores_list
 from ..utils.utils import event_labels_for_analysis, read_Df
 from ..utils.validation import (
@@ -421,18 +421,10 @@ def execute_compute_psth_significance(filepath: str, inputParameters: dict[str, 
         )
 
     logger.info("Computing significance for %s comparison(s) in %s...", len(planned), filepath)
-    # Pinned rather than inherited, for the same reason as the step-4 pools: forking a
-    # process holding other live threads can leave a logging or HDF5 lock held forever.
-    spawn_context = mp.get_context("spawn")
-    # Closed and joined before leaving the block, as the step-4 pools are: the context
-    # manager's __exit__ calls terminate(), which blocks in waitpid() until every worker
-    # is gone and hangs on one that is slow to exit. starmap has already returned, so
-    # there is nothing to abort -- close() lets each worker exit on its own.
-    with spawn_context.Pool(inputParameters["numberOfCores"]) as significance_pool:
-        outcomes = significance_pool.starmap(
-            execute_one_comparison, zip(repeat(filepath), planned, repeat(inputParameters))
-        )
-        significance_pool.close()
-        significance_pool.join()
+    outcomes = run_starmap(
+        function=execute_one_comparison,
+        arguments=zip(repeat(filepath), planned, repeat(inputParameters)),
+        process_count=inputParameters["numberOfCores"],
+    )
 
     _report_skipped_comparisons(filepath=filepath, outcomes=outcomes)
