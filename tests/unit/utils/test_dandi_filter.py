@@ -20,6 +20,7 @@ from guppy.utils.dandi_filter import (
     PhotometryVerdictCache,
     PrefetchedRemoteFile,
     asset_holds_photometry,
+    clear_verdict_cache,
     filter_assets,
     order_for_verification,
     scan_assets_for_photometry,
@@ -249,6 +250,21 @@ class TestPhotometryVerdictCache:
         cache = PhotometryVerdictCache(path=path)
         assert len(cache) == 0
         assert "corrupt.json" in caplog.text
+
+
+class TestClearVerdictCache:
+    def test_clearing_deletes_the_cache_and_names_it(self, tmp_path):
+        path = tmp_path / "verdicts.json"
+        cache = PhotometryVerdictCache(path=path)
+        cache.record({"a": True})
+        cache.save()
+
+        assert clear_verdict_cache(path=path) == path
+        assert not path.exists()
+        assert len(PhotometryVerdictCache(path=path)) == 0
+
+    def test_clearing_an_absent_cache_reports_nothing_cleared(self, tmp_path):
+        assert clear_verdict_cache(path=tmp_path / "missing.json") is None
 
 
 class TestOrderForVerification:
