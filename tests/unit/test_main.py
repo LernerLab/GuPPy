@@ -93,7 +93,9 @@ class TestMain:
 
     def test_a_home_relative_root_folder_is_expanded(self, served, exported, panel_extension, tmp_path, monkeypatch):
         (tmp_path / "derivatives").mkdir()
+        # Path.expanduser reads HOME on POSIX and USERPROFILE on Windows.
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
         main(argv=["--output-root", "~/derivatives"])
         template = served["routes"]["/"]()
