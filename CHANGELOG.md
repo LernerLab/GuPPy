@@ -11,6 +11,7 @@
 
 ## Fixes
 - `guppy --input-root` and `--output-root` now refuse a folder that does not exist instead of silently falling back to the remembered one, and remember a relative or `~` folder as an absolute path. [PR #537](https://github.com/LernerLab/GuPPy/pull/537)
+- **Save metadata** on the Step 6 page no longer raises a `ValueError` after writing `nwb_metadata.yaml`, and shows the saved path as intended. [PR #536](https://github.com/LernerLab/GuPPy/pull/536)
 - Running a DANDI analysis no longer replaces the remembered input root folder with the output root folder. [PR #534](https://github.com/LernerLab/GuPPy/pull/534)
 - Stubbing a Neurophotometrics session now keeps only the events that fall inside the photometry it retains, rather than cutting the event file by its own start, which left events past the end of the stubbed recording; `sampleData_NPM_1` is regenerated so all five of its stimuli events fall inside its photometry. [PR #524](https://github.com/LernerLab/GuPPy/pull/524)
 - A recording site's `timeCorrection_<site>` file now records the recording start and sampling rate of the channel its timestamps come from, rather than of whichever channel of the pair was written last. [PR #523](https://github.com/LernerLab/GuPPy/pull/523)

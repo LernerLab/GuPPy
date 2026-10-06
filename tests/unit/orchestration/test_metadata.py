@@ -124,6 +124,34 @@ class TestBuildMetadataTemplate:
         assert selector.path.value == path
         assert "No alerts" in selector.alert.object
 
+    def test_save_on_a_page_built_for_a_session_shows_the_saved_path(self, captured, tmp_path):
+        # Built the way Step 6 builds it, from a session and run rather than from a path handed in.
+        session = tmp_path / "Photo_session"
+        output_dir = session / "output_run1"
+        output_dir.mkdir(parents=True)
+        (session / "Photo_session.tsq").write_bytes(b"\x00")
+        np.savetxt(
+            output_dir / "storesList.csv",
+            np.array([["Dv1A", "Dv2A"], ["control_dms", "signal_dms"]]),
+            delimiter=",",
+            fmt="%s",
+        )
+        build_metadata_templates(
+            inputParameters={
+                "selected_runs": {str(session): ["run1"]},
+                "combine_data": False,
+                "input_root_folder": str(tmp_path),
+                "output_root_folder": str(tmp_path),
+            }
+        )
+        selector = captured[0]
+        selector.set_yaml(_complete_metadata())
+
+        selector.save.clicks += 1
+
+        assert selector.path.value == str(output_dir / METADATA_FILENAME)
+        assert "No alerts" in selector.alert.object
+
     def test_save_invalid_yaml_does_not_write(self, captured, tmp_path):
         path = str(tmp_path / "out" / METADATA_FILENAME)
         build_metadata_template(session_label="Photo (run1)", channels=CHANNELS, metadata={}, metadata_yaml_path=path)
