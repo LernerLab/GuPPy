@@ -66,14 +66,39 @@ class TestMain:
         assert template._widgets["output_root_selector"].value == [str(output_directory)]
         assert list(template._widgets["output_root_selector"]._selector.value) == [str(output_directory)]
 
-    def test_an_input_root_folder_that_does_not_exist_is_left_unselected(
-        self, served, exported, panel_extension, tmp_path
+    @pytest.mark.parametrize("flag", ["--input-root", "--output-root"])
+    def test_a_root_folder_that_does_not_exist_is_refused(self, served, exported, capsys, tmp_path, flag):
+        # Falling back to the remembered folder would quietly write the analysis somewhere else.
+        missing = tmp_path / "missing"
+
+        with pytest.raises(SystemExit) as excinfo:
+            main(argv=[flag, str(missing)])
+
+        assert excinfo.value.code == 2
+        assert f"{flag} '{missing}' is not an existing folder" in capsys.readouterr().err
+        assert served == {}
+
+    def test_a_relative_root_folder_reaches_the_homepage_as_an_absolute_path(
+        self, served, exported, panel_extension, tmp_path, monkeypatch
     ):
-        main(argv=["--input-root", str(tmp_path / "missing")])
+        # Remembered as typed, a relative folder would only mean something from the directory
+        # GuPPy happened to be launched in.
+        (tmp_path / "data").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        main(argv=["--input-root", "data"])
         template = served["routes"]["/"]()
 
-        assert template._widgets["input_root_selector"].value == []
-        assert list(template._widgets["input_root_selector"]._selector.value) == []
+        assert template._widgets["input_root_selector"].value == [str(tmp_path.resolve() / "data")]
+
+    def test_a_home_relative_root_folder_is_expanded(self, served, exported, panel_extension, tmp_path, monkeypatch):
+        (tmp_path / "derivatives").mkdir()
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        main(argv=["--output-root", "~/derivatives"])
+        template = served["routes"]["/"]()
+
+        assert template._widgets["output_root_selector"].value == [str(tmp_path.resolve() / "derivatives")]
 
     def test_export_logs_exports_without_starting_a_server(self, served, exported):
         main(argv=["--export-logs"])
