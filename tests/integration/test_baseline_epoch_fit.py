@@ -15,6 +15,7 @@ import pytest
 
 from guppy.analysis.io_utils import read_hdf5
 from guppy.testing.api import (
+    locate_run_folder,
     remove_artifacts,
     select_artifact_windows,
     step1,
@@ -34,12 +35,12 @@ INJECTION_TIME = 60.0
 FIT_WINDOW = (2, 55)  # pre-injection; starts after timeForLightsTurnOn trims t < ~1 s
 
 
-def _stubbed_data_root():
+def _stubbed_input_root_folder():
     return Path((Path(__file__).parent).parent.parent) / "stubbed_testing_data"
 
 
 def _output_directory(session):
-    return sorted(list(Path(session).glob(f"{SESSION_NAME}_output_*")))[0]
+    return Path(locate_run_folder(session=str(session)))
 
 
 @pytest.fixture
@@ -47,7 +48,7 @@ def injection_session(tmp_path):
     """Copy the injection session and run step1 + step2; return locators for step3."""
     import shutil
 
-    source = Path(_stubbed_data_root()) / SESSION_SUBDIR
+    source = Path(_stubbed_input_root_folder()) / SESSION_SUBDIR
     base_dir = str(tmp_path)
     session = Path(base_dir) / SESSION_NAME
     shutil.copytree(source, session)

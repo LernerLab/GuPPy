@@ -9,7 +9,6 @@ converter, an NWB file through the standalone interface.
 """
 
 import json
-from pathlib import Path
 
 import pytest
 from pynwb import NWBFile
@@ -29,47 +28,67 @@ from guppy.utils.progress import StepProgress, _current_step
 class TestValidateArtifactRemovalMethods:
     @pytest.fixture
     def session_path(self, tmp_path):
-        """A session folder containing one ``<basename>_output_run1`` output directory."""
+        """A session folder containing one ``output_run1`` run folder."""
         session = tmp_path / "Photo_session"
-        output_dir = session / "Photo_session_output_run1"
-        output_dir.mkdir(parents=True)
+        (session / "output_run1").mkdir(parents=True)
         return session
 
     def _write_parameters(self, session_path, parameters):
-        output_dir = session_path / f"{Path(session_path).name}_output_run1"
+        output_dir = session_path / "output_run1"
         with (output_dir / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump(parameters, parameters_file)
 
-    def test_concatenate_with_remove_artifacts_aborts(self, session_path):
+    def test_concatenate_with_remove_artifacts_aborts(self, session_path, tmp_path):
         self._write_parameters(session_path, {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"})
         with pytest.raises(ValueError) as excinfo:
-            _validate_artifact_removal_methods(pairs=[(str(session_path), "run1")])
+            _validate_artifact_removal_methods(
+                pairs=[(str(session_path), "run1")],
+                input_root_folder=str(tmp_path),
+                output_root_folder=str(tmp_path),
+            )
         message = str(excinfo.value)
         assert "Photo_session (run1)" in message
         assert "concatenate" in message
         assert "replace with NaN" in message
         assert "https://github.com/LernerLab/GuPPy/issues/new" in message
 
-    def test_replace_with_nan_does_not_abort(self, session_path):
+    def test_replace_with_nan_does_not_abort(self, session_path, tmp_path):
         self._write_parameters(session_path, {"removeArtifacts": True, "artifactsRemovalMethod": "replace with NaN"})
-        _validate_artifact_removal_methods(pairs=[(str(session_path), "run1")])
+        _validate_artifact_removal_methods(
+            pairs=[(str(session_path), "run1")],
+            input_root_folder=str(tmp_path),
+            output_root_folder=str(tmp_path),
+        )
 
-    def test_concatenate_without_remove_artifacts_does_not_abort(self, session_path):
+    def test_concatenate_without_remove_artifacts_does_not_abort(self, session_path, tmp_path):
         # removeArtifacts is False, so the method is irrelevant and must not trigger the abort.
         self._write_parameters(session_path, {"removeArtifacts": False, "artifactsRemovalMethod": "concatenate"})
-        _validate_artifact_removal_methods(pairs=[(str(session_path), "run1")])
+        _validate_artifact_removal_methods(
+            pairs=[(str(session_path), "run1")],
+            input_root_folder=str(tmp_path),
+            output_root_folder=str(tmp_path),
+        )
 
-    def test_snapshot_without_artifact_keys_does_not_abort(self, session_path):
+    def test_snapshot_without_artifact_keys_does_not_abort(self, session_path, tmp_path):
         # The shape a Step-3-only run leaves behind once artifact removal became its own step:
         # the snapshot records no removal at all, which must read as "artifacts not removed".
         self._write_parameters(session_path, {"combine_data": False})
-        _validate_artifact_removal_methods(pairs=[(str(session_path), "run1")])
+        _validate_artifact_removal_methods(
+            pairs=[(str(session_path), "run1")],
+            input_root_folder=str(tmp_path),
+            output_root_folder=str(tmp_path),
+        )
 
-    def test_orchestrate_aborts_before_any_export(self, session_path):
+    def test_orchestrate_aborts_before_any_export(self, session_path, tmp_path):
         # End-to-end through the public entry point: the offending config must raise the
         # ValueError before the export loop touches neuroconv.
         self._write_parameters(session_path, {"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"})
-        input_parameters = {"selected_runs": {str(session_path): ["run1"]}, "combine_data": False}
+        input_parameters = {
+            "selected_runs": {str(session_path): ["run1"]},
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
+            "combine_data": False,
+        }
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
             orchestrate_export_nwb(input_parameters)
 
@@ -80,7 +99,12 @@ class TestValidateDataNotCombined:
 
     def test_combined_run_aborts_before_any_export(self, tmp_path):
         # Refused before the artifact-provenance check reads anything, so a bare path is enough.
-        input_parameters = {"selected_runs": {str(tmp_path / "Photo_A"): ["run1"]}, "combine_data": True}
+        input_parameters = {
+            "selected_runs": {str(tmp_path / "Photo_A"): ["run1"]},
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
+            "combine_data": True,
+        }
 
         with pytest.raises(ValueError) as excinfo:
             orchestrate_export_nwb(input_parameters)
@@ -98,9 +122,9 @@ def bound_step():
 
 
 def _make_session(base_dir, name, *, acquisition_files):
-    """Create a session folder with one ``run1`` output directory and the given raw files."""
+    """Create a session folder with one ``run1`` run folder and the given raw files."""
     session = base_dir / name
-    (session / f"{name}_output_run1").mkdir(parents=True)
+    (session / "output_run1").mkdir(parents=True)
     for filename, contents in acquisition_files.items():
         (session / filename).write_text(contents)
     return session
@@ -122,6 +146,8 @@ class TestOrchestrateExportNwb:
         _make_session(tmp_path, "Photo_B", acquisition_files={"signal.csv": _DORIC_CSV})
         return {
             "selected_runs": {str(tmp_path / "Photo_A"): ["run1"], str(tmp_path / "Photo_B"): ["run1"]},
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
             "combine_data": False,
         }
 
@@ -142,7 +168,12 @@ class TestOrchestrateExportNwb:
 
     def test_passes_an_nwb_sourced_session_the_file_it_came_from(self, tmp_path, exported):
         session = _make_session(tmp_path, "Photo_nwb", acquisition_files={"session.nwb": ""})
-        input_parameters = {"selected_runs": {str(session): ["run1"]}, "combine_data": False}
+        input_parameters = {
+            "selected_runs": {str(session): ["run1"]},
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
+            "combine_data": False,
+        }
 
         orchestrate_export_nwb(input_parameters)
 
@@ -156,6 +187,8 @@ class TestOrchestrateExportNwb:
         _make_session(tmp_path, "Photo_B", acquisition_files={"doric.csv": _DORIC_CSV, "npm.csv": _NPM_CSV})
         input_parameters = {
             "selected_runs": {str(tmp_path / "Photo_A"): ["run1"], str(tmp_path / "Photo_B"): ["run1"]},
+            "input_root_folder": str(tmp_path),
+            "output_root_folder": str(tmp_path),
             "combine_data": False,
         }
 
@@ -170,8 +203,8 @@ class TestOrchestrateExportNwb:
         orchestrate_export_nwb(two_sessions)
 
         assert [call["nwbfile_path"] for call in exported] == [
-            tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb",
-            tmp_path / "Photo_B" / "Photo_B_output_run1" / "Photo_B_output_run1.nwb",
+            tmp_path / "Photo_A" / "output_run1" / "Photo_A_output_run1.nwb",
+            tmp_path / "Photo_B" / "output_run1" / "Photo_B_output_run1.nwb",
         ]
         assert bound_step.total == 2
         assert bound_step.value == 2
@@ -190,7 +223,7 @@ class TestOrchestrateExportNwb:
         # One failure must not abort the batch.
         orchestrate_export_nwb(two_sessions)
 
-        assert exported == [tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb"]
+        assert exported == [tmp_path / "Photo_A" / "output_run1" / "Photo_A_output_run1.nwb"]
         # Progress still advances past the failed session, so the bar reaches its total.
         assert bound_step.value == 2
         assert bound_step.error_message == "NWB export failed for 1 of 2 session(s): Photo_B (run1): converter blew up"
@@ -201,8 +234,8 @@ class TestOrchestrateExportNwb:
         orchestrate_export_nwb(two_sessions)
 
         assert [call["nwbfile_path"] for call in exported] == [
-            tmp_path / "Photo_A" / "Photo_A_output_run1" / "Photo_A_output_run1.nwb",
-            tmp_path / "Photo_B" / "Photo_B_output_run1" / "Photo_B_output_run1.nwb",
+            tmp_path / "Photo_A" / "output_run1" / "Photo_A_output_run1.nwb",
+            tmp_path / "Photo_B" / "output_run1" / "Photo_B_output_run1.nwb",
         ]
 
 
@@ -211,13 +244,20 @@ class TestRunExportNwbStep:
         """The upfront concatenate check runs inside the worker thread, so its ValueError must
         reach the progress error channel — that is how the GUI poller surfaces it."""
         session = tmp_path / "Photo_session"
-        output_dir = session / "Photo_session_output_run1"
+        output_dir = session / "output_run1"
         output_dir.mkdir(parents=True)
         with (output_dir / "GuPPyParamtersUsed.json").open("w") as parameters_file:
             json.dump({"removeArtifacts": True, "artifactsRemovalMethod": "concatenate"}, parameters_file)
 
         with pytest.raises(ValueError, match="does not support the 'concatenate'"):
-            run_export_nwb_step({"selected_runs": {str(session): ["run1"]}, "combine_data": False})
+            run_export_nwb_step(
+                {
+                    "selected_runs": {str(session): ["run1"]},
+                    "input_root_folder": str(tmp_path),
+                    "output_root_folder": str(tmp_path),
+                    "combine_data": False,
+                }
+            )
 
         assert "does not support the 'concatenate'" in bound_step.error_message
 

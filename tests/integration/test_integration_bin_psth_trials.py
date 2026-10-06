@@ -4,7 +4,15 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from guppy.testing.api import group_analysis, label_groups, step1, step2, step3, step4
+from guppy.testing.api import (
+    group_analysis,
+    label_groups,
+    locate_run_folder,
+    step1,
+    step2,
+    step3,
+    step4,
+)
 from guppy_test_data import STUBBED_TESTING_DATA
 
 
@@ -29,7 +37,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     source_session = Path(str(STUBBED_TESTING_DATA)) / session_subdir
     assert Path(source_session).is_dir(), f"Sample data not available at expected path: {source_session}"
 
-    temporary_base = tmp_path / "data_root"
+    temporary_base = tmp_path / "input_root_folder"
     temporary_base.mkdir(parents=True, exist_ok=True)
     session_name = Path(source_session).name
     session_copy = temporary_base / session_name
@@ -81,9 +89,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
         selected_runs=selected_runs,
     )
 
-    output_directories = sorted(Path(session_copy).glob(f"{session_name}_output_*"))
-    assert output_directories, f"No output directories found in {session_copy}"
-    output_directory = output_directories[0]
+    output_directory = locate_run_folder(session=str(session_copy))
 
     psth_file_path = Path(output_directory) / (
         f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
@@ -101,7 +107,7 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     # `if len(bin_columns) > 0:` branch inside psth_average.average_psth_for_group, which
     # concatenates and aggregates bin columns across the member runs.
     label_groups(
-        member_run_folders=[Path(folder) / (f"{Path(folder).name}_output_1") for folder in selected_folders],
+        member_run_folders=[locate_run_folder(session=folder) for folder in selected_folders],
         destination_directory=base_dir,
         group_name="binned",
     )
