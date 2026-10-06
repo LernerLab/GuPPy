@@ -133,6 +133,8 @@ def build_analysis_parameters(*, inputParameters: dict[str, object]) -> dict[str
         "moving_window": inputParameters["moving_window"],
         "highAmpFilt": inputParameters["highAmpFilt"],
         "transientsThresh": inputParameters["transientsThresh"],
+        "transient_detection_method": inputParameters["transient_detection_method"],
+        "transient_minimum_rise": inputParameters["transient_minimum_rise"],
         "computeBinnedMetrics": inputParameters["computeBinnedMetrics"],
         "binnedMetricsWidth": inputParameters["binnedMetricsWidth"],
     }

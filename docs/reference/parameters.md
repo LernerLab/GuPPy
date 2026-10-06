@@ -206,11 +206,17 @@ The peak / AUC widget is a small table with rows of (start, end) pairs. Each row
 |-----------|-------------|------|---------|-----------------|
 | z_score and/or ΔF/F? (transients) | Metric the transient detector operates on. | str | `z_score` | `z_score`, `dff`, `Both` |
 | Use Transients as Events? | Use each recording site's detected transients as its event timestamps. | bool | `False` | `True`, `False` |
-| Moving Window for transients detection (s) | Rolling window for the detector. | int | `15` | positive seconds |
-| HAFT | Drop excursions above this multiple of MAD before detection. | int | `2` | positive integer |
-| TD Thresh | Detection threshold, in multiples of MAD above the median. | int | `3` | positive integer |
+| Transient Detection Method | How a peak qualifies as a transient. | str | `MAD threshold` | `MAD threshold`, `minimum rise` |
+| Minimum Rise | Smallest rise above the preceding local minimum that counts as a transient (`minimum rise` only). | float | `2.0` | positive, in the units of the metric |
+| Moving Window for transients detection (s) | Rolling window for the detector (`MAD threshold` only). | int | `15` | positive seconds |
+| HAFT | Drop excursions above this multiple of MAD before detection (`MAD threshold` only). | int | `2` | positive integer |
+| TD Thresh | Detection threshold, in multiples of MAD above the median (`MAD threshold` only). | int | `3` | positive integer |
 
 **z_score and/or ΔF/F? (transients)** chooses which metric the transient detector operates on. Same `Both` semantics.
+
+**Transient Detection Method** chooses how a peak qualifies as a transient. `MAD threshold` counts peaks whose height above the median of their moving window exceeds a multiple of that window's noise, using the three parameters below it. `minimum rise` counts peaks that rise more than **Minimum Rise** above the local minimum just before them, and ignores the moving window, HAFT and TD Thresh. The [transient detection explainer](../explanation/transient_detection.md) describes both.
+
+**Minimum Rise** is the smallest rise above the preceding local minimum that the `minimum rise` method counts as a transient. It is in the units of the metric the detector runs on: percent ΔF/F when **z_score and/or ΔF/F? (transients)** is `dff`, and z-score units when it is `z_score`. With `Both`, the same value is applied to each metric.
 
 **Moving Window for transients detection (s)** is the rolling window used by the detector, in seconds.
 
@@ -342,6 +348,8 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `session_folders` | (session folders browser) | [Input Folder Selection](#input-folder-selection) |
 | `timeForLightsTurnOn` | Eliminate first few seconds | [Signal Filtering](#signal-filtering) |
 | `timeInterval` | Time Interval (s) | [PSTH Computation](#psth-computation) |
+| `transient_detection_method` | Transient Detection Method | [Transient Detection](#transient-detection) |
+| `transient_minimum_rise` | Minimum Rise | [Transient Detection](#transient-detection) |
 | `transientsThresh` | TD Thresh | [Transient Detection](#transient-detection) |
 | `use_time_or_trials` | Bin PSTH trials | [PSTH Computation](#psth-computation) |
 | `useTransientsAsEvents` | Use Transients as Events? | [Transient Detection](#transient-detection) |

@@ -45,6 +45,16 @@ In compact form the procedure is:
 
 Conceptually, K₁ (e.g. 2) places the cutoff T₁ a couple of noise-scales above the median: high enough to clear the noise, low enough that real events fall above it and get trimmed. K₂ (e.g. 3) then sets the detection threshold T₂ on the cleaned estimate. A higher K₂ is a stricter "what counts as a real event" criterion (fewer detections, real or noise), a lower one more permissive.
 
+## Detecting transients by their rise
+
+The detector above judges each peak by its height: how far it sits above the typical level of the samples around it. A peak can instead be judged by its rise: how far the trace climbed to reach it, starting from the lowest point just before it. GuPPy offers this as the `minimum rise` detection method. It pairs every local maximum in the trace with the nearest local minimum before it, and counts the maximum as a transient when the climb between the two exceeds a fixed threshold. That climb is also the transient's amplitude.
+
+Because the rise is measured from the trace's own preceding minimum, the baseline level never enters the comparison. A transient that starts from a dip below baseline counts as long as it climbs far enough, and a stretch where the whole baseline sits higher, such as after a drug raises tonic activity, adds no detections from noise riding on the raised level. For the same reason each transient is counted once: the smaller bumps on its decay climb only a little from the dip just before each of them, so they fall short of the threshold unless they are large in their own right.
+
+The threshold is fixed for the whole recording and expressed in the units of the metric the detector runs on: percent ΔF/F on the `dff` trace, z-score units on the `z_score` trace. On ΔF/F it is a fixed physical size, independent of the recording's noise; on a z-score it scales with the session-wide spread the z-score normalizes by. Either way nothing is re-estimated along the recording, so a change in how often transients occur, over minutes or hours, shows up directly in the event rate.
+
+The rise criterion has no noise floor of its own. Every small wiggle in the trace is a local maximum with a minimum before it, so the threshold has to sit well above the rises that noise produces, and the size of those noise rises depends on how heavily the trace was smoothed. A smaller **Window for Moving Average filter** leaves more and larger noise rises and the detected rate climbs with them, and a threshold that suits one recording's noise can be too permissive for a noisier one.
+
 ## Reading the output
 
 The detector returns a per-event list of *(time, amplitude)* pairs plus two per-recording summary scalars:
