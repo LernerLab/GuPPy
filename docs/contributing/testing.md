@@ -80,9 +80,10 @@ of the suite makes.
 ## Continuous integration
 
 [`pr-tests.yml`](https://github.com/LernerLab/GuPPy/blob/main/.github/workflows/pr-tests.yml) runs
-on every pull request with `full_data` tests skipped. A required
-`detect-changelog-updates` job means any PR touching `src/`, `tests/`, `pyproject.toml`, or
-`.github/` must also update `CHANGELOG.md`, or CI fails.
+on every pull request with `full_data` tests skipped. A
+`detect-changelog-entry` job means any PR touching `src/`, `tests/`, `pyproject.toml`, or
+`.github/` must also add a changelog entry named after its own number under `changelog_entries/`
+(see [Changelog entries](development_environment.md#changelog-entries)), or CI fails.
 
 [`dailies.yml`](https://github.com/LernerLab/GuPPy/blob/main/.github/workflows/dailies.yml) runs
 the full OS-by-Python-version matrix overnight, including `full_data` tests. `dandi_live` tests are
