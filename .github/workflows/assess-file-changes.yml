@@ -7,9 +7,9 @@ on:
       SOURCE_CHANGED:
         description: "Whether the files under /src/ were changed."
         value: ${{ jobs.build.outputs.SOURCE_CHANGED }}
-      CHANGELOG_UPDATED:
-        description: "Whether or the CHANGELOG.md file was updated."
-        value: ${{ jobs.build.outputs.CHANGELOG_UPDATED }}
+      CHANGELOG_ENTRY_ADDED:
+        description: "Whether a changelog entry named after this pull request was added under /changelog_entries/."
+        value: ${{ jobs.build.outputs.CHANGELOG_ENTRY_ADDED }}
 
 jobs:
   build:
@@ -17,7 +17,7 @@ jobs:
     # Map the job outputs to step outputs
     outputs:
       SOURCE_CHANGED: ${{ steps.assess-changes.outputs.SOURCE_CHANGED }}
-      CHANGELOG_UPDATED: ${{ steps.assess-changes.outputs.CHANGELOG_UPDATED }}
+      CHANGELOG_ENTRY_ADDED: ${{ steps.assess-changes.outputs.CHANGELOG_ENTRY_ADDED }}
 
     name: Test changed-files
     steps:
@@ -33,7 +33,7 @@ jobs:
         id: assess-changes
         run: |
           echo "SOURCE_CHANGED=false" >> $GITHUB_OUTPUT
-          echo "CHANGELOG_UPDATED=false" >> $GITHUB_OUTPUT
+          echo "CHANGELOG_ENTRY_ADDED=false" >> $GITHUB_OUTPUT
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo $file
             if [[ $file == "src/"* || $file == "tests/"* || $file == "pyproject.toml" || $file == ".github/"* ]]
@@ -43,11 +43,13 @@ jobs:
             else
               echo "Source not changed"
             fi
-            if [[ $file == "CHANGELOG.md" ]]
+            # The name has to carry this pull request's own number, since an entry written before the pull
+            # request was opened can guess a number that ends up belonging to somebody else's.
+            if [[ $file == "changelog_entries/${{ github.event.pull_request.number }}."*".md" ]]
             then
-              echo "Changelog updated"
-              echo "CHANGELOG_UPDATED=true" >> $GITHUB_OUTPUT
+              echo "Changelog entry added"
+              echo "CHANGELOG_ENTRY_ADDED=true" >> $GITHUB_OUTPUT
             else
-              echo "Changelog not updated"
+              echo "Changelog entry not added"
             fi
           done
