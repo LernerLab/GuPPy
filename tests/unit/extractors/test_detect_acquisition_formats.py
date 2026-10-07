@@ -168,7 +168,7 @@ def test_detect_acquisition_formats_after_npm_split_events(tmp_path):
     inputParameters = {
         "npm_timestamp_column_name": None,
         "npm_time_unit": None,
-        "npm_split_events": [True, True],
+        "npm_split_events": [False, True],
     }
     NpmRecordingExtractor.discover_events_and_flags(
         folder_path=str(session_copy),

@@ -76,9 +76,17 @@ class TestStoreLabelingSelector:
 
     def test_set_events_replaces_options_in_both_widgets(self, panel_extension):
         selector = StoreLabelingSelector(allnames=[])
-        selector.set_events(events=["file0_chev1", "file0_chod1", "event0"])
-        assert selector.cross_selector.options == ["file0_chev1", "file0_chod1", "event0"]
-        assert selector.multi_choice.options == ["file0_chev1", "file0_chod1", "event0"]
+        selector.set_events(events=["bl72bl82_12feb2024_fp_415nm_G0", "bl72bl82_12feb2024_fp_470nm_G0", "event0"])
+        assert selector.cross_selector.options == [
+            "bl72bl82_12feb2024_fp_415nm_G0",
+            "bl72bl82_12feb2024_fp_470nm_G0",
+            "event0",
+        ]
+        assert selector.multi_choice.options == [
+            "bl72bl82_12feb2024_fp_415nm_G0",
+            "bl72bl82_12feb2024_fp_470nm_G0",
+            "event0",
+        ]
 
     def test_set_select_location_options_labels_runs_by_folder_name(self, selector):
         selector.set_select_location_options(["/data/session/session_output_1", "/data/session/session_output_2"])
