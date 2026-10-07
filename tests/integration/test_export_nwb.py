@@ -51,6 +51,7 @@ EXPECTED_TOPOLOGY = {
     "csv": {"recording_sites": ["region"], "event_types": {"ttl"}, "raw_event_tables": {"Ttl"}},
     "npm": {"recording_sites": ["region1"], "event_types": {"ttl_region1"}, "raw_event_tables": {"TtlRegion1"}},
     "doric": {"recording_sites": ["region"], "event_types": {"ttl"}, "raw_event_tables": {"Ttl"}},
+    "pyphotometry": {"recording_sites": ["region"], "event_types": {"ttl"}, "raw_event_tables": {"Ttl"}},
 }
 
 
@@ -133,7 +134,7 @@ class TestExportSessionToNwb:
         GuPPy records that clock's origin as ``recordingStart`` (0 for TDT, the first raw timestamp
         otherwise). A series read in the wrong timestamp unit lands orders of magnitude away from it
         while every topology assertion still passes -- the failure that held Neurophotometrics back
-        (issue #411), and the one this guards against for all four formats.
+        (issue #411), and the one this guards against for every format.
         """
         recording_site = EXPECTED_TOPOLOGY[acquisition_format]["recording_sites"][0]
         guppy_origin = read_hdf5(
@@ -156,6 +157,9 @@ class TestExportSessionToNwb:
         if acquisition_format == "tdt":
             # Read from the tank: Photo_63_207-181030-103332 was recorded on 2018-10-30.
             assert (session_start_time.year, session_start_time.month, session_start_time.day) == (2018, 10, 30)
+        elif acquisition_format == "pyphotometry":
+            # Read from the .ppd header: full_pipeline_session was cut from a recording started 2019-05-06.
+            assert (session_start_time.year, session_start_time.month, session_start_time.day) == (2019, 5, 6)
         else:
             assert session_start_time == SUPPLIED_SESSION_START_TIME
 
@@ -165,8 +169,8 @@ class TestExportSessionToNwb:
         # Formats that read their own start time have nothing for the form to omit.
         assert acquisition_supplies_session_start_time(
             session_folder_path=str(pipeline_state["session_copy"]), acquisition_format=acquisition_format
-        ) == (acquisition_format == "tdt")
-        if acquisition_format == "tdt":
+        ) == (acquisition_format in ("tdt", "pyphotometry"))
+        if acquisition_format in ("tdt", "pyphotometry"):
             return
 
         with pytest.raises(ValueError) as excinfo:

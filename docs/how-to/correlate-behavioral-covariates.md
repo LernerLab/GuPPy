@@ -51,9 +51,9 @@ Covariate timestamps must be on **the same clock GuPPy reports for your recordin
 This is the single easiest thing to get wrong, and getting it wrong produces either
 an error or a silently misaligned result.
 
-- **TDT** — seconds from the start of the recording. A session that begins at `0`
-  and runs an hour takes timestamps in `0`–`3600`. This is usually what you would
-  write anyway.
+- **TDT and pyPhotometry** — seconds from the start of the recording. A session
+  that begins at `0` and runs an hour takes timestamps in `0`–`3600`. This is
+  usually what you would write anyway.
 - **CSV, Doric and Neurophotometrics** — the acquisition clock exactly as your
   system emits it, which often does **not** start at zero. A Neurophotometrics
   session might report its first sample at `24106.9` seconds, in which case your

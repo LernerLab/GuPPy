@@ -43,9 +43,9 @@
   <rect class="pill" x="465" y="162" width="130" height="32" rx="16"/>
   <text class="pkg" x="530" y="184" text-anchor="middle">extractors</text>
   <text class="head" x="406" y="224">Acquisition readers</text>
-  <text class="item" x="406" y="266">TDT</text>
-  <text class="item" x="406" y="300">Doric</text>
-  <text class="item" x="406" y="334">Neurophotometrics</text>
+  <text class="item" x="406" y="266">TDT · Doric</text>
+  <text class="item" x="406" y="300">Neurophotometrics</text>
+  <text class="item" x="406" y="334">pyPhotometry</text>
   <text class="item" x="406" y="368">CSV</text>
   <text class="item" x="406" y="402">NWB / DANDI</text>
   <text class="item" x="406" y="436">format auto-detect</text>
