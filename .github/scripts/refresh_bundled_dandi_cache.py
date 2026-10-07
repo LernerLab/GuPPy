@@ -36,11 +36,13 @@ def main() -> None:
     references = list_archive_dandisets()
     logging.info("Listed %d dandisets", len(references))
 
-    # disable=None turns the bar off when the output is not a terminal, as in the workflow's log.
+    # disable=None turns the bar off when the output is not a terminal, as in the workflow's log,
+    # which gets a line per dandiset in its place.
     with tqdm(total=len(references), unit="dandiset", disable=None) as progress_bar, logging_redirect_tqdm():
 
         def on_verdict(reference: DandisetReference, holds: bool | None) -> None:
-            logging.info("%s (%d assets): %s", reference.identifier, reference.asset_count, holds)
+            if progress_bar.disable:
+                logging.info("%s (%d assets): %s", reference.identifier, reference.asset_count, holds)
             progress_bar.update()
 
         verdicts = refresh_bundled_verdicts(
