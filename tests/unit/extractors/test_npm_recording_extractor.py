@@ -420,34 +420,15 @@ class TestNpmRecordingExtractorRead:
         # 415 nm is written as 1, 17 and 273 (rows 1, 3, 5); row 0's initialization frame is left out.
         np.testing.assert_array_equal(excitation_outputs["a_signals_415nm_Region0G"]["data"], [1.0, 3.0, 5.0])
 
-    def test_every_channel_is_timed_by_its_files_first_channel(self, excitation_outputs):
-        # 415 nm, the lowest wavelength, lit rows 1, 3 and 5; 470 nm takes their timestamps.
+    def test_each_channel_is_timed_by_its_own_frames(self, excitation_outputs):
         np.testing.assert_allclose(excitation_outputs["a_signals_415nm_Region0G"]["timestamps"], [10.1, 10.3, 10.5])
-        np.testing.assert_allclose(excitation_outputs["a_signals_470nm_Region0G"]["timestamps"], [10.1, 10.3, 10.5])
-
-    def test_a_channel_is_cut_to_the_length_it_shares_with_the_first(self, tmp_path):
-        # 470 nm lands on one more frame (rows 1, 3, 4) than 415 nm (rows 0, 2).
-        session_folder = tmp_path / "session"
-        session_folder.mkdir()
-        (session_folder / "a_signals.csv").write_text(
-            "FrameCounter,Timestamp,LedState,Region0G\n0,0.0,1,0.0\n1,0.1,2,1.0\n2,0.2,1,2.0\n3,0.3,2,3.0\n4,0.4,2,4.0\n"
-        )
-        extractor = NpmRecordingExtractor(str(session_folder))
-
-        (output_dict,) = extractor.read(events=["a_signals_470nm_Region0G"], outputPath="")
-
-        np.testing.assert_allclose(output_dict["timestamps"], [0.0, 0.2])
-        np.testing.assert_array_equal(output_dict["data"], [1.0, 3.0])
-        # 2 frames of 415 nm spanning 0.2 s.
-        np.testing.assert_allclose(output_dict["sampling_rate"], [10.0])
-        assert extractor.count_samples(event="a_signals_470nm_Region0G") == 2
+        np.testing.assert_allclose(excitation_outputs["a_signals_470nm_Region0G"]["timestamps"], [10.2, 10.4, 10.6])
 
     def test_a_strobed_frame_reaches_both_its_wavelengths(self, excitation_outputs):
         # Row 4 (state 6) lights 470 nm and 560 nm together.
         np.testing.assert_array_equal(excitation_outputs["a_signals_470nm_Region1G"]["data"], [12.0, 14.0, 16.0])
         np.testing.assert_array_equal(excitation_outputs["a_signals_560nm_Region1G"]["data"], [14.0, 17.0])
-        # Its two samples take the first two of 415 nm's timestamps.
-        np.testing.assert_allclose(excitation_outputs["a_signals_560nm_Region1G"]["timestamps"], [10.1, 10.3])
+        np.testing.assert_allclose(excitation_outputs["a_signals_560nm_Region1G"]["timestamps"], [10.4, 10.7])
 
     def test_the_sampling_rate_comes_from_the_channels_own_frames(self, excitation_outputs):
         # 3 samples spanning 10.5 - 10.1 = 0.4 s.
@@ -470,10 +451,10 @@ class TestNpmRecordingExtractorRead:
 
         outputs = _outputs_by_store_id(extractor.read(events=["a_data_chev1", "a_data_chod2"], outputPath=""))
 
-        # chev takes rows 0, 2, 4 and chod rows 1, 3, 5, both timed by chev's frames.
+        # chev takes rows 0, 2, 4 and chod rows 1, 3, 5, each on its own frames' clock.
         np.testing.assert_allclose(outputs["a_data_chev1"]["timestamps"], [1.0, 1.02, 1.04])
         np.testing.assert_array_equal(outputs["a_data_chev1"]["data"], [0.0, 2.0, 4.0])
-        np.testing.assert_allclose(outputs["a_data_chod2"]["timestamps"], [1.0, 1.02, 1.04])
+        np.testing.assert_allclose(outputs["a_data_chod2"]["timestamps"], [1.01, 1.03, 1.05])
         np.testing.assert_array_equal(outputs["a_data_chod2"]["data"], [101.0, 103.0, 105.0])
 
     def test_an_unrecognized_time_unit_raises(self, stride_session):
@@ -904,12 +885,12 @@ class TestNpmAbsoluteTime:
             )
         )
 
-        # LedState 1 selects rows 0, 2, …, 10, at 500.0 + 0.5 * row; 470 nm rides that clock.
+        # LedState 1 selects rows 0, 2, …, 10 and LedState 2 rows 1, 3, …, 11, at 500.0 + 0.5 * row.
         np.testing.assert_allclose(
             outputs["a_signals_415nm_Region0G"]["timestamps"], [500.0, 501.0, 502.0, 503.0, 504.0, 505.0]
         )
         np.testing.assert_allclose(
-            outputs["a_signals_470nm_Region0G"]["timestamps"], [500.0, 501.0, 502.0, 503.0, 504.0, 505.0]
+            outputs["a_signals_470nm_Region0G"]["timestamps"], [500.5, 501.5, 502.5, 503.5, 504.5, 505.5]
         )
         # 6 samples spanning 505.0 - 500.0 = 5.0 s.
         np.testing.assert_allclose(outputs["a_signals_415nm_Region0G"]["sampling_rate"], [1.2])
@@ -955,7 +936,7 @@ class TestNpmTimeUnit:
         )
 
         np.testing.assert_allclose(outputs["a_data_chev1"]["timestamps"], [0.7, 0.701, 0.702])
-        np.testing.assert_allclose(outputs["a_data_chod1"]["timestamps"], [0.7, 0.701, 0.702])
+        np.testing.assert_allclose(outputs["a_data_chod1"]["timestamps"], [0.7005, 0.7015, 0.7025])
         np.testing.assert_allclose(outputs["event0"]["timestamps"], [0.7015])
         # 3 samples spanning 0.702 - 0.7 = 0.002 s.
         np.testing.assert_allclose(outputs["a_data_chev1"]["sampling_rate"], [1500.0])
