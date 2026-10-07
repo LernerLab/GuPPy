@@ -132,7 +132,16 @@ user's verdicts are consulted first, and only the user's are ever written. The
 `refresh-bundled-dandi-cache` workflow rebuilds the bundle on the first of each month with
 `refresh_bundled_verdicts`, which reads only the dandisets that are new or changed since the bundle
 was written, and opens a pull request with the result for review. It can also be started by hand
-from the Actions tab.
+from the Actions tab. A refresh that has a lot to read, such as the first one, is easier to run
+locally from a checkout with GuPPy installed in editable mode, so that the bundle is written into
+the checkout:
+
+```bash
+python .github/scripts/refresh_bundled_dandi_cache.py
+```
+
+It shows a progress bar over the archive's dandisets and rewrites the bundle as each one settles,
+so an interrupted run keeps what it reached and the next run resumes from there.
 
 After a change to the check that would give a file a different answer than the one on disk, clear
 the user's cache and launch without the bundle to read every file again:

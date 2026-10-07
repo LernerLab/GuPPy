@@ -601,32 +601,33 @@ def verify_dandisets(
 
 
 def refresh_bundled_verdicts(
+    references: Sequence[DandisetReference],
     *,
     bundled_path: Path = BUNDLED_VERDICT_CACHE_PATH,
     cache_path: Path | None = None,
-    list_dandisets_function: Callable[[], list[DandisetReference]] = list_archive_dandisets,
     list_assets_function: object = list_nwb_assets,
     process_count: int = SCAN_PROCESS_COUNT,
     on_verdict: Callable[[DandisetReference, bool | None], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
 ) -> dict[str, bool]:
-    """Read every dandiset whose bundled verdict is out of date, then rewrite the bundle.
+    """Read every dandiset whose bundled verdict is out of date, rewriting the bundle as it goes.
 
     The bundle being refreshed is consulted like any other cache, so only the dandisets that
-    are new or have changed since it was last written are read. The rewritten bundle holds a
-    verdict for every listed dandiset that has one: what this run settled, and what the old
-    bundle already knew about the rest. Dandisets that are unresolved, or that a stopped run
-    did not reach, are left out and read on the next refresh.
+    are new or have changed since it was last written are read. The bundle is rewritten after
+    each dandiset settles, so an interrupted refresh keeps what it reached and the next one
+    resumes from there. It holds a verdict for every one of ``references`` that has one: what
+    this run settled, and what the old bundle already knew about the rest. Dandisets that are
+    unresolved, or not yet reached, are left out and read on the next refresh.
 
     Parameters
     ----------
+    references : sequence of DandisetReference
+        Every dandiset the bundle should cover, as :func:`list_archive_dandisets` returns them.
     bundled_path : Path, optional
         The bundle to refresh. Defaults to the file shipped with GuPPy.
     cache_path : Path or None, optional
         User cache the run reads and extends, so asset verdicts carry over between runs.
         Defaults to GuPPy's user cache directory.
-    list_dandisets_function : callable, optional
-        Injection point for the archive's dandiset listing.
     list_assets_function : callable, optional
         Injection point for each dandiset's asset listing.
     process_count : int, optional
@@ -642,25 +643,36 @@ def refresh_bundled_verdicts(
     dict of {str: bool}
         Dandiset identifier mapped to the verdict now in the bundle.
     """
-    references = order_for_verification(list_dandisets_function())
     cache = PhotometryVerdictCache(cache_path, bundled_path=bundled_path)
+
+    def write_bundle() -> dict[str, bool]:
+        entries = {}
+        for reference in sorted(references, key=lambda reference: reference.identifier):
+            holds = cache.dandiset_verdict(reference)
+            if holds is not None:
+                entries[reference.identifier] = [holds, reference.version, reference.modified]
+        # One dandiset per line, so that a refresh reads as a reviewable diff.
+        lines = [f"  {json.dumps(identifier)}: {json.dumps(entry)}" for identifier, entry in entries.items()]
+        # Written beside the bundle and moved over it, so an interruption mid-write cannot leave it truncated.
+        partial_path = Path(bundled_path).with_suffix(".partial")
+        partial_path.write_text('{"dandisets": {\n' + ",\n".join(lines) + "\n}}\n")
+        partial_path.replace(bundled_path)
+        return {identifier: entry[0] for identifier, entry in entries.items()}
+
+    def record(reference: DandisetReference, holds: bool | None) -> None:
+        write_bundle()
+        if on_verdict is not None:
+            on_verdict(reference, holds)
+
     verify_dandisets(
-        references,
+        order_for_verification(references),
         list_assets_function=list_assets_function,
         cache=cache,
         process_count=process_count,
-        on_verdict=on_verdict,
+        on_verdict=record,
         should_stop=should_stop,
     )
-    entries = {}
-    for reference in sorted(references, key=lambda reference: reference.identifier):
-        holds = cache.dandiset_verdict(reference)
-        if holds is not None:
-            entries[reference.identifier] = [holds, reference.version, reference.modified]
-    # One dandiset per line, so that a refresh reads as a reviewable diff.
-    lines = [f"  {json.dumps(identifier)}: {json.dumps(entry)}" for identifier, entry in entries.items()]
-    Path(bundled_path).write_text('{"dandisets": {\n' + ",\n".join(lines) + "\n}}\n")
-    return {identifier: entry[0] for identifier, entry in entries.items()}
+    return write_bundle()
 
 
 def _list_for_verification(

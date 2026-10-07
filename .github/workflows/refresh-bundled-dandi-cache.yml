@@ -30,7 +30,7 @@ jobs:
         # Editable, so the refresh writes the bundle into this checkout and not into site-packages.
         run: |
           python -m pip install -U pip
-          python -m pip install -e .
+          python -m pip install -e . tqdm
       - name: Refresh the bundled verdicts
         # Stops short of the job timeout so that a long refresh still writes what it settled.
         run: python .github/scripts/refresh_bundled_dandi_cache.py --time-limit-minutes 320

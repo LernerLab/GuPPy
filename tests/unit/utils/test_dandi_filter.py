@@ -555,9 +555,9 @@ class TestRefreshBundledVerdicts:
 
     def test_every_settled_dandiset_is_written_one_per_line(self, tmp_path, bundled_path, references, list_assets):
         verdicts = refresh_bundled_verdicts(
+            references,
             bundled_path=bundled_path,
             cache_path=tmp_path / "verdicts.json",
-            list_dandisets_function=lambda: references,
             list_assets_function=list_assets,
             process_count=2,
         )
@@ -584,9 +584,9 @@ class TestRefreshBundledVerdicts:
             return list_assets(dandiset_id, version)
 
         verdicts = refresh_bundled_verdicts(
+            references,
             bundled_path=bundled_path,
             cache_path=tmp_path / "verdicts.json",
-            list_dandisets_function=lambda: references,
             list_assets_function=watched,
             process_count=2,
         )
@@ -604,9 +604,9 @@ class TestRefreshBundledVerdicts:
             return list_assets(dandiset_id, version)
 
         verdicts = refresh_bundled_verdicts(
+            [*references, unreadable],
             bundled_path=bundled_path,
             cache_path=tmp_path / "verdicts.json",
-            list_dandisets_function=lambda: [*references, unreadable],
             list_assets_function=listing,
             process_count=2,
         )
@@ -617,15 +617,34 @@ class TestRefreshBundledVerdicts:
         bundled_path.write_text('{"dandisets": {\n  "000001": [true, "draft", "2026-01-01T00:00:00.000000Z"]\n}}\n')
 
         verdicts = refresh_bundled_verdicts(
+            references,
             bundled_path=bundled_path,
             cache_path=tmp_path / "verdicts.json",
-            list_dandisets_function=lambda: references,
             list_assets_function=lambda dandiset_id, version=None: [],
             process_count=2,
             should_stop=lambda: True,
         )
 
         assert verdicts == {"000001": True}
+
+    def test_an_interrupted_refresh_keeps_what_it_settled(self, tmp_path, bundled_path, references, list_assets):
+        def interrupt(reference, holds):
+            raise KeyboardInterrupt
+
+        # The smallest dandiset, 000002, settles first; the interruption comes as it does.
+        with pytest.raises(KeyboardInterrupt):
+            refresh_bundled_verdicts(
+                references,
+                bundled_path=bundled_path,
+                cache_path=tmp_path / "verdicts.json",
+                list_assets_function=list_assets,
+                process_count=2,
+                on_verdict=interrupt,
+            )
+
+        assert bundled_path.read_text() == (
+            '{"dandisets": {\n  "000002": [false, "draft", "2026-01-01T00:00:00.000000Z"]\n}}\n'
+        )
 
 
 class TestFilterAssets:
