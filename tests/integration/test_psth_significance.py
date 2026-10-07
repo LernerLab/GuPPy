@@ -29,6 +29,9 @@ UNDERPOWERED_EVENT = "rewarded_nose_pokes"
 
 EXPECTED_ONE_SAMPLE_COLUMNS = ["timestamps", "estimate", "ci_lower", "ci_upper", "significant", "alpha", "n"]
 ALPHA = 0.01
+# The fewest resamples that resolve an ALPHA two-sided interval. Each resample batch of this
+# session's full-length PSTH holds about half a gigabyte, so the default 1000 is slow.
+BOOTSTRAP_RESAMPLES = 200
 EXPECTED_TWO_SAMPLE_COLUMNS = EXPECTED_ONE_SAMPLE_COLUMNS + ["n_b"]
 
 
@@ -73,6 +76,7 @@ def significance_output(preprocessed_session):
         compute_psth_significance=True,
         psth_comparisons=[COMPARISON],
         psth_significance_alpha=ALPHA,
+        psth_bootstrap_resamples=BOOTSTRAP_RESAMPLES,
     )
     return preprocessed_session["output_directory"]
 
@@ -192,6 +196,7 @@ class TestSessionScopeSignificance:
         assert saved["psthComparisonsA"] == [COMPARISON[0]]
         assert saved["psthComparisonsB"] == [COMPARISON[1]]
         assert saved["psthSignificanceAlpha"] == ALPHA
+        assert saved["psthBootstrapResamples"] == BOOTSTRAP_RESAMPLES
 
 
 class TestSignificanceIsOptional:
@@ -249,6 +254,7 @@ class TestGroupScopeSignificance:
             selected_group_folders=[group_folder],
             compute_psth_significance=True,
             psth_comparisons=[COMPARISON],
+            psth_bootstrap_resamples=BOOTSTRAP_RESAMPLES,
         )
         return group_folder, len(member_run_folders)
 

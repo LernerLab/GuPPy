@@ -59,9 +59,8 @@ DISJOINT_STORE_ID_TO_STORE_LABEL = {
 }
 
 
-@pytest.fixture
-def copied_sessions(tmp_path):
-    """Copy the two sample TDT sessions into a fresh base dir with prior outputs removed.
+def _copy_sessions(temporary_base_directory):
+    """Copy the two sample TDT sessions into ``temporary_base_directory`` with prior outputs removed.
 
     Returns
     -------
@@ -71,9 +70,6 @@ def copied_sessions(tmp_path):
     source_sessions = [STUBBED_TESTING_DATA / subdir for subdir in SESSION_SUBDIRS]
     for source_session in source_sessions:
         assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
-
-    temporary_base_directory = tmp_path / "input_root_folder"
-    temporary_base_directory.mkdir(parents=True, exist_ok=True)
 
     session_copies = []
     for source_session in source_sessions:
@@ -91,16 +87,17 @@ def copied_sessions(tmp_path):
     return str(temporary_base_directory), [str(session_copy) for session_copy in session_copies]
 
 
-@pytest.mark.filterwarnings("ignore::UserWarning")
-def test_group_analysis(copied_sessions):
-    """
-    Integration test: run the full pipeline (Steps 2-5) on two TDT sessions and then
-    perform group-level averaging, asserting that the average directory and expected
-    output files are created with the correct structure.
-    """
-    base_dir, selected_folders = copied_sessions
-    temporary_base_directory = Path(base_dir)
+@pytest.fixture
+def copied_sessions(tmp_path):
+    temporary_base_directory = tmp_path / "input_root_folder"
+    temporary_base_directory.mkdir()
+    return _copy_sessions(temporary_base_directory)
 
+
+@pytest.fixture(scope="module")
+def processed_sessions(tmp_path_factory):
+    """Both sessions labeled alike and run through Steps 1-4, shared by the tests that group them."""
+    base_dir, selected_folders = _copy_sessions(tmp_path_factory.mktemp("input_root_folder"))
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
@@ -108,14 +105,29 @@ def test_group_analysis(copied_sessions):
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
+    return base_dir, selected_folders
 
-    # Run group averaging pass
-    label_groups(
-        member_run_folders=[locate_run_folder(session=folder) for folder in selected_folders],
-        destination_directory=base_dir,
-        group_name="saline",
-    )
+
+@pytest.fixture(scope="module")
+def saline_group(processed_sessions):
+    """Both processed runs grouped as ``saline`` and averaged; returns the run folders it holds."""
+    base_dir, selected_folders = processed_sessions
+    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
+    label_groups(member_run_folders=member_run_folders, destination_directory=base_dir, group_name="saline")
     group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
+    return member_run_folders
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_group_analysis(processed_sessions, saline_group):
+    """
+    Integration test: run the full pipeline (Steps 2-5) on two TDT sessions and then
+    perform group-level averaging, asserting that the average directory and expected
+    output files are created with the correct structure.
+    """
+    base_dir, selected_folders = processed_sessions
+    temporary_base_directory = Path(base_dir)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
 
     group_directory = temporary_base_directory / "saline_group"
     assert group_directory.is_dir(), f"No group directory found under {temporary_base_directory}"
@@ -240,28 +252,14 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
+def test_group_analysis_step_writes_a_named_group_directory(processed_sessions, saline_group):
     """The Group Analysis step averages selected runs into <destination>/<name>_group.
 
     Runs Steps 1-4 per session, then the new Group Analysis step, and asserts the group
     directory's name, manifest, provenance snapshot, stores list and averaged PSTH.
     """
-    base_dir, selected_folders = copied_sessions
-    common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
-    selected_runs = {folder: ["1"] for folder in selected_folders}
-
-    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
-    step2(**common_kwargs, selected_runs=selected_runs)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
-
-    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
-    label_groups(
-        member_run_folders=member_run_folders,
-        destination_directory=base_dir,
-        group_name="saline",
-    )
-    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
+    base_dir, _ = processed_sessions
+    member_run_folders = saline_group
 
     group_folder = Path(base_dir) / "saline_group"
     assert group_folder.is_dir(), f"No 'saline_group' directory under {base_dir}"
@@ -287,34 +285,27 @@ def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_sessions):
+def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(processed_sessions):
     """Re-running a group with fewer members must not leave the dropped member behind."""
-    base_dir, selected_folders = copied_sessions
-    common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
-    selected_runs = {folder: ["1"] for folder in selected_folders}
-
-    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
-    step2(**common_kwargs, selected_runs=selected_runs)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
-
+    base_dir, selected_folders = processed_sessions
+    # Its own group name, so rebuilding it leaves the shared saline group untouched.
     member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
     label_groups(
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
-        group_name="saline",
+        group_name="dropped",
     )
-    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
-    group_folder = Path(base_dir) / "saline_group"
+    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "dropped_group"])
+    group_folder = Path(base_dir) / "dropped_group"
     psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
     assert len(pd.read_hdf(psth_path, key="df").columns) == 5  # 2 members + timestamps/mean/err
 
     label_groups(
         member_run_folders=member_run_folders[:1],
         destination_directory=base_dir,
-        group_name="saline",
+        group_name="dropped",
     )
-    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
+    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "dropped_group"])
 
     with (group_folder / "group_members.json").open() as manifest_file:
         assert json.load(manifest_file) == {"member_run_folders": member_run_folders[:1]}
