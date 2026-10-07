@@ -96,6 +96,7 @@ class FakeDandiAPIClient:
             "version": self.metadata_by_id[identifier].get("version", "draft"),
             "asset_count": len(assets),
             "size": sum(asset.size for asset in assets),
+            "modified": "2026-01-01T00:00:00.000000Z",
         }
         published = version_record if version_record["version"] != "draft" else None
         return {
@@ -104,6 +105,7 @@ class FakeDandiAPIClient:
                 "version": "draft",
                 "asset_count": len(assets),
                 "size": version_record["size"],
+                "modified": "2026-02-01T00:00:00.000000Z",
             },
             "most_recent_published_version": published,
         }
@@ -219,6 +221,13 @@ class TestSearchDandisets:
         assert by_id["000001"].file_count == 4
         assert by_id["000001"].size_in_bytes == 60_480_100
         assert by_id["000002"].file_count == 1
+
+    def test_modified_comes_from_the_version_that_was_read(self, archive):
+        by_id = {summary.identifier: summary for summary in search_dandisets(terms=("photometry",))}
+        assert by_id["000001"].version != "draft"
+        assert by_id["000001"].modified == "2026-01-01T00:00:00.000000Z"
+        assert by_id["000002"].version == "draft"
+        assert by_id["000002"].modified == "2026-02-01T00:00:00.000000Z"
 
     def test_repeated_and_blank_schema_names_are_collapsed(self, archive):
         archive.metadata_by_id["000003"]["contributor"] = [

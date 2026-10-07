@@ -6,7 +6,9 @@ sockets, real ``Range`` headers, real h5py -- only the address is local. The sam
 against the archive in ``test_dandi_filter_live.py``.
 """
 
+import dataclasses
 import io
+import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -16,6 +18,7 @@ import numpy as np
 import pytest
 
 from guppy.utils.dandi_filter import (
+    BUNDLED_VERDICT_CACHE_PATH,
     DandisetReference,
     PhotometryVerdictCache,
     PrefetchedRemoteFile,
@@ -23,6 +26,7 @@ from guppy.utils.dandi_filter import (
     clear_verdict_cache,
     filter_assets,
     order_for_verification,
+    refresh_bundled_verdicts,
     scan_assets_for_photometry,
     scan_order,
     verify_dandisets,
@@ -48,6 +52,10 @@ PAYLOAD_SIZE = 400_000
 HEAD_MARKER_OFFSET = 0
 GAP_MARKER_OFFSET = 100_000
 TAIL_MARKER_OFFSET = PAYLOAD_SIZE - 11  # the last bytes of the file, inside the tail window
+
+# The modification time the archive reports for the test dandisets, and a later one.
+MODIFIED = "2026-01-01T00:00:00.000000Z"
+LATER = "2026-02-01T00:00:00.000000Z"
 
 
 class RangeRequestHandler(BaseHTTPRequestHandler):
@@ -253,6 +261,72 @@ class TestPhotometryVerdictCache:
         assert "corrupt.json" in caplog.text
 
 
+class TestDandisetVerdicts:
+    @pytest.fixture
+    def reference(self):
+        return DandisetReference(identifier="000001", version="draft", asset_count=2, modified=MODIFIED)
+
+    @pytest.fixture
+    def bundled_path(self, tmp_path):
+        path = tmp_path / "bundled.json"
+        path.write_text('{"dandisets": {"000001": [true, "draft", "2026-01-01T00:00:00.000000Z"]}}')
+        return path
+
+    @pytest.mark.parametrize("holds", [True, False])
+    def test_a_verdict_stands_while_the_dandiset_is_unchanged(self, tmp_path, reference, holds):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=None)
+        cache.record_dandiset(reference, holds)
+        cache.save()
+
+        reloaded = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=None)
+        assert reloaded.dandiset_verdict(reference) is holds
+
+    @pytest.mark.parametrize("holds", [True, False])
+    @pytest.mark.parametrize(
+        "changed",
+        [{"modified": LATER}, {"version": "0.260101.0000"}],
+        ids=["modified", "published"],
+    )
+    def test_a_verdict_lapses_once_the_dandiset_changes(self, tmp_path, reference, holds, changed):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=None)
+        cache.record_dandiset(reference, holds)
+
+        changed_reference = dataclasses.replace(reference, **changed)
+        assert cache.dandiset_verdict(changed_reference) is None
+
+    def test_the_bundled_verdict_answers_when_the_user_cache_has_none(self, tmp_path, reference, bundled_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=bundled_path)
+        assert cache.dandiset_verdict(reference) is True
+
+    def test_a_bundled_verdict_lapses_once_the_dandiset_changes(self, tmp_path, reference, bundled_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=bundled_path)
+        changed_reference = DandisetReference(identifier="000001", version="draft", asset_count=2, modified=LATER)
+        assert cache.dandiset_verdict(changed_reference) is None
+
+    def test_the_user_verdict_is_consulted_before_the_bundled_one(self, tmp_path, reference, bundled_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=bundled_path)
+        cache.record_dandiset(reference, False)
+        assert cache.dandiset_verdict(reference) is False
+
+    def test_without_the_bundle_only_the_user_cache_answers(self, tmp_path, reference):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=None)
+        assert cache.dandiset_verdict(reference) is None
+
+    def test_saving_writes_only_the_user_verdicts(self, tmp_path, reference, bundled_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=bundled_path)
+        cache.record_dandiset(
+            DandisetReference(identifier="000002", version="draft", asset_count=1, modified=MODIFIED), False
+        )
+        cache.save()
+
+        assert json.loads((tmp_path / "verdicts.json").read_text())["dandisets"] == {
+            "000002": [False, "draft", "2026-01-01T00:00:00.000000Z"]
+        }
+
+    def test_the_shipped_bundle_is_readable(self, tmp_path):
+        PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=BUNDLED_VERDICT_CACHE_PATH)
+
+
 class TestClearVerdictCache:
     def test_clearing_deletes_the_cache_and_names_it(self, tmp_path):
         path = tmp_path / "verdicts.json"
@@ -272,9 +346,9 @@ class TestOrderForVerification:
     @pytest.fixture
     def references(self):
         return [
-            DandisetReference(identifier="000001", version="draft", asset_count=4000),
-            DandisetReference(identifier="000002", version="draft", asset_count=10),
-            DandisetReference(identifier="000003", version="draft", asset_count=200),
+            DandisetReference(identifier="000001", version="draft", asset_count=4000, modified=MODIFIED),
+            DandisetReference(identifier="000002", version="draft", asset_count=10, modified=MODIFIED),
+            DandisetReference(identifier="000003", version="draft", asset_count=200, modified=MODIFIED),
         ]
 
     def test_smallest_dandisets_are_read_first(self, references):
@@ -324,48 +398,51 @@ class TestScanOrder:
         assert scan_order([]) == []
 
 
+@pytest.fixture
+def archive_assets(byte_server, tmp_path):
+    """Two dandisets: one whose photometry is not its largest asset, one with none."""
+    photometry = tmp_path / "photometry.nwb"
+    photometry.write_bytes(MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"].read_bytes())
+    # Padded past the photometry file so it sorts first, which is what makes this dandiset
+    # prove the scan carries on past the largest asset rather than stopping at it.
+    big_behavior = tmp_path / "big_behavior.nwb"
+    with h5py.File(big_behavior, "w") as file:
+        file.create_group("general/devices")
+        file.create_dataset("acquisition/filler", data=np.zeros(photometry.stat().st_size))
+    small_behavior = tmp_path / "small_behavior.nwb"
+    with h5py.File(small_behavior, "w") as file:
+        file.create_group("general/devices")
+    assert big_behavior.stat().st_size > photometry.stat().st_size
+
+    def asset(asset_id, path):
+        return AssetSummary(
+            asset_id=asset_id,
+            path=path.name,
+            size_in_bytes=path.stat().st_size,
+            content_url=served_url(byte_server, path.name),
+        )
+
+    return {
+        "000001": [asset("big", big_behavior), asset("photometry", photometry)],
+        "000002": [asset("small", small_behavior)],
+    }
+
+
+@pytest.fixture
+def references():
+    return [
+        DandisetReference(identifier="000001", version="draft", asset_count=2, modified=MODIFIED),
+        DandisetReference(identifier="000002", version="draft", asset_count=1, modified=MODIFIED),
+    ]
+
+
+@pytest.fixture
+def list_assets(archive_assets):
+    return lambda dandiset_id, version=None: list(archive_assets[dandiset_id])
+
+
 class TestVerifyDandisets:
     """The scan itself is exercised above; these cover the per-dandiset decisions around it."""
-
-    @pytest.fixture
-    def archive_assets(self, byte_server, tmp_path):
-        """Two dandisets: one whose photometry is not its largest asset, one with none."""
-        photometry = tmp_path / "photometry.nwb"
-        photometry.write_bytes(MOCK_NWB_FILES["mock_nwbfile_ndx_fiber_photometry_v0_2_core_events"].read_bytes())
-        # Padded past the photometry file so it sorts first, which is what makes this dandiset
-        # prove the scan carries on past the largest asset rather than stopping at it.
-        big_behavior = tmp_path / "big_behavior.nwb"
-        with h5py.File(big_behavior, "w") as file:
-            file.create_group("general/devices")
-            file.create_dataset("acquisition/filler", data=np.zeros(photometry.stat().st_size))
-        small_behavior = tmp_path / "small_behavior.nwb"
-        with h5py.File(small_behavior, "w") as file:
-            file.create_group("general/devices")
-        assert big_behavior.stat().st_size > photometry.stat().st_size
-
-        def asset(asset_id, path):
-            return AssetSummary(
-                asset_id=asset_id,
-                path=path.name,
-                size_in_bytes=path.stat().st_size,
-                content_url=served_url(byte_server, path.name),
-            )
-
-        return {
-            "000001": [asset("big", big_behavior), asset("photometry", photometry)],
-            "000002": [asset("small", small_behavior)],
-        }
-
-    @pytest.fixture
-    def references(self):
-        return [
-            DandisetReference(identifier="000001", version="draft", asset_count=2),
-            DandisetReference(identifier="000002", version="draft", asset_count=1),
-        ]
-
-    @pytest.fixture
-    def list_assets(self, archive_assets):
-        return lambda dandiset_id, version=None: list(archive_assets[dandiset_id])
 
     def test_a_dandiset_is_confirmed_by_any_asset_not_only_its_largest(self, references, list_assets):
         verdicts = verify_dandisets(references, list_assets_function=list_assets, process_count=2)
@@ -469,6 +546,88 @@ class TestVerifyDandisets:
         ) == {"photometry.nwb": True}
 
 
+class TestRefreshBundledVerdicts:
+    @pytest.fixture
+    def bundled_path(self, tmp_path):
+        path = tmp_path / "bundled.json"
+        path.write_text('{"dandisets": {\n\n}}\n')
+        return path
+
+    def test_every_settled_dandiset_is_written_one_per_line(self, tmp_path, bundled_path, references, list_assets):
+        verdicts = refresh_bundled_verdicts(
+            bundled_path=bundled_path,
+            cache_path=tmp_path / "verdicts.json",
+            list_dandisets_function=lambda: references,
+            list_assets_function=list_assets,
+            process_count=2,
+        )
+
+        assert verdicts == {"000001": True, "000002": False}
+        assert bundled_path.read_text() == (
+            '{"dandisets": {\n'
+            '  "000001": [true, "draft", "2026-01-01T00:00:00.000000Z"],\n'
+            '  "000002": [false, "draft", "2026-01-01T00:00:00.000000Z"]\n'
+            "}}\n"
+        )
+
+    def test_only_dandisets_changed_since_the_bundle_are_read(self, tmp_path, bundled_path, references, list_assets):
+        bundled_path.write_text(
+            '{"dandisets": {\n'
+            '  "000001": [true, "draft", "2026-01-01T00:00:00.000000Z"],\n'
+            '  "000002": [true, "draft", "2025-06-01T00:00:00.000000Z"]\n'
+            "}}\n"
+        )
+        listed = []
+
+        def watched(dandiset_id, version=None):
+            listed.append(dandiset_id)
+            return list_assets(dandiset_id, version)
+
+        verdicts = refresh_bundled_verdicts(
+            bundled_path=bundled_path,
+            cache_path=tmp_path / "verdicts.json",
+            list_dandisets_function=lambda: references,
+            list_assets_function=watched,
+            process_count=2,
+        )
+
+        assert listed == ["000002"]
+        assert verdicts == {"000001": True, "000002": False}
+
+    def test_unlisted_and_unresolved_dandisets_are_left_out(self, tmp_path, bundled_path, references, list_assets):
+        bundled_path.write_text('{"dandisets": {\n  "000009": [true, "draft", "2026-01-01T00:00:00.000000Z"]\n}}\n')
+        unreadable = DandisetReference(identifier="000003", version="draft", asset_count=1, modified=MODIFIED)
+
+        def listing(dandiset_id, version=None):
+            if dandiset_id == "000003":
+                raise RuntimeError("archive said no")
+            return list_assets(dandiset_id, version)
+
+        verdicts = refresh_bundled_verdicts(
+            bundled_path=bundled_path,
+            cache_path=tmp_path / "verdicts.json",
+            list_dandisets_function=lambda: [*references, unreadable],
+            list_assets_function=listing,
+            process_count=2,
+        )
+
+        assert verdicts == {"000001": True, "000002": False}
+
+    def test_a_stopped_refresh_keeps_what_the_bundle_already_knew(self, tmp_path, bundled_path, references):
+        bundled_path.write_text('{"dandisets": {\n  "000001": [true, "draft", "2026-01-01T00:00:00.000000Z"]\n}}\n')
+
+        verdicts = refresh_bundled_verdicts(
+            bundled_path=bundled_path,
+            cache_path=tmp_path / "verdicts.json",
+            list_dandisets_function=lambda: references,
+            list_assets_function=lambda dandiset_id, version=None: [],
+            process_count=2,
+            should_stop=lambda: True,
+        )
+
+        assert verdicts == {"000001": True}
+
+
 class TestFilterAssets:
     @pytest.fixture
     def assets(self):
@@ -541,7 +700,7 @@ class TestDandiFilterAgainstTheLocalByteServer(DandiFilterTestMixin):
 
     @pytest.fixture
     def photometry_dandiset(self):
-        return DandisetReference(identifier="000001", version="draft", asset_count=2)
+        return DandisetReference(identifier="000001", version="draft", asset_count=2, modified=MODIFIED)
 
     @pytest.fixture
     def list_assets_function(self, asset_listing):

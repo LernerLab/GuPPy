@@ -1,2 +1,3 @@
 include *.md
 recursive-include src *.ipynb
+include src/guppy/utils/bundled_dandi_photometry_verdicts.json
