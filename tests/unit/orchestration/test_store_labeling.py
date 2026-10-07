@@ -1080,7 +1080,7 @@ def test_confirm_npm_configuration_succeeds_for_a_blank_header_session(panel_ext
     # Issue #337: this session's header carries blank cells and a second timestamp column
     # named exactly "Timestamp". Confirming used to leave the page blank, with a pandas
     # traceback visible only in the terminal running the server.
-    input_parameters = {"noChannels": 2}
+    input_parameters = {"noChannels": 2, **_roots_for(NPM_6_FOLDER)}
     _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=NPM_6_FOLDER)
 
     template = build_store_labeling_template(
@@ -1109,7 +1109,7 @@ def test_confirm_npm_configuration_reports_a_failure_as_a_page_alert(panel_exten
         "0,0,0.00,0.0\n1,16,0.01,1.0\n2,0,0.02,2.0\n3,16,0.03,3.0\n4,0,0.04,4.0\n5,16,0.05,5.0\n"
     )
 
-    input_parameters = {"noChannels": 2}
+    input_parameters = {"noChannels": 2, **_roots_for(tmp_path)}
     _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=tmp_path)
 
     template = build_store_labeling_template(
@@ -1132,7 +1132,7 @@ def test_save_after_a_failed_confirm_reports_rather_than_raising(panel_extension
         "0,0,0.00,0.0\n1,16,0.01,1.0\n2,0,0.02,2.0\n3,16,0.03,3.0\n4,0,0.04,4.0\n5,16,0.05,5.0\n"
     )
 
-    input_parameters = {"noChannels": 2}
+    input_parameters = {"noChannels": 2, **_roots_for(tmp_path)}
     _, _, npm_interactive = read_header(input_parameters, num_ch=2, folder_path=tmp_path)
 
     template = build_store_labeling_template(
