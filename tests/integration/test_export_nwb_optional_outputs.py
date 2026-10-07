@@ -330,6 +330,9 @@ class TestPSTHSignificanceOutputs:
             selected_runs=selected_runs,
             compute_psth_significance=True,
             psth_comparisons=[SIGNIFICANCE_COMPARISON],
+            # The export only needs the results to exist; the default 1000 resamples of this
+            # session's full-length PSTH are slow.
+            psth_bootstrap_resamples=200,
         )
 
         nwbfile_path = export_run(session=session, output_directory=output_directory, acquisition_format="tdt")
