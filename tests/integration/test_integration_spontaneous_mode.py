@@ -25,8 +25,8 @@ TRANSIENT_EVENT = f"transients_z_score_{EXPECTED_RECORDING_SITE}"
 METRIC_BASENAME = f"z_score_{EXPECTED_RECORDING_SITE}"
 
 
-@pytest.fixture
-def run_pipeline(tmp_path):
+@pytest.fixture(scope="module")
+def run_pipeline(tmp_path_factory):
     """Return a callable that runs Steps 1-4 on a fresh copy of the stubbed CSV session.
 
     Each call gets its own workspace, so a run with the spontaneous-mode toggle on can be
@@ -37,8 +37,7 @@ def run_pipeline(tmp_path):
     assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
 
     def _run(workspace_name, **step4_kwargs):
-        temporary_base_directory = tmp_path / workspace_name
-        temporary_base_directory.mkdir(parents=True, exist_ok=True)
+        temporary_base_directory = tmp_path_factory.mktemp(workspace_name)
         session_name = source_session.name
         session_copy = temporary_base_directory / session_name
         shutil.copytree(source_session, session_copy)
@@ -64,6 +63,12 @@ def run_pipeline(tmp_path):
         }
 
     return _run
+
+
+@pytest.fixture(scope="module")
+def spontaneous_run(run_pipeline):
+    """One run with the spontaneous-mode toggle on, shared by the tests that only read its outputs."""
+    return run_pipeline("spontaneous", use_transients_as_events=True)
 
 
 @pytest.fixture
@@ -95,8 +100,8 @@ def visualized_events():
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_transient_event_train_is_written_and_drives_the_psth(run_pipeline):
-    output_directory = run_pipeline("spontaneous", use_transients_as_events=True)["output_directory"]
+def test_transient_event_train_is_written_and_drives_the_psth(spontaneous_run):
+    output_directory = spontaneous_run["output_directory"]
 
     event_timestamps = np.asarray(read_hdf5(TRANSIENT_EVENT, output_directory, "ts")).ravel()
     _, detector_timestamps, peaks_index = read_transients_from_hdf5(output_directory, METRIC_BASENAME)
@@ -142,8 +147,8 @@ def test_both_metrics_produce_two_independent_event_trains(run_pipeline):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_spontaneous_mode_choice_is_recorded_in_the_parameter_snapshot(run_pipeline):
-    output_directory = run_pipeline("recorded", use_transients_as_events=True)["output_directory"]
+def test_spontaneous_mode_choice_is_recorded_in_the_parameter_snapshot(spontaneous_run):
+    output_directory = spontaneous_run["output_directory"]
 
     with (Path(output_directory) / "GuPPyParamtersUsed.json").open() as parameters_file:
         parameters = json.load(parameters_file)
@@ -151,10 +156,8 @@ def test_spontaneous_mode_choice_is_recorded_in_the_parameter_snapshot(run_pipel
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_transient_event_is_offered_in_the_visualization_dashboard(run_pipeline, visualized_events):
-    pipeline_result = run_pipeline("visualized", use_transients_as_events=True)
-
-    events = visualized_events(pipeline_result, use_transients_as_events=True)
+def test_transient_event_is_offered_in_the_visualization_dashboard(spontaneous_run, visualized_events):
+    events = visualized_events(spontaneous_run, use_transients_as_events=True)
 
     # The external TTL is still offered alongside the transient event train.
     assert events == [f"ttl_{EXPECTED_RECORDING_SITE}", TRANSIENT_EVENT]

@@ -1,5 +1,6 @@
 """Tests for NwbRecordingExtractor and its private helper functions."""
 
+import h5py
 import numpy as np
 import pytest
 from pynwb import TimeSeries
@@ -228,7 +229,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
         # rate=30 Hz, starting_time=0.0 → timestamps are exactly arange(3000)/30
         return np.arange(_NUM_SAMPLES) / _SAMPLING_RATE
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def expected_control_data(self):
         # Read the way the extractor does, so a file whose cached namespace differs from the
         # installed extension is built against its own spec here too.
@@ -239,7 +240,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
     def expected_signal_timestamps(self):
         return np.arange(_NUM_SAMPLES) / _SAMPLING_RATE
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def expected_signal_data(self):
         with open_nwbfile_io(path=self.file_path) as io:
             return np.array(io.read().acquisition["fiber_photometry_response_series"].data[:, 1])
@@ -264,7 +265,7 @@ class NwbRecordingExtractorTestMixin(RecordingExtractorTestMixin):
 
 
 # ---------------------------------------------------------------------------
-# Contract test classes — one per TTL event type
+# Contract tests for the ndx-events mock NWB file
 # ---------------------------------------------------------------------------
 
 
@@ -272,7 +273,8 @@ class TestNwbRecordingExtractorEvents(NwbRecordingExtractorTestMixin):
     """Contract tests using a plain ndx-events ``Events`` object as the TTL channel.
 
     Also hosts general NWB-specific tests (discover count, flags, per-type reads)
-    that apply to the extractor as a whole rather than a specific TTL type.
+    that apply to the extractor as a whole rather than a specific TTL type. The file's other
+    TTL types are covered by ``TestNwbRecordingExtractorTtlEventTypes``.
     """
 
     ttl_event = "events"
@@ -281,27 +283,6 @@ class TestNwbRecordingExtractorEvents(NwbRecordingExtractorTestMixin):
     def expected_ttl_timestamps(self):
         # Events timestamps: 45, 46, ..., 54
         return np.arange(45, 55, dtype=np.float64)
-
-
-class TestNwbExtractorAnnotatedEvents(NwbRecordingExtractorTestMixin):
-    """Contract tests using an ``AnnotatedEventsTable`` row as the TTL channel."""
-
-    ttl_event = "AnnotatedEventsTable_Reward"
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        return np.array([41.0, 42.0, 43.0, 44.0, 45.0])
-
-
-class TestNwbRecordingExtractorLabeledEvents(NwbRecordingExtractorTestMixin):
-    """Contract tests using a ``LabeledEvents`` label as the TTL channel."""
-
-    ttl_event = "labeled_events_label_1"
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        # label_1 is index 0: timestamps at positions where data == 0 → 40, 43, 46, 49, 52
-        return np.array([40.0, 43.0, 46.0, 49.0, 52.0])
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +320,10 @@ class TestNwbRecordingExtractorNdxFiberPhotometryV010Events(NwbRecordingExtracto
 
 
 class TestNwbRecordingExtractorCoreEventsSimple(NwbRecordingExtractorTestMixin):
-    """Contract tests for the core-events mock file using a plain ``EventsTable`` as the TTL channel."""
+    """Contract tests for the core-events mock file using a plain ``EventsTable`` as the TTL channel.
+
+    The file's other TTL types are covered by ``TestNwbRecordingExtractorTtlEventTypes``.
+    """
 
     extractor_class = NwbRecordingExtractor
     folder_path = str(MOCK_NWB_CORE_EVENTS_FOLDER)
@@ -365,59 +349,32 @@ class TestNwbRecordingExtractorCoreEventsSimple(NwbRecordingExtractorTestMixin):
         return np.arange(45, 55, dtype=np.float64)
 
 
-class TestNwbRecordingExtractorCoreEventsAnnotated(NwbRecordingExtractorTestMixin):
-    """Contract tests for the core-events mock file using an annotated ``EventsTable`` as the TTL channel."""
+class TestNwbRecordingExtractorTtlEventTypes:
+    """Each remaining TTL event type round-trips its timestamps through ``read`` and ``save``.
 
-    extractor_class = NwbRecordingExtractor
-    folder_path = str(MOCK_NWB_CORE_EVENTS_FOLDER)
-    file_path = str(MOCK_NWB_CORE_EVENTS_FILE)
-    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_CORE_EVENTS_FOLDER))
-    control_event = "fiber_photometry_response_series_0"
-    signal_event = "fiber_photometry_response_series_1"
-    ttl_event = "annotated_events_Reward"
-    expected_events = [
-        "fiber_photometry_response_series_0",
-        "fiber_photometry_response_series_1",
-        "simple_events",
-        "annotated_events_Reward",
-        "annotated_events_Punishment",
-        "strobe_events_0",
-        "strobe_events_16",
-        "strobe_events_2064",
-    ]
-
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        # Reward timestamps: 41, 42, 43, 44, 45
-        return np.array([41.0, 42.0, 43.0, 44.0, 45.0])
-
-
-class TestNwbRecordingExtractorCoreEventsStrobe(NwbRecordingExtractorTestMixin):
-    """Contract tests for the core-events mock file using a strobe-coded ``EventsTable``.
-
-    Mirrors NeuroConv's TDTEventsInterface output: a single "strobe" value column (not
-    "annotation"), which the reader splits per code.
+    The contract classes above run every extractor method with one TTL type per mock file; the
+    reads of the others differ only in how the timestamps of one event are resolved.
     """
 
-    extractor_class = NwbRecordingExtractor
-    folder_path = str(MOCK_NWB_CORE_EVENTS_FOLDER)
-    file_path = str(MOCK_NWB_CORE_EVENTS_FILE)
-    extractor_instance = NwbRecordingExtractor(folder_path=str(MOCK_NWB_CORE_EVENTS_FOLDER))
-    control_event = "fiber_photometry_response_series_0"
-    signal_event = "fiber_photometry_response_series_1"
-    ttl_event = "strobe_events_16"
-    expected_events = [
-        "fiber_photometry_response_series_0",
-        "fiber_photometry_response_series_1",
-        "simple_events",
-        "annotated_events_Reward",
-        "annotated_events_Punishment",
-        "strobe_events_0",
-        "strobe_events_16",
-        "strobe_events_2064",
-    ]
+    @pytest.mark.parametrize(
+        ("folder_path", "ttl_event", "expected_ttl_timestamps"),
+        [
+            (MOCK_NWB_FOLDER, "AnnotatedEventsTable_Reward", np.array([41.0, 42.0, 43.0, 44.0, 45.0])),
+            # label_1 is index 0: timestamps at positions where data == 0 → 40, 43, 46, 49, 52
+            (MOCK_NWB_FOLDER, "labeled_events_label_1", np.array([40.0, 43.0, 46.0, 49.0, 52.0])),
+            # Reward timestamps: 41, 42, 43, 44, 45
+            (MOCK_NWB_CORE_EVENTS_FOLDER, "annotated_events_Reward", np.array([41.0, 42.0, 43.0, 44.0, 45.0])),
+            # strobe codes [16, 2064, 0, 16, 2064] at timestamps 60..64, so code 16 -> 60, 63. The table
+            # mirrors NeuroConv's TDTEventsInterface output: a single "strobe" value column (not
+            # "annotation"), which the reader splits per code.
+            (MOCK_NWB_CORE_EVENTS_FOLDER, "strobe_events_16", np.array([60.0, 63.0])),
+        ],
+        ids=["annotated_events_table", "labeled_events", "core_annotated_events", "core_strobe_events"],
+    )
+    def test_roundtrip_ttl_timestamps_preserved(self, tmp_path, folder_path, ttl_event, expected_ttl_timestamps):
+        extractor = NwbRecordingExtractor(folder_path=str(folder_path))
+        output_dicts = extractor.read(events=[ttl_event], outputPath=str(tmp_path))
+        extractor.save(output_dicts=output_dicts, outputPath=str(tmp_path))
 
-    @pytest.fixture
-    def expected_ttl_timestamps(self):
-        # strobe codes [16, 2064, 0, 16, 2064] at timestamps 60..64, so code 16 -> 60, 63.
-        return np.array([60.0, 63.0])
+        with h5py.File(tmp_path / f"{ttl_event}.hdf5", "r") as file:
+            np.testing.assert_array_equal(file["timestamps"][:], expected_ttl_timestamps)
