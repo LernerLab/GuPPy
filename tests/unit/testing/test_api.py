@@ -447,7 +447,12 @@ def npm_template_single_timestamp_column(panel_extension):
 def npm_template_single_ttl_value(panel_extension):
     """Label Stores template for the NPM_5 stub, whose one event file holds a single TTL value."""
     folder_path = Path(str(STUBBED_TESTING_DATA)) / "npm" / "sampleData_NPM_5"
-    input_parameters = {"noChannels": 2}
+    npm_root = str(folder_path.parent)
+    input_parameters = {
+        "noChannels": 2,
+        "input_root_folder": npm_root,
+        "output_root_folder": npm_root,
+    }
     _, _, npm_interactive = read_header(input_parameters, 2, folder_path)
     return build_store_labeling_template(
         [], [], folder_path, inputParameters=input_parameters, npm_interactive=npm_interactive
