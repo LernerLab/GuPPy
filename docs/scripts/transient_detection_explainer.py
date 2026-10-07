@@ -900,7 +900,7 @@ def figure_6_rise_walkthrough() -> None:
 
 
 def figure_7_rate_change() -> None:
-    """A recording whose event rate quadruples halfway through, run through both methods."""
+    """A recording whose event rate rises sharply halfway through, run through both methods."""
     rng = np.random.default_rng(3)
     sample_rate = 100
     duration = 1200.0
@@ -960,7 +960,9 @@ def figure_7_rate_change() -> None:
     ax.legend(loc="upper left", ncol=3, frameon=False, fontsize=9)
     ax.set_xlabel("time (min)")
     ax.set_ylabel("detections per minute")
-    ax.set_title("true events quadruple at 10 min", loc="left", fontsize=10)
+    early_rate = len(early_times) / (change / 60)
+    late_rate = len(late_times) / ((duration - change) / 60)
+    ax.set_title(f"true event rate rises from {early_rate:.1f} to {late_rate:.1f} per minute at 10 min", loc="left", fontsize=10)
     fig.savefig(OUT / "fig7_rate_change.svg", bbox_inches="tight")
     plt.close(fig)
 
@@ -975,18 +977,20 @@ def figure_8_noise_level() -> None:
     unit_noise = _smooth_noise(np.random.default_rng(5), len(t), 1.0)
     noise_levels = np.array([0.3, 0.6, 0.9, 1.2])
 
+    minutes = duration / 60
     results = {"MAD threshold": [], "minimum rise": []}
     for level in noise_levels:
         trace = events + level * unit_noise
         mad_peaks, _ = _detect_by_mad(trace, sample_rate)
-        results["MAD threshold"].append(_events_found_and_false_detections(t[mad_peaks], event_times))
-        results["minimum rise"].append(_events_found_and_false_detections(t[_detect_by_rise(trace, 2.0)], event_times))
+        for method, peaks in [("MAD threshold", mad_peaks), ("minimum rise", _detect_by_rise(trace, 2.0))]:
+            found, false = _events_found_and_false_detections(t[peaks], event_times)
+            results[method].append((len(peaks) / minutes, found, false / minutes))
 
-    fig = plt.figure(figsize=(10.0, 6.0))
-    grid = fig.add_gridspec(2, 2, height_ratios=[0.9, 1.1], hspace=0.5, wspace=0.28)
+    fig = plt.figure(figsize=(13.5, 6.0))
+    grid = fig.add_gridspec(2, 6, height_ratios=[0.9, 1.1], hspace=0.5, wspace=0.9)
     excerpt = (t >= 100) & (t < 130)
     for column, level in enumerate([noise_levels[0], noise_levels[-1]]):
-        ax = fig.add_subplot(grid[0, column])
+        ax = fig.add_subplot(grid[0, 3 * column:3 * column + 3])
         ax.plot(t[excerpt], (events + level * unit_noise)[excerpt], color=COLOR_TRACE, linewidth=0.9)
         ax.set_ylim(-3, 7)
         ax.set_title(f"noise SD {level:.1f} % ΔF/F", loc="left", fontsize=9)
@@ -994,17 +998,22 @@ def figure_8_noise_level() -> None:
         if column == 0:
             ax.set_ylabel("ΔF/F (%)")
 
+    true_rate = len(event_times) / minutes
     panels = [
-        (0, "fraction of real events found", lambda values: [found for found, _ in values], (0, 1.05)),
-        (1, "detections away from any event (per min)", lambda values: [false / (duration / 60) for _, false in values], None),
+        ("detected event rate (per min)", 0, None),
+        ("fraction of real events found", 1, (0, 1.05)),
+        ("detections away from any event (per min)", 2, None),
     ]
-    for column, title, extract, limits in panels:
-        ax = fig.add_subplot(grid[1, column])
+    for column, (title, position, limits) in enumerate(panels):
+        ax = fig.add_subplot(grid[1, 2 * column:2 * column + 2])
+        if position == 0:
+            ax.hlines(true_rate, noise_levels[0] - 0.1, noise_levels[-1], color=COLOR_TRUTH, linewidth=1.2, linestyle="--")
+            ax.text(noise_levels[-1] + 0.04, true_rate, "true rate", color=COLOR_TRUTH, fontsize=9, va="center")
         for method, color in [("MAD threshold", COLOR_MAD), ("minimum rise", COLOR_RISE)]:
-            values = extract(results[method])
+            values = [result[position] for result in results[method]]
             ax.plot(noise_levels, values, color=color, linewidth=1.8, marker="o", markersize=6)
             ax.text(noise_levels[-1] + 0.04, values[-1], method, color=color, fontsize=9, va="center")
-        ax.set_xlim(noise_levels[0] - 0.1, noise_levels[-1] + 0.45)
+        ax.set_xlim(noise_levels[0] - 0.1, noise_levels[-1] + 0.6)
         if limits is not None:
             ax.set_ylim(*limits)
         else:
