@@ -53,6 +53,8 @@ def base_input_parameters(tmp_path) -> dict[str, object]:
         "moving_window": 15,
         "highAmpFilt": 3.0,
         "transientsThresh": 2.0,
+        "transient_detection_method": "MAD threshold",
+        "transient_minimum_rise": 2.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
     }

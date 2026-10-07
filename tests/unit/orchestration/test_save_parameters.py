@@ -51,6 +51,8 @@ PARAMETER_KEYS = {
     "moving_window",
     "highAmpFilt",
     "transientsThresh",
+    "transient_detection_method",
+    "transient_minimum_rise",
     "computeBinnedMetrics",
     "binnedMetricsWidth",
 }
@@ -115,6 +117,8 @@ def base_input_parameters(tmp_path):
         "moving_window": 15,
         "highAmpFilt": 3.0,
         "transientsThresh": 2.0,
+        "transient_detection_method": "MAD threshold",
+        "transient_minimum_rise": 2.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
         # orchestration-only keys that should not be saved
@@ -225,6 +229,8 @@ def test_save_parameters_single_folder(tmp_path):
         "moving_window": 20,
         "highAmpFilt": 5.0,
         "transientsThresh": 3.0,
+        "transient_detection_method": "MAD threshold",
+        "transient_minimum_rise": 2.0,
         "computeBinnedMetrics": False,
         "binnedMetricsWidth": 120,
     }

@@ -56,39 +56,44 @@ EXPECTED_TOPOLOGY = {
 
 
 class TestExportSessionToNwb:
-    @pytest.fixture(params=sorted(EXPECTED_TOPOLOGY))
+    @pytest.fixture(scope="class", params=sorted(EXPECTED_TOPOLOGY))
     def acquisition_format(self, request) -> str:
         return request.param
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def pipeline_state(self, request, acquisition_format) -> dict:
         return request.getfixturevalue(f"step5_output_{acquisition_format}")
 
-    @pytest.fixture
-    def metadata_yaml_path(self, pipeline_state, acquisition_format, tmp_path) -> str:
+    @pytest.fixture(scope="class")
+    def export_directory(self, acquisition_format, tmp_path_factory) -> Path:
+        return tmp_path_factory.mktemp(f"export_{acquisition_format}")
+
+    @pytest.fixture(scope="class")
+    def metadata_yaml_path(self, pipeline_state, acquisition_format, export_directory) -> str:
         return write_metadata_yaml(
             session_folder_path=str(pipeline_state["session_copy"]),
             output_directory=str(pipeline_state["output_directory"]),
             acquisition_format=acquisition_format,
-            path=tmp_path / "nwb_metadata.yaml",
+            path=export_directory / "nwb_metadata.yaml",
         )
 
-    def test_exports_stubbed_session(self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path):
-        session_folder_path = str(pipeline_state["session_copy"])
-        guppy_folder_path = str(pipeline_state["output_directory"])
-        nwbfile_path = tmp_path / "exported.nwb"
+    @pytest.fixture(scope="class")
+    def written_path(self, pipeline_state, acquisition_format, metadata_yaml_path, export_directory) -> str:
+        """Export the session once per format; every test below reads the same file."""
+        return export_session_to_nwb(
+            session_folder_path=str(pipeline_state["session_copy"]),
+            acquisition_format=acquisition_format,
+            guppy_folder_path=str(pipeline_state["output_directory"]),
+            metadata_yaml_path=metadata_yaml_path,
+            nwbfile_path=str(export_directory / "exported.nwb"),
+        )
+
+    def test_exports_stubbed_session(self, pipeline_state, acquisition_format, written_path, export_directory):
+        nwbfile_path = export_directory / "exported.nwb"
         expected = EXPECTED_TOPOLOGY[acquisition_format]
 
         # The format the export picks must be the one the pipeline processed the session as.
-        assert resolve_acquisition_format(session_folder_path) == acquisition_format
-
-        written_path = export_session_to_nwb(
-            session_folder_path=session_folder_path,
-            acquisition_format=acquisition_format,
-            guppy_folder_path=guppy_folder_path,
-            metadata_yaml_path=metadata_yaml_path,
-            nwbfile_path=str(nwbfile_path),
-        )
+        assert resolve_acquisition_format(str(pipeline_state["session_copy"])) == acquisition_format
 
         assert nwbfile_path.exists()
         assert written_path == str(nwbfile_path)
@@ -122,7 +127,7 @@ class TestExportSessionToNwb:
             assert set(analyzed_events["event_type"]) == expected["event_types"]
 
     def test_acquisition_timestamps_are_on_the_clock_guppy_analyzed(
-        self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path
+        self, pipeline_state, acquisition_format, written_path
     ):
         """The raw series must land on GuPPy's own clock, not a unit-scaled copy of it.
 
@@ -131,21 +136,12 @@ class TestExportSessionToNwb:
         while every topology assertion still passes -- the failure that held Neurophotometrics back
         (issue #411), and the one this guards against for every format.
         """
-        nwbfile_path = tmp_path / "exported.nwb"
-        export_session_to_nwb(
-            session_folder_path=str(pipeline_state["session_copy"]),
-            acquisition_format=acquisition_format,
-            guppy_folder_path=str(pipeline_state["output_directory"]),
-            metadata_yaml_path=metadata_yaml_path,
-            nwbfile_path=str(nwbfile_path),
-        )
-
         recording_site = EXPECTED_TOPOLOGY[acquisition_format]["recording_sites"][0]
         guppy_origin = read_hdf5(
             f"timeCorrection_{recording_site}", str(pipeline_state["output_directory"]), "recordingStart"
         )[0]
 
-        with NWBHDF5IO(str(nwbfile_path), "r") as io:
+        with NWBHDF5IO(written_path, "r") as io:
             series = io.read().acquisition["FiberPhotometryResponseSeriesSignal"]
             # A regularly sampled series carries starting_time + rate rather than a timestamps array.
             first_timestamp = float(series.starting_time if series.timestamps is None else series.timestamps[0])
@@ -154,19 +150,8 @@ class TestExportSessionToNwb:
         # between the reference channel GuPPy timed from and the one stacked into this series.
         assert first_timestamp == pytest.approx(guppy_origin, abs=1.0)
 
-    def test_session_start_time_comes_from_the_acquisition_or_the_form(
-        self, pipeline_state, acquisition_format, metadata_yaml_path, tmp_path
-    ):
-        nwbfile_path = tmp_path / "exported.nwb"
-        export_session_to_nwb(
-            session_folder_path=str(pipeline_state["session_copy"]),
-            acquisition_format=acquisition_format,
-            guppy_folder_path=str(pipeline_state["output_directory"]),
-            metadata_yaml_path=metadata_yaml_path,
-            nwbfile_path=str(nwbfile_path),
-        )
-
-        with NWBHDF5IO(str(nwbfile_path), "r") as io:
+    def test_session_start_time_comes_from_the_acquisition_or_the_form(self, acquisition_format, written_path):
+        with NWBHDF5IO(written_path, "r") as io:
             session_start_time = io.read().session_start_time
 
         if acquisition_format == "tdt":
@@ -208,13 +193,13 @@ class TestExportNwbSourcedSession:
     series, so the recording sites registry links into the table already there.
     """
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def source_nwbfile_path(self, step5_output_nwb) -> str:
         return _find_nwb_file(str(step5_output_nwb["session_copy"]))
 
-    @pytest.fixture
-    def exported_nwbfile_path(self, step5_output_nwb, source_nwbfile_path, tmp_path) -> Path:
-        nwbfile_path = tmp_path / "exported.nwb"
+    @pytest.fixture(scope="class")
+    def exported_nwbfile_path(self, step5_output_nwb, source_nwbfile_path, tmp_path_factory) -> Path:
+        nwbfile_path = tmp_path_factory.mktemp("export_nwb_sourced") / "exported.nwb"
         export_session_to_nwb(
             session_folder_path=str(step5_output_nwb["session_copy"]),
             acquisition_format="nwb",

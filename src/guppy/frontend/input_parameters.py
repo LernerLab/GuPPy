@@ -407,25 +407,41 @@ class ParameterForm:
             description="Which metric the transient detector runs on. 'Both' runs it on each metric in turn.",
         )
 
+        self.transient_detection_method = pn.widgets.Select(
+            name="Transient Detection Method",
+            options=["MAD threshold", "minimum rise"],
+            value="MAD threshold",
+            width=320,
+            description="How a peak qualifies as a transient. 'MAD threshold' counts peaks whose height above the local median exceeds a multiple of the local noise, re-estimated in each moving window. 'minimum rise' counts peaks that rise more than a fixed amount above the local minimum just before them.",
+        )
+
+        self.transient_minimum_rise = pn.widgets.FloatInput(
+            name="Minimum Rise (float)",
+            value=2.0,
+            step=0.5,
+            width=200,
+            description="Smallest rise above the preceding local minimum that counts as a transient, in the units of the metric the detector runs on: % \u0394F/F for dff, z-score units for z_score. Ignored when the detection method is 'MAD threshold'.",
+        )
+
         self.moving_wd = pn.widgets.IntInput(
             name="Moving Window for transients detection (s) (int)",
             value=15,
             width=380,
-            description="Width of the moving window transients are detected in, in seconds.",
+            description="Width of the moving window transients are detected in, in seconds. Ignored when the detection method is 'minimum rise'.",
         )
 
         self.highAmpFilt = pn.widgets.IntInput(
             name="HAFT (int)",
             value=2,
             width=150,
-            description="High-amplitude filtering threshold. Events greater than this many MADs above the median are filtered out before transients are detected.",
+            description="High-amplitude filtering threshold. Events greater than this many MADs above the median are filtered out before transients are detected. Ignored when the detection method is 'minimum rise'.",
         )
 
         self.transientsThresh = pn.widgets.IntInput(
             name="TD Thresh (int)",
             value=3,
             width=160,
-            description="Transient detection threshold. Peaks with local maxima greater than this many MADs above the median of the filtered trace are detected as transients.",
+            description="Transient detection threshold. Peaks with local maxima greater than this many MADs above the median of the filtered trace are detected as transients. Ignored when the detection method is 'minimum rise'.",
         )
 
         self.computeBinnedMetrics = pn.widgets.Select(
@@ -691,6 +707,7 @@ class ParameterForm:
             read_by="Steps 4 and 5 and Group Analysis",
             contents=[
                 pn.Row(self.transients, self.useTransientsAsEvents),
+                pn.Row(self.transient_detection_method, self.transient_minimum_rise),
                 pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
             ],
             width=SECTION_WIDTH,
@@ -1275,6 +1292,7 @@ class ParameterForm:
         validate_positive(value=self.moving_wd.value, name="moving_window")
         validate_positive(value=self.highAmpFilt.value, name="highAmpFilt")
         validate_positive(value=self.transientsThresh.value, name="transientsThresh")
+        validate_positive(value=self.transient_minimum_rise.value, name="transient_minimum_rise")
         validate_positive(value=self.binnedMetricsWidth.value, name="binnedMetricsWidth")
         validate_significance_level(value=self.psthSignificanceAlpha.value, name="psthSignificanceAlpha")
         validate_positive(value=self.psthBootstrapResamples.value, name="psthBootstrapResamples")
@@ -1387,6 +1405,8 @@ class ParameterForm:
             "moving_window": self.moving_wd.value,
             "highAmpFilt": self.highAmpFilt.value,
             "transientsThresh": self.transientsThresh.value,
+            "transient_detection_method": self.transient_detection_method.value,
+            "transient_minimum_rise": self.transient_minimum_rise.value,
             "computeBinnedMetrics": self.computeBinnedMetrics.value,
             "binnedMetricsWidth": self.binnedMetricsWidth.value,
             "selected_group_folders": list(self.group_folders_selector.value or []),
@@ -1438,6 +1458,8 @@ class ParameterForm:
             "moving_window": self.moving_wd,
             "highAmpFilt": self.highAmpFilt,
             "transientsThresh": self.transientsThresh,
+            "transient_detection_method": self.transient_detection_method,
+            "transient_minimum_rise": self.transient_minimum_rise,
             "computeBinnedMetrics": self.computeBinnedMetrics,
             "binnedMetricsWidth": self.binnedMetricsWidth,
         }

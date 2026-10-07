@@ -77,7 +77,8 @@ def byte_server(tmp_path):
     server = ThreadingHTTPServer(("127.0.0.1", 0), RangeRequestHandler)
     server.served_directory = str(tmp_path)
     server.requested_ranges = []
-    Thread(target=server.serve_forever, daemon=True).start()
+    # A short poll interval lets shutdown() return at once instead of after the default half second.
+    Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
     yield server
     server.shutdown()
     server.server_close()

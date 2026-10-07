@@ -15,6 +15,7 @@ import h5py
 import pandas as pd
 import pytest
 
+from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME
 from guppy.testing.api import locate_run_folder, step1, step2, step3, step4
 from guppy_test_data import STUBBED_TESTING_DATA
 
@@ -95,8 +96,8 @@ def test_parallel_step3(tmp_path):
 def test_parallel_step5(tmp_path):
     """
     Full pipeline Steps 2-5 with ``number_of_cores=2`` on Step 2 and Step 4,
-    confirming that PSTH, peak/AUC, and transients outputs are produced when
-    multiprocessing pools are active.
+    confirming that PSTH, peak/AUC, transients, and PSTH significance outputs are
+    produced when multiprocessing pools are active.
     """
     tmp_base, session_copy = _stage_session(tmp_path)
 
@@ -124,6 +125,7 @@ def test_parallel_step5(tmp_path):
         base_dir=str(tmp_base),
         selected_folders=[str(session_copy)],
         number_of_cores=2,
+        compute_psth_significance=True,
         selected_runs=selected_runs,
     )
 
@@ -159,3 +161,11 @@ def test_parallel_step5(tmp_path):
     assert Path(freq_amp_h5).exists(), f"Missing freq/amp HDF5: {freq_amp_h5}"
     assert Path(freq_amp_csv).exists(), f"Missing freq/amp CSV: {freq_amp_csv}"
     assert Path(trans_occ_csv).exists(), f"Missing transients occurrences CSV: {trans_occ_csv}"
+
+    # PSTH significance outputs
+    significance_h5 = (
+        Path(out_dir)
+        / PSTH_SIGNIFICANCE_DIRNAME
+        / f"significance_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    )
+    assert Path(significance_h5).exists(), f"Missing PSTH significance HDF5: {significance_h5}"

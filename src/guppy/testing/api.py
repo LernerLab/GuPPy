@@ -1153,6 +1153,8 @@ def step4(
     use_transients_as_events: bool = False,
     select_for_compute_psth: str = "z_score",
     select_for_transients: str = "z_score",
+    transient_detection_method: str = "MAD threshold",
+    transient_minimum_rise: float = 2.0,
     number_of_cores: int = 1,
     bin_psth_trials: int = 0,
     use_time_or_trials: str = "Time (min)",
@@ -1202,6 +1204,12 @@ def step4(
     select_for_transients : str
         Signal type to use for transient detection. One of ``'z_score'``, ``'dff'``, or
         ``'Both'``. Defaults to ``'z_score'``.
+    transient_detection_method : str
+        How peaks qualify as transients: ``'MAD threshold'`` (the default) or ``'minimum rise'``.
+    transient_minimum_rise : float
+        Smallest rise above the preceding local minimum that counts as a transient, in the units
+        of ``select_for_transients``. Only meaningful when ``transient_detection_method`` is
+        ``'minimum rise'``. Defaults to 2.0.
     number_of_cores : int
         Number of worker processes for PSTH and transient computations. Defaults to ``1``
         (single-process) to avoid multiprocessing conflicts in test environments.
@@ -1285,6 +1293,10 @@ def step4(
     # Inject signal-type selection parameters
     input_params["selectForComputePsth"] = select_for_compute_psth
     input_params["selectForTransientsComputation"] = select_for_transients
+
+    # Inject the transient detection method
+    input_params["transient_detection_method"] = transient_detection_method
+    input_params["transient_minimum_rise"] = transient_minimum_rise
 
     # Override parallelism — default 1 keeps tests single-process
     input_params["numberOfCores"] = number_of_cores
