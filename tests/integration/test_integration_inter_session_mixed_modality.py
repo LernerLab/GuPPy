@@ -104,7 +104,7 @@ def test_mixed_modality(tmp_path):
             base_dir=base_dir,
             selected_folders=[str(session_copies[acquisition_format])],
             store_id_to_store_label=session["store_id_to_store_label"],
-            npm_split_events=[False, True] if acquisition_format == "npm" else None,
+            npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True} if acquisition_format == "npm" else None,
         )
 
     # Steps 2–4 run once with every session; each session's storesList.csv is read independently.
@@ -113,19 +113,19 @@ def test_mixed_modality(tmp_path):
     step2(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step3(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
     step4(
         base_dir=base_dir,
         selected_folders=selected_folders,
-        npm_split_events=[False, True],
+        npm_split_events={"PagCeAVgatFear_1442_ts0.csv": True},
         selected_runs=selected_runs,
     )
 

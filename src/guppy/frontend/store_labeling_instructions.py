@@ -78,9 +78,9 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         Maps each photometry channel name to a dict with ``"x"`` (timestamps)
         and ``"y"`` (data) arrays to plot. Pass an empty dict to start with no
         preview (populated later via :meth:`set_channel_previews`).
-    multiple_event_ttls : list of bool, optional
-        One entry per NPM data file; ``True`` when the file encodes multiple TTL
-        types and a split-events checkbox should be shown. When ``None`` the
+    multiple_event_ttls : dict of str to bool, optional
+        Maps each NPM event file's name to whether it encodes multiple TTL types,
+        in which case a split-events checkbox is shown for it. When ``None`` the
         interactive configuration form is not built.
     timestamp_column_options : list of str, optional
         Timestamp columns the session's data files offer. A column selector is
@@ -92,7 +92,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         folder_path: str,
         *,
         channel_previews: dict[str, dict[str, np.ndarray]],
-        multiple_event_ttls: list[bool] | None = None,
+        multiple_event_ttls: dict[str, bool] | None = None,
         timestamp_column_options: list[str] | None = None,
     ) -> None:
         super().__init__(folder_path=folder_path)
@@ -126,9 +126,9 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             width=550,
         )
 
-        # Split-events is asked per file, keyed by file index, and only for the files
+        # Split-events is asked per event file, keyed by file name, and only for the files
         # that encode more than one TTL type. The timestamp widgets below are per session.
-        self.split_event_checkboxes: dict[int, pn.widgets.Checkbox] = {}
+        self.split_event_checkboxes: dict[str, pn.widgets.Checkbox] = {}
         self.timestamp_column_select: pn.widgets.Select | None = None
         self.time_unit_select: pn.widgets.Select | None = None
         self.num_channels_input: pn.widgets.IntInput | None = None
@@ -136,14 +136,14 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         config_form = pn.Column()
 
         if multiple_event_ttls is not None:
-            for file_index, has_multiple in enumerate(multiple_event_ttls):
+            for file_name, has_multiple in multiple_event_ttls.items():
                 if has_multiple:
                     checkbox = pn.widgets.Checkbox(
-                        name=f"File {file_index}: create multiple files for each behavior type?",
+                        name=f"{file_name}: create multiple files for each behavior type?",
                         value=False,
                         width=550,
                     )
-                    self.split_event_checkboxes[file_index] = checkbox
+                    self.split_event_checkboxes[file_name] = checkbox
                     config_form.append(checkbox)
 
             # A session is recorded on one clock, so the timestamp column and unit are
@@ -193,21 +193,24 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         if channel_previews:
             self.set_channel_previews(channel_previews=channel_previews)
 
-    def get_npm_split_events(self) -> list[bool]:
-        """Return, per NPM data file, whether to split multiple behavior TTLs.
+    def get_npm_split_events(self) -> dict[str, bool]:
+        """Return, per NPM event file, whether to split multiple behavior TTLs.
 
         Files that do not encode multiple TTL types are always ``False``;
         the rest reflect their split-events checkbox.
 
         Returns
         -------
-        list of bool
-            One entry per NPM data file.
+        dict of str to bool
+            Maps each NPM event file's name to whether it is split.
         """
-        return [
-            bool(self.split_event_checkboxes[file_index].value) if has_multiple else False
-            for file_index, has_multiple in enumerate(self.multiple_event_ttls)
-        ]
+        npm_split_events = {}
+        for file_name, has_multiple in self.multiple_event_ttls.items():
+            if has_multiple:
+                npm_split_events[file_name] = bool(self.split_event_checkboxes[file_name].value)
+            else:
+                npm_split_events[file_name] = False
+        return npm_split_events
 
     def get_number_of_channels(self) -> int:
         """Return the channel count to decompose the session's data files with.
