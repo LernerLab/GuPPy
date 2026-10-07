@@ -729,6 +729,24 @@ def write_tonic_to_hdf5(filepath: str | Path, tonic_data: pd.DataFrame, site: st
     tonic_data.to_hdf(output_path, key="df", mode="w")
 
 
+def read_tonic_from_hdf5(filepath: str | Path, site: str) -> pd.DataFrame:
+    """Load per-epoch tonic means for a single recording site.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        Session output (run) directory holding ``tonic_<site>.h5``.
+    site : str
+        Recording-site name.
+
+    Returns
+    -------
+    pd.DataFrame
+        Per-epoch means, indexed by epoch label, with columns ``mean_zscore`` and ``mean_dff``.
+    """
+    return pd.read_hdf(Path(filepath) / ("tonic_" + site + ".h5"), key="df", mode="r")
+
+
 def remove_tonic_results(filepath: str | Path, site: str) -> None:
     """Delete a recording site's saved epoch windows and means, if any are present.
 
@@ -1166,3 +1184,19 @@ def read_covariate_series(filepath: str | Path) -> dict[str, tuple[np.ndarray, n
             covariate_series[name] = (timestamps, values)
 
     return covariate_series
+
+
+def write_group_table(*, filepath: str | Path, table: pd.DataFrame, name: str) -> None:
+    """Save a group-level table as both HDF5 and CSV.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        Group output directory.
+    table : pd.DataFrame
+        Table to save; its index is written alongside its columns.
+    name : str
+        File stem; the files are written as ``<name>.h5`` and ``<name>.csv``.
+    """
+    table.to_hdf(Path(filepath) / (name + ".h5"), key="df", mode="w")
+    table.to_csv(Path(filepath) / (name + ".csv"))

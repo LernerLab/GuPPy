@@ -8,6 +8,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from guppy.analysis.standard_io import (
+    read_covariate_correlations_from_hdf5,
+    read_tonic_from_hdf5,
+)
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing import default_output_root_folder
 from guppy.testing.api import (
@@ -19,8 +23,12 @@ from guppy.testing.api import (
     step3,
     step4,
     step5,
+    tonic_analysis,
 )
-from guppy.utils.utils import output_label_under
+from guppy.testing.covariate_session import RECORDING_SITE as COVARIATE_RECORDING_SITE
+from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
+from guppy.testing.covariate_session import run_covariate_session
+from guppy.utils.utils import output_label_under, parse_run_name
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIRS = [
@@ -51,9 +59,8 @@ DISJOINT_STORE_ID_TO_STORE_LABEL = {
 }
 
 
-@pytest.fixture
-def copied_sessions(tmp_path):
-    """Copy the two sample TDT sessions into a fresh base dir with prior outputs removed.
+def _copy_sessions(temporary_base_directory):
+    """Copy the two sample TDT sessions into ``temporary_base_directory`` with prior outputs removed.
 
     Returns
     -------
@@ -63,9 +70,6 @@ def copied_sessions(tmp_path):
     source_sessions = [STUBBED_TESTING_DATA / subdir for subdir in SESSION_SUBDIRS]
     for source_session in source_sessions:
         assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
-
-    temporary_base_directory = tmp_path / "input_root_folder"
-    temporary_base_directory.mkdir(parents=True, exist_ok=True)
 
     session_copies = []
     for source_session in source_sessions:
@@ -83,16 +87,17 @@ def copied_sessions(tmp_path):
     return str(temporary_base_directory), [str(session_copy) for session_copy in session_copies]
 
 
-@pytest.mark.filterwarnings("ignore::UserWarning")
-def test_group_analysis(copied_sessions):
-    """
-    Integration test: run the full pipeline (Steps 2-5) on two TDT sessions and then
-    perform group-level averaging, asserting that the average directory and expected
-    output files are created with the correct structure.
-    """
-    base_dir, selected_folders = copied_sessions
-    temporary_base_directory = Path(base_dir)
+@pytest.fixture
+def copied_sessions(tmp_path):
+    temporary_base_directory = tmp_path / "input_root_folder"
+    temporary_base_directory.mkdir()
+    return _copy_sessions(temporary_base_directory)
 
+
+@pytest.fixture(scope="module")
+def processed_sessions(tmp_path_factory):
+    """Both sessions labeled alike and run through Steps 1-4, shared by the tests that group them."""
+    base_dir, selected_folders = _copy_sessions(tmp_path_factory.mktemp("input_root_folder"))
     common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
     selected_runs = {folder: ["1"] for folder in selected_folders}
 
@@ -100,14 +105,29 @@ def test_group_analysis(copied_sessions):
     step2(**common_kwargs, selected_runs=selected_runs)
     step3(**common_kwargs, selected_runs=selected_runs)
     step4(**common_kwargs, selected_runs=selected_runs)
+    return base_dir, selected_folders
 
-    # Run group averaging pass
-    label_groups(
-        member_run_folders=[locate_run_folder(session=folder) for folder in selected_folders],
-        destination_directory=base_dir,
-        group_name="saline",
-    )
+
+@pytest.fixture(scope="module")
+def saline_group(processed_sessions):
+    """Both processed runs grouped as ``saline`` and averaged; returns the run folders it holds."""
+    base_dir, selected_folders = processed_sessions
+    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
+    label_groups(member_run_folders=member_run_folders, destination_directory=base_dir, group_name="saline")
     group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
+    return member_run_folders
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_group_analysis(processed_sessions, saline_group):
+    """
+    Integration test: run the full pipeline (Steps 2-5) on two TDT sessions and then
+    perform group-level averaging, asserting that the average directory and expected
+    output files are created with the correct structure.
+    """
+    base_dir, selected_folders = processed_sessions
+    temporary_base_directory = Path(base_dir)
+    selected_runs = {folder: ["1"] for folder in selected_folders}
 
     group_directory = temporary_base_directory / "saline_group"
     assert group_directory.is_dir(), f"No group directory found under {temporary_base_directory}"
@@ -232,28 +252,14 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
+def test_group_analysis_step_writes_a_named_group_directory(processed_sessions, saline_group):
     """The Group Analysis step averages selected runs into <destination>/<name>_group.
 
     Runs Steps 1-4 per session, then the new Group Analysis step, and asserts the group
     directory's name, manifest, provenance snapshot, stores list and averaged PSTH.
     """
-    base_dir, selected_folders = copied_sessions
-    common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
-    selected_runs = {folder: ["1"] for folder in selected_folders}
-
-    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
-    step2(**common_kwargs, selected_runs=selected_runs)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
-
-    member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
-    label_groups(
-        member_run_folders=member_run_folders,
-        destination_directory=base_dir,
-        group_name="saline",
-    )
-    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
+    base_dir, _ = processed_sessions
+    member_run_folders = saline_group
 
     group_folder = Path(base_dir) / "saline_group"
     assert group_folder.is_dir(), f"No 'saline_group' directory under {base_dir}"
@@ -279,34 +285,27 @@ def test_group_analysis_step_writes_a_named_group_directory(copied_sessions):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_sessions):
+def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(processed_sessions):
     """Re-running a group with fewer members must not leave the dropped member behind."""
-    base_dir, selected_folders = copied_sessions
-    common_kwargs = dict(base_dir=base_dir, selected_folders=selected_folders)
-    selected_runs = {folder: ["1"] for folder in selected_folders}
-
-    step1(**common_kwargs, store_id_to_store_label=STORE_ID_TO_STORE_LABEL)
-    step2(**common_kwargs, selected_runs=selected_runs)
-    step3(**common_kwargs, selected_runs=selected_runs)
-    step4(**common_kwargs, selected_runs=selected_runs)
-
+    base_dir, selected_folders = processed_sessions
+    # Its own group name, so rebuilding it leaves the shared saline group untouched.
     member_run_folders = [locate_run_folder(session=folder) for folder in selected_folders]
     label_groups(
         member_run_folders=member_run_folders,
         destination_directory=base_dir,
-        group_name="saline",
+        group_name="dropped",
     )
-    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
-    group_folder = Path(base_dir) / "saline_group"
+    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "dropped_group"])
+    group_folder = Path(base_dir) / "dropped_group"
     psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
     assert len(pd.read_hdf(psth_path, key="df").columns) == 5  # 2 members + timestamps/mean/err
 
     label_groups(
         member_run_folders=member_run_folders[:1],
         destination_directory=base_dir,
-        group_name="saline",
+        group_name="dropped",
     )
-    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "saline_group"])
+    group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "dropped_group"])
 
     with (group_folder / "group_members.json").open() as manifest_file:
         assert json.load(manifest_file) == {"member_run_folders": member_run_folders[:1]}
@@ -314,3 +313,92 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(copied_
     output_base = default_output_root_folder(base_dir=base_dir)
     assert output_label_under(path=member_run_folders[0], root=output_base) in remaining.columns
     assert output_label_under(path=member_run_folders[1], root=output_base) not in remaining.columns
+
+
+# The covariate sample session runs 600 s; one epoch in each half.
+TONIC_EPOCHS = pd.DataFrame({"label": ["early", "late"], "start": [10.0, 310.0], "end": [290.0, 590.0]})
+
+
+@pytest.fixture(scope="module")
+def tonic_and_covariate_group(tmp_path_factory):
+    """Two copies of the covariate sample session through Step 4 and Tonic Analysis, grouped.
+
+    Returns
+    -------
+    tuple[Path, list[str], str]
+        ``(group_folder, member_run_folders, base_dir)``.
+    """
+    source_directory = tmp_path_factory.mktemp("sources")
+    second_source = source_directory / (COVARIATE_SESSION_NAME.removesuffix("_1") + "_2")
+    shutil.copytree(
+        STUBBED_TESTING_DATA / "csv" / COVARIATE_SESSION_NAME,
+        second_source,
+        ignore=shutil.ignore_patterns("*_output_*"),
+    )
+    base_directory = tmp_path_factory.mktemp("group_tonic_covariates")
+    base_dir = str(base_directory)
+    member_run_folders = [
+        run_covariate_session(session_path=session_path, base_directory=base_directory)
+        for session_path in [STUBBED_TESTING_DATA / "csv" / COVARIATE_SESSION_NAME, second_source]
+    ]
+    sessions = [str(base_directory / COVARIATE_SESSION_NAME), str(base_directory / second_source.name)]
+    tonic_analysis(
+        base_dir=base_dir,
+        selected_folders=sessions,
+        tonic_epochs={COVARIATE_RECORDING_SITE: TONIC_EPOCHS},
+        selected_runs={
+            session: [parse_run_name(run_folder)]
+            for session, run_folder in zip(sessions, member_run_folders, strict=True)
+        },
+    )
+    label_groups(member_run_folders=member_run_folders, destination_directory=base_dir, group_name="injected")
+    group_folder = Path(base_dir) / "injected_group"
+    group_analysis(base_dir=base_dir, selected_group_folders=[group_folder])
+    return group_folder, member_run_folders, base_dir
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+class TestGroupTonicAndCovariateTables:
+    def test_tonic_member_table_stacks_each_member(self, tonic_and_covariate_group):
+        group_folder, member_run_folders, base_dir = tonic_and_covariate_group
+        output_base = default_output_root_folder(base_dir=base_dir)
+
+        stacked = pd.read_hdf(group_folder / f"group_tonic_{COVARIATE_RECORDING_SITE}.h5", key="df")
+
+        assert list(stacked.index.names) == ["member", "epoch"]
+        for run_folder in member_run_folders:
+            member = stacked.loc[output_label_under(path=run_folder, root=output_base)]
+            pd.testing.assert_frame_equal(member, read_tonic_from_hdf5(run_folder, COVARIATE_RECORDING_SITE))
+        assert (group_folder / f"group_tonic_{COVARIATE_RECORDING_SITE}.csv").exists()
+
+    def test_tonic_summary_of_identical_members(self, tonic_and_covariate_group):
+        group_folder, member_run_folders, _ = tonic_and_covariate_group
+
+        summary = pd.read_hdf(group_folder / f"group_tonic_summary_{COVARIATE_RECORDING_SITE}.h5", key="df")
+
+        # Both members are copies of one session, so the mean is that session's value with no spread.
+        member = read_tonic_from_hdf5(member_run_folders[0], COVARIATE_RECORDING_SITE)
+        assert list(summary.index) == ["early", "late"]
+        np.testing.assert_allclose(summary["mean_zscore_mean"], member["mean_zscore"])
+        np.testing.assert_allclose(summary["mean_zscore_sem"], [0.0, 0.0], atol=1e-12)
+        np.testing.assert_array_equal(summary["mean_dff_n"], [2, 2])
+
+    def test_covariate_summary_of_identical_members(self, tonic_and_covariate_group):
+        group_folder, member_run_folders, _ = tonic_and_covariate_group
+
+        stacked = pd.read_hdf(group_folder / f"group_covariate_correlations_{COVARIATE_RECORDING_SITE}.h5", key="df")
+        summary = pd.read_hdf(
+            group_folder / f"group_covariate_correlations_summary_{COVARIATE_RECORDING_SITE}.h5", key="df"
+        )
+
+        assert list(stacked.index.names) == ["member", "metric", "covariate"]
+        assert list(stacked.columns) == ["pearson_r", "spearman_rho", "n_bins"]
+        # The driving covariate's r for this session, as asserted in test_covariate_correlations.py.
+        assert summary.loc[("mean_zscore", "akinesia"), "pearson_r_mean"] == pytest.approx(0.8436, abs=0.02)
+        assert summary.loc[("mean_zscore", "akinesia"), "pearson_r_sem"] == pytest.approx(0.0, abs=1e-12)
+        assert summary.loc[("mean_zscore", "akinesia"), "pearson_r_n"] == 2
+        assert len(summary) == len(
+            read_covariate_correlations_from_hdf5(
+                filepath=member_run_folders[0], recording_site=COVARIATE_RECORDING_SITE
+            )
+        )

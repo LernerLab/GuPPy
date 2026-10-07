@@ -30,7 +30,7 @@ from ..analysis.standard_io import (
     write_transients_as_event_to_hdf5,
     write_transients_to_hdf5,
 )
-from ..analysis.transients import analyze_transients
+from ..analysis.transients import analyze_transients, detect_transients_by_rise
 from ..utils import progress
 from ..utils.utils import (
     get_all_stores_for_combining_data,
@@ -61,6 +61,8 @@ def findFreqAndAmp(
     selectForTransientsComputation = inputParameters["selectForTransientsComputation"]
     highAmpFilt = inputParameters["highAmpFilt"]
     transientsThresh = inputParameters["transientsThresh"]
+    transient_detection_method = inputParameters["transient_detection_method"]
+    transient_minimum_rise = inputParameters["transient_minimum_rise"]
     useTransientsAsEvents = inputParameters["useTransientsAsEvents"]
 
     if selectForTransientsComputation == "z_score":
@@ -81,9 +83,14 @@ def findFreqAndAmp(
         sampling_rate = read_hdf5("timeCorrection_" + name_1, filepath, "sampling_rate")[0]
         z_score = read_hdf5("", path[i], "data")
         timestamps = read_hdf5("timeCorrection_" + name_1, filepath, "timestampNew")
-        z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = analyze_transients(
-            timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
-        )
+        if transient_detection_method == "minimum rise":
+            z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = detect_transients_by_rise(
+                timestamps=timestamps, trace=z_score, minimum_rise=transient_minimum_rise
+            )
+        else:
+            z_score, timestamps, peaksInd, peaks_occurrences, freq_and_amp = analyze_transients(
+                timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
+            )
         fileName = [parse_session_basename(filepath)]
         write_freq_and_amp_to_hdf5(
             filepath, freq_and_amp, basename, index=fileName, columns=["freq (events/min)", "amplitude"]
