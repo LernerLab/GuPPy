@@ -1,10 +1,11 @@
 import logging
 import math
-import multiprocessing as mp
 from itertools import repeat
 
 import numpy as np
-from scipy.signal import argrelextrema
+from scipy.signal import argrelextrema, find_peaks
+
+from ..utils.process_pool import run_starmap
 
 logger = logging.getLogger(__name__)
 
@@ -56,20 +57,11 @@ def analyze_transients(
     z_score = z_score[not_nan_indices]
     z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
-    # Pinned rather than inherited: this runs on a background thread of the Panel server
-    # process, and forking a process that has other live threads can leave a lock they
-    # held (logging, HDF5) permanently locked in the child.
-    spawn_context = mp.get_context("spawn")
-    with spawn_context.Pool(numProcesses) as pool:
-        result = pool.starmap(
-            processChunks, zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh))
-        )
-        # Close and join before leaving the block. The context manager's __exit__ calls terminate(),
-        # which signals every worker and then blocks in waitpid() until it is gone; a worker that is
-        # slow to exit never gets there and the parent waits forever. starmap has already returned,
-        # so there is nothing to abort -- close() lets each worker exit on its own.
-        pool.close()
-        pool.join()
+    result = run_starmap(
+        function=processChunks,
+        arguments=zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh)),
+        process_count=numProcesses,
+    )
 
     result = np.asarray(result, dtype=object)
     timestamps = timestamps[not_nan_indices]
@@ -232,3 +224,63 @@ def calculate_freq_amp(
     freq = peaksAmp.shape[0] / ((timestamps[-1] - timestamps[0]) / 60)
 
     return freq, peaksAmp, peaksInd
+
+
+def detect_transients_by_rise(
+    *, timestamps: np.ndarray, trace: np.ndarray, minimum_rise: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Detect transients as local maxima that rise more than ``minimum_rise`` above the preceding local minimum.
+
+    Each local maximum is paired with the nearest local minimum before it, and the rise between them is
+    the transient's amplitude. A maximum with no local minimum before it is not a transient. Detection
+    runs separately within each stretch of finite samples, so a rise never spans a NaN gap.
+
+    Parameters
+    ----------
+    timestamps : np.ndarray
+        Timestamp array corresponding to ``trace``.
+    trace : np.ndarray
+        1-D z-score or dF/F trace; may contain NaN gaps.
+    minimum_rise : float
+        Smallest rise from the preceding local minimum that counts as a transient, in the units of ``trace``.
+
+    Returns
+    -------
+    trace : np.ndarray
+        NaN-free trace used for analysis.
+    timestamps : np.ndarray
+        NaN-free timestamp array aligned with the returned ``trace``.
+    peaksInd : np.ndarray
+        Integer indices of detected transient peaks in the returned ``trace``.
+    peaks_occurrences : np.ndarray
+        Shape ``(n_peaks, 2)`` array of ``[timestamp, amplitude]`` for each peak.
+    freq_and_amplitude : np.ndarray
+        Shape ``(1, 2)`` array of ``[frequency (events/min), mean amplitude]``.
+    """
+    finite_indices = np.flatnonzero(~np.isnan(trace))
+    trace = trace[finite_indices]
+    timestamps = timestamps[finite_indices]
+    # A jump in the original index marks where a NaN gap was removed.
+    run_starts = np.flatnonzero(np.diff(finite_indices) > 1) + 1
+    runs = np.split(np.arange(trace.shape[0]), run_starts)
+
+    peak_indices = []
+    rises = []
+    for run in runs:
+        segment = trace[run]
+        maxima, _ = find_peaks(segment)
+        minima, _ = find_peaks(-segment)
+        preceding_minimum = np.searchsorted(minima, maxima) - 1
+        maxima = maxima[preceding_minimum >= 0]
+        segment_rises = segment[maxima] - segment[minima[preceding_minimum[preceding_minimum >= 0]]]
+        is_transient = segment_rises > minimum_rise
+        peak_indices.append(run[maxima[is_transient]])
+        rises.append(segment_rises[is_transient])
+
+    peaksInd = np.concatenate(peak_indices).astype(int)
+    peaksAmp = np.concatenate(rises)
+    freq = peaksAmp.shape[0] / ((timestamps[-1] - timestamps[0]) / 60)
+    peaks_occurrences = np.array([timestamps[peaksInd], peaksAmp]).T
+    freq_and_amplitude = np.array([[freq, np.mean(peaksAmp)]])
+    return trace, timestamps, peaksInd, peaks_occurrences, freq_and_amplitude

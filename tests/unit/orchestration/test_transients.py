@@ -16,6 +16,7 @@ from guppy.orchestration.transients import (
     executeFindFreqAndAmp,
     findBinnedMetrics,
     findCovariateCorrelations,
+    findFreqAndAmp,
 )
 
 
@@ -54,6 +55,34 @@ class TestExecuteFindFreqAndAmpDispatch:
         executeFindFreqAndAmp(transient_params)
         assert set(capture_dispatch) == {"combined"}
         assert capture_dispatch["combined"] == ["/session_1"]
+
+
+class TestFindFreqAndAmp:
+    @pytest.fixture
+    def run_folder(self, tmp_path):
+        # Rises of 5 (index 5) and 2.5 (index 9) from their preceding minima; every other rise is 0.5
+        # or has no preceding minimum. 1 Hz over 0..10 s.
+        run_folder = tmp_path / "session_1" / "session_1_output_1"
+        run_folder.mkdir(parents=True)
+        timestamps = np.arange(0, 11, 1, dtype=float)
+        write_hdf5(timestamps, "timeCorrection_dms", str(run_folder), "timestampNew")
+        write_hdf5(np.array([1.0]), "timeCorrection_dms", str(run_folder), "sampling_rate")
+        z_score = np.array([0.0, 3.0, 1.0, 1.5, 0.0, 5.0, 4.0, 4.5, 0.0, 2.5, 0.0])
+        write_hdf5(z_score, "z_score_dms", str(run_folder), "data")
+        return str(run_folder)
+
+    def test_minimum_rise_method_writes_rise_transients(self, run_folder, base_input_parameters):
+        base_input_parameters["transient_detection_method"] = "minimum rise"
+        base_input_parameters["transient_minimum_rise"] = 2.0
+        findFreqAndAmp(run_folder, base_input_parameters, window=15, numProcesses=1)
+
+        occurrences = pd.read_csv(Path(run_folder) / "transientsOccurrences_z_score_dms.csv", index_col=0)
+        np.testing.assert_allclose(occurrences["timestamps"].to_numpy(), [5.0, 9.0])
+        np.testing.assert_allclose(occurrences["amplitude"].to_numpy(), [5.0, 2.5])
+        freq_and_amplitude = pd.read_csv(Path(run_folder) / "freqAndAmp_z_score_dms.csv", index_col=0)
+        # 2 transients over 10 s = 12 events/min; mean rise (5 + 2.5) / 2 = 3.75
+        np.testing.assert_allclose(freq_and_amplitude["freq (events/min)"].to_numpy(), [12.0])
+        np.testing.assert_allclose(freq_and_amplitude["amplitude"].to_numpy(), [3.75])
 
 
 class TestFindBinnedMetrics:

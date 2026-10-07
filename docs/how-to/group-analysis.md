@@ -94,9 +94,20 @@ In the `<name>_group/` directory:
 | `peak_AUC_<event>_<site>_<metric>.h5` / `.csv` | Every member's peak/AUC rows concatenated |
 | `freqAndAmp_<metric>.h5` / `.csv` | One row per member run |
 | `cross_correlation_output/corr_*.h5` | One column per member run |
+| `group_tonic_<site>.h5` / `.csv` | Every member's tonic epoch means, one row per member and epoch |
+| `group_tonic_summary_<site>.h5` / `.csv` | Each epoch's mean, standard error and member count across members |
+| `group_covariate_correlations_<site>.h5` / `.csv` | Every member's covariate correlations, one row per member, metric and covariate |
+| `group_covariate_correlations_summary_<site>.h5` / `.csv` | Each metric and covariate pair's mean, standard error and member count across members |
 
 Group PSTH columns are named after the member run folder, and their order matches
 `group_members.json`, so column *n* is member *n*.
+
+The tonic and covariate-correlation tables are written only when the members hold those results.
+Every member must hold them for the same recording sites, or Group Analysis stops with a message
+naming the runs that lack them. Members must also be comparable: the same tonic epoch labels at
+each recording site, and covariate correlations computed with the same **Bin Width (s)** over the same
+covariates. Binned metrics are not combined across members, since each session's bins sit on its
+own clock.
 
 See [Output data model](../reference/outputs.md#group-analysis-group-directories) for the full
 file layout.
