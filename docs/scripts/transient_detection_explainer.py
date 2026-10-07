@@ -25,8 +25,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 from matplotlib.transforms import blended_transform_factory
 
 OUT = Path(__file__).resolve().parent.parent / "_static" / "images" / "transient_detection_explainer"
@@ -62,7 +62,14 @@ MARKER_SIZE_REJECTED = 60  # slightly larger so the missed events stay visible
 MARKER_LINEWIDTH_FP = 1.3  # outline width for hollow false-positive markers
 
 
-def _draw_chunk_bracket(ax, x_start, x_end, label, y_frac=0.05, panel_width=None):
+def _draw_chunk_bracket(
+    ax: Axes,
+    x_start: float,
+    x_end: float,
+    label: str,
+    y_frac: float = 0.05,
+    panel_width: float | None = None,
+) -> None:
     """Draw a labelled horizontal bracket inside the axes marking one chunk's span.
 
     Default position is at the bottom of the panel (y_frac=0.05), with end ticks
@@ -98,7 +105,7 @@ def _draw_chunk_bracket(ax, x_start, x_end, label, y_frac=0.05, panel_width=None
             ha=label_ha, va="bottom", fontsize=8, color=color, zorder=5)
 
 
-def _draw_panel_label(ax, label, outside=False):
+def _draw_panel_label(ax: Axes, label: str, outside: bool = False) -> None:
     """Place a bold panel label (A, B, C, ...) at the top-left of the axes.
 
     By default the label sits just inside the axes (y=1.0, va="top") so it never
@@ -114,7 +121,9 @@ def _draw_panel_label(ax, label, outside=False):
                 fontsize=14, fontweight="bold", va="top", ha="left", color="#222", zorder=5)
 
 
-def make_calcium_transient(t, center, amplitude, rise=0.25, decay=1.5):
+def make_calcium_transient(
+    t: np.ndarray, center: float, amplitude: float, rise: float = 0.25, decay: float = 1.5
+) -> np.ndarray:
     """A simple alpha-like calcium transient: fast rise, slow exponential decay."""
     out = np.zeros_like(t)
     after = t >= center
@@ -123,7 +132,9 @@ def make_calcium_transient(t, center, amplitude, rise=0.25, decay=1.5):
     return out
 
 
-def _make_drifting_trace_with_events(seed=11, duration=60.0, sample_rate=100):
+def _make_drifting_trace_with_events(
+    seed: int = 11, duration: float = 60.0, sample_rate: int = 100
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
     """Synthesise a drifting trace with eight identical-amplitude calcium events.
     Returns (t, trace, event_times, event_amps, sample_rate).
     """
@@ -133,14 +144,16 @@ def _make_drifting_trace_with_events(seed=11, duration=60.0, sample_rate=100):
     event_times = np.array([4.0, 11.0, 19.0, 27.0, 35.0, 43.0, 51.0, 57.0])
     event_amps = np.full(len(event_times), 2.5)
     events = np.zeros_like(t)
-    for c, a in zip(event_times, event_amps):
+    for c, a in zip(event_times, event_amps, strict=True):
         events += make_calcium_transient(t, center=c, amplitude=a, rise=0.25, decay=1.5)
     noise = 0.18 * rng.standard_normal(len(t))
     trace = drift + events + noise
     return t, trace, event_times, event_amps, sample_rate
 
 
-def _classify_detections(detected_idx, event_times, t, tolerance_s=0.6):
+def _classify_detections(
+    detected_idx: np.ndarray, event_times: np.ndarray, t: np.ndarray, tolerance_s: float = 0.6
+) -> tuple[set[int], set[int], set[int]]:
     """Classify each detection as TP or FP and each ground-truth event as caught or missed.
 
     Returns (tp_idx, fp_idx, fn_event_indices) — three sets.
@@ -148,7 +161,7 @@ def _classify_detections(detected_idx, event_times, t, tolerance_s=0.6):
     detected_times = t[detected_idx]
     matched_event = {}
     matched_detection = set()
-    for di, dt in zip(detected_idx, detected_times):
+    for di, dt in zip(detected_idx, detected_times, strict=True):
         for ei, et in enumerate(event_times):
             if ei in matched_event:
                 continue
@@ -162,7 +175,7 @@ def _classify_detections(detected_idx, event_times, t, tolerance_s=0.6):
     return tp_idx, fp_idx, fn_event_indices
 
 
-def figure_1_transient_extraction():
+def figure_1_transient_extraction() -> None:
     """Continuous trace becomes a discrete event list."""
     rng = np.random.default_rng(7)
     sample_rate = 100
@@ -173,7 +186,7 @@ def figure_1_transient_extraction():
     event_amps = np.array([2.3, 3.1, 1.8, 2.6, 4.0, 1.5, 2.2, 3.4, 2.0, 2.8, 3.6, 1.7])
 
     trace = np.zeros_like(t)
-    for c, a in zip(event_times, event_amps):
+    for c, a in zip(event_times, event_amps, strict=True):
         trace += make_calcium_transient(t, center=c, amplitude=a, rise=0.25, decay=1.6)
 
     baseline_drift = 0.4 * np.sin(2 * np.pi * t / 35) + 0.2 * np.sin(2 * np.pi * t / 11)
@@ -205,7 +218,7 @@ def figure_1_transient_extraction():
     y_max = float(np.max(trace) + 0.4)
 
     ax_trace.plot(t, trace, color=COLOR_TRACE, linewidth=1.0)
-    for pt, py in zip(peak_t, peak_y):
+    for pt, py in zip(peak_t, peak_y, strict=True):
         ax_trace.plot([pt, pt], [y_min, py], color=COLOR_PEAK, linewidth=1.0,
                        linestyle="--", alpha=0.35, zorder=2)
     ax_trace.plot(peak_t, peak_y, "o", color=COLOR_PEAK, markersize=5, markeredgewidth=0, zorder=3)
@@ -234,7 +247,7 @@ def figure_1_transient_extraction():
     plt.close(fig)
 
 
-def figure_2_drift_failure_and_fix():
+def figure_2_drift_failure_and_fix() -> None:
     """Top: trace with drift, fixed session-wide threshold. Bottom: same trace with chunk-local
     threshold drawn as a step function. The bottom panel shows the chunked fix in the
     per-chunk view; the top panel is the failure mode of a single session-wide statistic.
@@ -250,7 +263,7 @@ def figure_2_drift_failure_and_fix():
     event_amps = np.full(len(event_times), 2.5)
 
     events = np.zeros_like(t)
-    for c, a in zip(event_times, event_amps):
+    for c, a in zip(event_times, event_amps, strict=True):
         events += make_calcium_transient(t, center=c, amplitude=a, rise=0.25, decay=1.5)
 
     noise = 0.18 * rng.standard_normal(len(t))
@@ -285,7 +298,7 @@ def figure_2_drift_failure_and_fix():
     session_zone_lo = session_median - K * session_mad
     session_zone_hi = session_median + K * session_mad
 
-    def _local_max_above(values, threshold_per_sample):
+    def _local_max_above(values: np.ndarray, threshold_per_sample: np.ndarray) -> np.ndarray:
         det = []
         for i in range(1, len(values) - 1):
             if values[i] > threshold_per_sample[i] and values[i] >= values[i - 1] and values[i] > values[i + 1]:
@@ -313,7 +326,7 @@ def figure_2_drift_failure_and_fix():
     # across the two chunking figures.
     ax_top.axhline(session_threshold_value, color="#555555", linewidth=1.2, linestyle="--", zorder=2.5)
     ax_top.plot(t, trace, color=COLOR_TRACE, linewidth=1.0, zorder=3)
-    for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y)):
+    for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y, strict=True)):
         if ev_i in fn_top:
             ax_top.scatter(pt, py, s=MARKER_SIZE_REJECTED, c=COLOR_REJECTED, edgecolors="none", zorder=4)
         else:
@@ -328,7 +341,7 @@ def figure_2_drift_failure_and_fix():
     for cb in chunk_boundary_times:
         ax_bot.axvline(cb, color="#aaaaaa", linewidth=0.6, linestyle=":", zorder=1.5, alpha=0.7)
     ax_bot.plot(t, trace, color=COLOR_TRACE, linewidth=1.0, zorder=3)
-    for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y)):
+    for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y, strict=True)):
         if ev_i in fn_bot:
             ax_bot.scatter(pt, py, s=MARKER_SIZE_REJECTED, c=COLOR_REJECTED, edgecolors="none", zorder=4)
         else:
@@ -360,7 +373,7 @@ def figure_2_drift_failure_and_fix():
     plt.close(fig)
 
 
-def figure_3_threshold_three_regimes():
+def figure_3_threshold_three_regimes() -> None:
     """3-row × 2-column figure showing detection at three window sizes (2 s, 15 s, 60 s).
 
     Wide left column shows the full trace with TP/FN markers. Narrow right column zooms
@@ -390,7 +403,7 @@ def figure_3_threshold_three_regimes():
     fig = plt.figure(figsize=(11.5, 7.4))
     gs = fig.add_gridspec(3, 2, width_ratios=[3, 1], hspace=0.5, wspace=0.08)
 
-    for i, (w, title) in enumerate(zip(windows, titles)):
+    for i, (w, title) in enumerate(zip(windows, titles, strict=True)):
         ax_w = fig.add_subplot(gs[i, 0])
         ax_z = fig.add_subplot(gs[i, 1], sharey=ax_w)
         wide_label, zoom_label = panel_labels[i]
@@ -431,7 +444,7 @@ def figure_3_threshold_three_regimes():
         for s in range(chunk_size, len(trace), chunk_size):
             ax_w.axvline(s / sr, color="#aaaaaa", linewidth=0.6, linestyle=":", alpha=0.7, zorder=1.5)
         ax_w.plot(t, trace, color=COLOR_TRACE, linewidth=0.9, zorder=3)
-        for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y)):
+        for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y, strict=True)):
             if ev_i in fn_event_indices:
                 ax_w.scatter(pt, py, s=MARKER_SIZE_REJECTED, c=COLOR_REJECTED, edgecolors="none", zorder=4)
             else:
@@ -455,7 +468,7 @@ def figure_3_threshold_three_regimes():
             if zoom_lo <= sb <= zoom_hi:
                 ax_z.axvline(sb, color="#aaaaaa", linewidth=0.6, linestyle=":", alpha=0.7, zorder=1.5)
         ax_z.plot(t, trace, color=COLOR_TRACE, linewidth=0.9, zorder=3)
-        for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y)):
+        for ev_i, (pt, py) in enumerate(zip(peak_t, peak_y, strict=True)):
             if not (zoom_lo <= pt <= zoom_hi):
                 continue
             if ev_i in fn_event_indices:
@@ -502,7 +515,7 @@ def figure_3_threshold_three_regimes():
     plt.close(fig)
 
 
-def figure_4_two_stage_walkthrough():
+def figure_4_two_stage_walkthrough() -> None:
     """Three-panel walkthrough showing the two-stage scheme rescuing a smaller event that
     the naive single-stage threshold would have missed. Top: naive threshold drawn on raw
     chunk. Middle: blanked samples + first-stage cutoff. Bottom: original chunk restored
@@ -568,7 +581,7 @@ def figure_4_two_stage_walkthrough():
     )
     # Use a larger marker size in fig4 so both TP (red) and FN (navy) circles stay
     # visible at thumbnail render sizes; both rows use the same size for consistency.
-    for pt, py, c in zip(peak_t, peak_y, caught_naive):
+    for pt, py, c in zip(peak_t, peak_y, caught_naive, strict=True):
         color = COLOR_ACCEPTED if c else COLOR_REJECTED
         ax_left.scatter(pt, py, s=110, c=color, zorder=4, edgecolors="none")
     ax_left.set_ylabel("z-score")
@@ -602,7 +615,7 @@ def figure_4_two_stage_walkthrough():
     ax_right.axhline(
         second_threshold, color="#555555", linewidth=2.2, linestyle="--", zorder=2,
     )
-    for pt, py, c in zip(peak_t, peak_y, caught_two_stage):
+    for pt, py, c in zip(peak_t, peak_y, caught_two_stage, strict=True):
         color = COLOR_ACCEPTED if c else COLOR_REJECTED
         ax_right.scatter(pt, py, s=110, c=color, zorder=4, edgecolors="none")
     ax_right.set_ylabel("z-score")
@@ -641,7 +654,7 @@ def figure_4_two_stage_walkthrough():
     plt.close(fig)
 
 
-def figure_5_summary_statistics():
+def figure_5_summary_statistics() -> None:
     """Two summary scalars (event rate, mean amplitude) on a single detected event list.
     Left (two stacked panels showing the same trace as a continuation): trace with detected
     events marked. Right: histogram of per-event amplitudes (mean amplitude as centroid).
@@ -656,7 +669,7 @@ def figure_5_summary_statistics():
     event_amps = rng.uniform(1.5, 4.0, n_events)
 
     events = np.zeros_like(t)
-    for c, a in zip(event_times, event_amps):
+    for c, a in zip(event_times, event_amps, strict=True):
         events += make_calcium_transient(t, center=c, amplitude=a, rise=0.10, decay=1.0)
     # Smooth white noise into a low-pass-filtered process so it has the temporal
     # correlation length of a real preprocessed photometry trace (~150 ms here);
@@ -757,10 +770,259 @@ def figure_5_summary_statistics():
     plt.close(fig)
 
 
+COLOR_MAD = "#6a3d9a"  # purple: the MAD threshold method
+COLOR_RISE = "#e66101"  # orange: the minimum rise method
+COLOR_TRUTH = "#222222"
+
+
+def _smooth_noise(
+    rng: np.random.Generator, n_samples: int, standard_deviation: float, window: int = 50
+) -> np.ndarray:
+    """White noise passed twice through a moving average (like GuPPy's zero-phase filter), scaled to a set SD."""
+    kernel = np.ones(window) / window
+    raw = rng.standard_normal(n_samples + 4 * window)
+    smoothed = np.convolve(np.convolve(raw, kernel, mode="same"), kernel, mode="same")[2 * window:-2 * window]
+    return standard_deviation * smoothed / np.std(smoothed)
+
+
+def _strict_local_maxima(values: np.ndarray) -> np.ndarray:
+    return np.flatnonzero((values[1:-1] > values[:-2]) & (values[1:-1] > values[2:])) + 1
+
+
+def _detect_by_mad(
+    trace: np.ndarray, sample_rate: float, window_seconds: float = 15.0, k1: float = 2.0, k2: float = 3.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """GuPPy's MAD threshold method: per-chunk two-stage threshold, then every local maximum above it.
+
+    Returns (peak indices, per-sample detection threshold).
+    """
+    window = int(round(window_seconds * sample_rate))
+    peaks = []
+    threshold = np.zeros_like(trace)
+    for start in range(0, len(trace), window):
+        chunk = trace[start:start + window]
+        median = np.median(chunk)
+        mad = np.median(np.abs(chunk - median))
+        kept = chunk[chunk <= median + k1 * mad]
+        kept_median = np.median(kept)
+        second_threshold = kept_median + k2 * np.median(np.abs(kept - kept_median))
+        thresholded = np.where(chunk > second_threshold, chunk, 0.0)
+        peaks.append(start + _strict_local_maxima(thresholded))
+        threshold[start:start + window] = second_threshold
+    return np.concatenate(peaks), threshold
+
+
+def _rise_candidates(trace: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Every local maximum paired with the nearest local minimum before it, and the rise between them."""
+    maxima = _strict_local_maxima(trace)
+    minima = _strict_local_maxima(-trace)
+    preceding = np.searchsorted(minima, maxima) - 1
+    maxima = maxima[preceding >= 0]
+    valleys = minima[preceding[preceding >= 0]]
+    return maxima, valleys, trace[maxima] - trace[valleys]
+
+
+def _detect_by_rise(trace: np.ndarray, minimum_rise: float) -> np.ndarray:
+    maxima, _, rises = _rise_candidates(trace)
+    return maxima[rises > minimum_rise]
+
+
+def _random_events(
+    rng: np.random.Generator,
+    t: np.ndarray,
+    start: float,
+    end: float,
+    rate_per_minute: float,
+    amplitude_range: tuple[float, float] = (3.0, 7.0),
+) -> tuple[np.ndarray, np.ndarray]:
+    n_events = rng.poisson(rate_per_minute * (end - start) / 60)
+    times = np.sort(rng.uniform(start, end, n_events))
+    signal = np.zeros_like(t)
+    for center in times:
+        signal += make_calcium_transient(t, center=center, amplitude=rng.uniform(*amplitude_range), rise=0.25, decay=1.5)
+    return times, signal
+
+
+def _events_found_and_false_detections(detected_times: np.ndarray, event_times: np.ndarray) -> tuple[float, int]:
+    """Fraction of events with a detection on their rising edge or peak, and the count of detections near no event."""
+    found = np.array([np.any((detected_times >= c - 0.2) & (detected_times <= c + 1.0)) for c in event_times])
+    on_event = np.array([np.any((d >= event_times - 0.2) & (d <= event_times + 3.0)) for d in detected_times])
+    return found.mean(), int(np.sum(~on_event))
+
+
+def figure_6_rise_walkthrough() -> None:
+    """Every local maximum paired with the local minimum before it; the climb between them decides."""
+    rng = np.random.default_rng(21)
+    sample_rate = 100
+    duration = 20.0
+    t = np.arange(0, duration, 1 / sample_rate)
+    trace = (
+        make_calcium_transient(t, center=2.0, amplitude=4.5)
+        + make_calcium_transient(t, center=6.5, amplitude=7.0)
+        + make_calcium_transient(t, center=8.4, amplitude=1.6)  # a bump on the decay of the 6.5 s transient
+        - 1.6 * np.exp(-0.5 * ((t - 12.6) / 0.6) ** 2)  # a dip just before the next transient
+        + make_calcium_transient(t, center=13.4, amplitude=3.5)
+        + make_calcium_transient(t, center=17.5, amplitude=1.5)  # too small to count
+        + _smooth_noise(rng, len(t), 0.2)
+    )
+    minimum_rise = 2.0
+    maxima, valleys, rises = _rise_candidates(trace)
+    shown = rises > 0.5  # smaller noise ripples are left undrawn so the figure stays legible
+
+    fig, ax = plt.subplots(figsize=(8.8, 3.6))
+    ax.plot(t, trace, color=COLOR_TRACE, linewidth=1.0, zorder=2)
+    for peak, valley, rise in zip(maxima[shown], valleys[shown], rises[shown], strict=True):
+        is_transient = rise > minimum_rise
+        color = COLOR_ACCEPTED if is_transient else COLOR_REJECTED
+        ax.plot([t[valley], t[peak]], [trace[valley], trace[valley]], color=color, linewidth=0.8, linestyle=":", zorder=3)
+        ax.annotate("", xy=(t[peak], trace[peak]), xytext=(t[peak], trace[valley]),
+                    arrowprops=dict(arrowstyle="->", color=color, linewidth=1.1), zorder=3)
+        ax.scatter(t[valley], trace[valley], s=14, color=color, zorder=4)
+        ax.scatter(t[peak], trace[peak], s=MARKER_SIZE_ACCEPTED, zorder=4,
+                   facecolors=color if is_transient else "white", edgecolors=color, linewidths=1.2)
+        ax.annotate(f"rise {rise:.1f}", (t[peak], trace[peak]), textcoords="offset points", xytext=(4, 6),
+                    fontsize=8, color=color)
+    ax.set_xlim(0, duration)
+    ax.set_ylim(float(trace.min()) - 0.6, float(trace.max()) + 1.2)
+    ax.set_xlabel("time (s)")
+    ax.set_ylabel("ΔF/F (%)")
+    ax.set_title(f"minimum rise = {minimum_rise:.0f} % ΔF/F", loc="center")
+    legend_handles = [
+        Line2D([0], [0], marker="o", linestyle="none", markerfacecolor=COLOR_ACCEPTED, markeredgecolor=COLOR_ACCEPTED,
+               markersize=7, label="rise above the minimum: transient"),
+        Line2D([0], [0], marker="o", linestyle="none", markerfacecolor="white", markeredgecolor=COLOR_REJECTED,
+               markersize=7, label="rise below the minimum: not a transient"),
+    ]
+    ax.legend(handles=legend_handles, loc="upper right", frameon=False, fontsize=8)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig6_rise_walkthrough.svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def figure_7_rate_change() -> None:
+    """A recording whose event rate quadruples halfway through, run through both methods."""
+    rng = np.random.default_rng(3)
+    sample_rate = 100
+    duration = 1200.0
+    change = duration / 2
+    t = np.arange(0, duration, 1 / sample_rate)
+    early_times, early = _random_events(rng, t, 0, change, 3)
+    late_times, late = _random_events(rng, t, change, duration, 12)
+    event_times = np.concatenate([early_times, late_times])
+    trace = early + late + _smooth_noise(rng, len(t), 0.5)
+
+    mad_peaks, mad_threshold = _detect_by_mad(trace, sample_rate)
+    rise_peaks = _detect_by_rise(trace, 2.0)
+
+    fig = plt.figure(figsize=(10.5, 7.2))
+    grid = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.25], hspace=0.55, wspace=0.12)
+    excerpts = [(45.0, 75.0, "low event rate"), (750.0, 780.0, "high event rate")]
+    rows = [
+        ("MAD threshold", mad_peaks, COLOR_MAD, mad_threshold),
+        ("minimum rise", rise_peaks, COLOR_RISE, None),
+    ]
+    first_axis = None
+    for row, (method, peaks, color, threshold) in enumerate(rows):
+        for column, (start, end, label) in enumerate(excerpts):
+            ax = fig.add_subplot(grid[row, column], sharey=first_axis)
+            first_axis = first_axis or ax
+            window = (t >= start) & (t < end)
+            ax.plot(t[window], trace[window], color=COLOR_TRACE, linewidth=0.9, zorder=2)
+            if threshold is not None:
+                ax.plot(t[window], threshold[window], color="#555555", linewidth=1.1, linestyle="--", zorder=2.5)
+            in_window = peaks[(t[peaks] >= start) & (t[peaks] < end)]
+            ax.scatter(t[in_window], trace[in_window], s=22, color=color, edgecolors="white", linewidths=0.6, zorder=4)
+            n_true = np.sum((event_times >= start) & (event_times < end))
+            ax.set_title(f"{method}, {label}: {len(in_window)} detections ({n_true} events)", loc="left", fontsize=9)
+            ax.set_xlim(start, end)
+            if column == 0:
+                ax.set_ylabel("ΔF/F (%)")
+            else:
+                ax.tick_params(labelleft=False)
+            if row == 1:
+                ax.set_xlabel("time (s)")
+
+    ax = fig.add_subplot(grid[2, :])
+    edges = np.arange(0, duration + 60, 60)
+    highest = 0
+    for times, color, label in [
+        (event_times, COLOR_TRUTH, "true event rate"),
+        (t[mad_peaks], COLOR_MAD, "MAD threshold"),
+        (t[rise_peaks], COLOR_RISE, "minimum rise"),
+    ]:
+        counts = np.histogram(times, edges)[0]
+        ax.stairs(counts, edges / 60, color=color, linewidth=1.8 if color != COLOR_TRUTH else 1.2,
+                  linestyle="--" if color == COLOR_TRUTH else "-", label=label, baseline=None)
+        highest = max(highest, counts.max())
+    ax.axvline(change / 60, color="#aaaaaa", linewidth=0.8, linestyle=":")
+    ax.set_xlim(0, duration / 60)
+    ax.set_ylim(0, highest * 1.3)
+    ax.legend(loc="upper left", ncol=3, frameon=False, fontsize=9)
+    ax.set_xlabel("time (min)")
+    ax.set_ylabel("detections per minute")
+    ax.set_title("true events quadruple at 10 min", loc="left", fontsize=10)
+    fig.savefig(OUT / "fig7_rate_change.svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def figure_8_noise_level() -> None:
+    """The same events under increasing noise, run through both methods."""
+    rng = np.random.default_rng(4)
+    sample_rate = 100
+    duration = 600.0
+    t = np.arange(0, duration, 1 / sample_rate)
+    event_times, events = _random_events(rng, t, 0, duration, 5)
+    unit_noise = _smooth_noise(np.random.default_rng(5), len(t), 1.0)
+    noise_levels = np.array([0.3, 0.6, 0.9, 1.2])
+
+    results = {"MAD threshold": [], "minimum rise": []}
+    for level in noise_levels:
+        trace = events + level * unit_noise
+        mad_peaks, _ = _detect_by_mad(trace, sample_rate)
+        results["MAD threshold"].append(_events_found_and_false_detections(t[mad_peaks], event_times))
+        results["minimum rise"].append(_events_found_and_false_detections(t[_detect_by_rise(trace, 2.0)], event_times))
+
+    fig = plt.figure(figsize=(10.0, 6.0))
+    grid = fig.add_gridspec(2, 2, height_ratios=[0.9, 1.1], hspace=0.5, wspace=0.28)
+    excerpt = (t >= 100) & (t < 130)
+    for column, level in enumerate([noise_levels[0], noise_levels[-1]]):
+        ax = fig.add_subplot(grid[0, column])
+        ax.plot(t[excerpt], (events + level * unit_noise)[excerpt], color=COLOR_TRACE, linewidth=0.9)
+        ax.set_ylim(-3, 7)
+        ax.set_title(f"noise SD {level:.1f} % ΔF/F", loc="left", fontsize=9)
+        ax.set_xlabel("time (s)")
+        if column == 0:
+            ax.set_ylabel("ΔF/F (%)")
+
+    panels = [
+        (0, "fraction of real events found", lambda values: [found for found, _ in values], (0, 1.05)),
+        (1, "detections away from any event (per min)", lambda values: [false / (duration / 60) for _, false in values], None),
+    ]
+    for column, title, extract, limits in panels:
+        ax = fig.add_subplot(grid[1, column])
+        for method, color in [("MAD threshold", COLOR_MAD), ("minimum rise", COLOR_RISE)]:
+            values = extract(results[method])
+            ax.plot(noise_levels, values, color=color, linewidth=1.8, marker="o", markersize=6)
+            ax.text(noise_levels[-1] + 0.04, values[-1], method, color=color, fontsize=9, va="center")
+        ax.set_xlim(noise_levels[0] - 0.1, noise_levels[-1] + 0.45)
+        if limits is not None:
+            ax.set_ylim(*limits)
+        else:
+            ax.set_ylim(bottom=0)
+        ax.set_xticks(noise_levels)
+        ax.set_xlabel("noise SD (% ΔF/F)")
+        ax.set_title(title, loc="left", fontsize=10)
+    fig.savefig(OUT / "fig8_noise_level.svg", bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     figure_1_transient_extraction()
     figure_2_drift_failure_and_fix()
     # figure_3_threshold_three_regimes()  # orphaned: the window-size section was removed from the explainer
     figure_4_two_stage_walkthrough()
     figure_5_summary_statistics()
+    figure_6_rise_walkthrough()
+    figure_7_rate_change()
+    figure_8_noise_level()
     print("Wrote SVGs to", OUT)
