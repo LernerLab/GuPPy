@@ -137,7 +137,16 @@ def _width_bearing_containers(node) -> list:
 # ── ParameterForm ─────────────────────────────────────────────────────────────
 
 
-class TestParameterForm:
+class TestParameterFormInitialState:
+    """Tests that only read a freshly built form, so they share one."""
+
+    @pytest.fixture(scope="class")
+    def parameter_form(self, panel_extension, _settings_file):
+        # Built once for the class, before any test's own isolated_settings runs, so the settings
+        # file is emptied here instead: a remembered root would change which cards are folded.
+        _settings_file.unlink(missing_ok=True)
+        return ParameterForm(template=pn.template.BootstrapTemplate(title="Test"))
+
     def test_time_for_lights_turn_on_default(self, parameter_form):
         assert parameter_form.timeForLightsTurnOn.value == 1
 
@@ -249,43 +258,6 @@ class TestParameterForm:
             "Event B",
         ]
 
-    def test_add_button_grows_the_comparison_table_without_limit(self, parameter_form):
-        # The number of worthwhile pairs grows with the square of the event count, so six
-        # events already allow fifteen -- more than any fixed table would hold.
-        for _ in range(14):
-            parameter_form._add_comparison_row()
-
-        assert parameter_form.comparison_df_widget.value.shape == (15, 2)
-
-    def test_removing_a_row_drops_that_comparison(self, parameter_form):
-        parameter_form.comparison_df_widget.value = pd.DataFrame(
-            {"Event A": ["a", "b", "c"], "Event B": ["x", "y", "z"]}
-        )
-
-        parameter_form._remove_comparison_row(SimpleNamespace(row=1))
-
-        assert list(parameter_form.comparison_df_widget.value["Event A"]) == ["a", "c"]
-        assert list(parameter_form.comparison_df_widget.value["Event B"]) == ["x", "z"]
-
-    def test_removing_the_last_row_leaves_one_blank_row(self, parameter_form):
-        parameter_form.comparison_df_widget.value = pd.DataFrame({"Event A": ["only"], "Event B": ["pair"]})
-
-        parameter_form._remove_comparison_row(SimpleNamespace(row=0))
-
-        assert parameter_form.comparison_df_widget.value.shape == (1, 2)
-        assert list(parameter_form.comparison_df_widget.value["Event A"]) == [""]
-
-    def test_loads_a_saved_run_holding_more_comparisons_than_the_table_shows(self, parameter_form):
-        # Assigning a longer list into the table's existing index used to raise, so a run
-        # driven through the API with many comparisons could not be reopened in the form.
-        saved_a = [f"a{index}" for index in range(12)]
-        saved_b = [f"b{index}" for index in range(12)]
-
-        parameter_form.setInputParameters({"psthComparisonsA": saved_a, "psthComparisonsB": saved_b})
-
-        assert list(parameter_form.comparison_df_widget.value["Event A"]) == saved_a
-        assert list(parameter_form.comparison_df_widget.value["Event B"]) == saved_b
-
     def test_no_layout_overflows_its_declared_width(self, parameter_form):
         # Contents wider than their container overflow the panel visually, which no other
         # assertion here would catch. Sweeping every card rather than a hardcoded list of
@@ -326,6 +298,51 @@ class TestParameterForm:
         for row_index in range(3, len(df)):
             assert math.isnan(df["Peak Start time"].iloc[row_index])
             assert math.isnan(df["Peak End time"].iloc[row_index])
+
+    def test_source_mode_default_is_local(self, parameter_form):
+        assert parameter_form.source_mode.value == "local"
+        assert parameter_form.files_1.visible is True
+        assert parameter_form.session_selector_header.visible is True
+        assert parameter_form.dandi_file_panel.panel.visible is False
+
+
+class TestParameterForm:
+    def test_add_button_grows_the_comparison_table_without_limit(self, parameter_form):
+        # The number of worthwhile pairs grows with the square of the event count, so six
+        # events already allow fifteen -- more than any fixed table would hold.
+        for _ in range(14):
+            parameter_form._add_comparison_row()
+
+        assert parameter_form.comparison_df_widget.value.shape == (15, 2)
+
+    def test_removing_a_row_drops_that_comparison(self, parameter_form):
+        parameter_form.comparison_df_widget.value = pd.DataFrame(
+            {"Event A": ["a", "b", "c"], "Event B": ["x", "y", "z"]}
+        )
+
+        parameter_form._remove_comparison_row(SimpleNamespace(row=1))
+
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == ["a", "c"]
+        assert list(parameter_form.comparison_df_widget.value["Event B"]) == ["x", "z"]
+
+    def test_removing_the_last_row_leaves_one_blank_row(self, parameter_form):
+        parameter_form.comparison_df_widget.value = pd.DataFrame({"Event A": ["only"], "Event B": ["pair"]})
+
+        parameter_form._remove_comparison_row(SimpleNamespace(row=0))
+
+        assert parameter_form.comparison_df_widget.value.shape == (1, 2)
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == [""]
+
+    def test_loads_a_saved_run_holding_more_comparisons_than_the_table_shows(self, parameter_form):
+        # Assigning a longer list into the table's existing index used to raise, so a run
+        # driven through the API with many comparisons could not be reopened in the form.
+        saved_a = [f"a{index}" for index in range(12)]
+        saved_b = [f"b{index}" for index in range(12)]
+
+        parameter_form.setInputParameters({"psthComparisonsA": saved_a, "psthComparisonsB": saved_b})
+
+        assert list(parameter_form.comparison_df_widget.value["Event A"]) == saved_a
+        assert list(parameter_form.comparison_df_widget.value["Event B"]) == saved_b
 
     def test_time_for_lights_turn_on_mutation(self, parameter_form):
         parameter_form.timeForLightsTurnOn.value = 5
@@ -379,12 +396,6 @@ class TestParameterForm:
         assert result["nSecPrev"] == -10
         assert result["nSecPost"] == 20
         assert result["zscore_method"] == "standard z-score"
-
-    def test_source_mode_default_is_local(self, parameter_form):
-        assert parameter_form.source_mode.value == "local"
-        assert parameter_form.files_1.visible is True
-        assert parameter_form.session_selector_header.visible is True
-        assert parameter_form.dandi_file_panel.panel.visible is False
 
     def test_source_mode_toggle_to_dandi_shows_dandi_panel(self, parameter_form):
         parameter_form.source_mode.value = "dandi"

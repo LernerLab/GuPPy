@@ -307,12 +307,22 @@ A group directory is named `<group_name>_group` and sits in the destination dire
 | `freqAndAmp_<metric>.h5` and `.csv` | One row per member run |
 | `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
 | `psth_significance_output/significance_<comparison>.h5` and `.csv` | Significance over the group, resampling member sessions |
+| `group_tonic_<site>.h5` and `.csv` | Every member's tonic epoch means |
+| `group_tonic_summary_<site>.h5` and `.csv` | Tonic epoch means summarized across members |
+| `group_covariate_correlations_<site>.h5` and `.csv` | Every member's covariate correlations |
+| `group_covariate_correlations_summary_<site>.h5` and `.csv` | Covariate correlations summarized across members |
 
 The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. Each column is labeled `<session folder name>_output_<run name>`, and when two members come from sessions sharing a folder name their mirrored parent directories are prepended until the labels differ — so a group mixing `subject1/session1` and `subject2/session1` gets `subject1_session1_output_1` and `subject2_session1_output_1`.
 
 `group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
 
 Because the step averages what its members already hold, `storesList.csv` lists only the events a PSTH was actually written for. An event that no member recorded is dropped rather than listed.
+
+**`group_tonic_<site>`** stacks each member's `tonic_<site>.h5`, indexed by `member` (the member's path below the output root folder) and `epoch`, with columns `mean_zscore` and `mean_dff`. **`group_covariate_correlations_<site>`** stacks each member's `covariate_correlations_<site>.h5`, indexed by `member`, `metric` and `covariate`, with columns `pearson_r`, `spearman_rho` and `n_bins`. These per-member tables are the input for statistics across sessions.
+
+Each **`_summary_`** table has one row per epoch, or per metric and covariate pair, and three columns for each value: `<value>_mean`, `<value>_sem` (sample standard deviation over the square root of the count) and `<value>_n` (the number of members with a finite value). Members whose value is NaN, such as a correlation over a constant series, are left out of that row's mean, standard error and count.
+
+A group gets these tables only when its members hold the matching results, and Group Analysis refuses a group where some members hold them for a recording site and others do not. It also refuses members whose tonic epoch labels differ at a recording site, or whose covariate correlations used different `binnedMetricsWidth` values or different metric and covariate pairs. Binned metrics and binned covariates are not combined across members.
 
 ---
 
@@ -407,4 +417,8 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5
     psth_significance_output/
       significance_<comparison>.h5 and .csv
+    group_tonic_<site>.h5 and .csv
+    group_tonic_summary_<site>.h5 and .csv
+    group_covariate_correlations_<site>.h5 and .csv
+    group_covariate_correlations_summary_<site>.h5 and .csv
 ```

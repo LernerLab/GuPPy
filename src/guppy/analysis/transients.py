@@ -1,10 +1,11 @@
 import logging
 import math
-import multiprocessing as mp
 from itertools import repeat
 
 import numpy as np
 from scipy.signal import argrelextrema, find_peaks
+
+from ..utils.process_pool import run_starmap
 
 logger = logging.getLogger(__name__)
 
@@ -56,20 +57,11 @@ def analyze_transients(
     z_score = z_score[not_nan_indices]
     z_score_chunks, z_score_chunks_index = createChunks(z_score, sampling_rate, window)
 
-    # Pinned rather than inherited: this runs on a background thread of the Panel server
-    # process, and forking a process that has other live threads can leave a lock they
-    # held (logging, HDF5) permanently locked in the child.
-    spawn_context = mp.get_context("spawn")
-    with spawn_context.Pool(numProcesses) as pool:
-        result = pool.starmap(
-            processChunks, zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh))
-        )
-        # Close and join before leaving the block. The context manager's __exit__ calls terminate(),
-        # which signals every worker and then blocks in waitpid() until it is gone; a worker that is
-        # slow to exit never gets there and the parent waits forever. starmap has already returned,
-        # so there is nothing to abort -- close() lets each worker exit on its own.
-        pool.close()
-        pool.join()
+    result = run_starmap(
+        function=processChunks,
+        arguments=zip(z_score_chunks, z_score_chunks_index, repeat(highAmpFilt), repeat(transientsThresh)),
+        process_count=numProcesses,
+    )
 
     result = np.asarray(result, dtype=object)
     timestamps = timestamps[not_nan_indices]
