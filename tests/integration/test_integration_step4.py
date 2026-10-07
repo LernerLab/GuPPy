@@ -169,3 +169,40 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
 
     output_directory = Path(locate_run_folder(session=str(session_copy)))
     assert list(output_directory.glob("ttl_region_z_score_region.h5")) == []
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_step4_minimum_rise_detection(tmp_path):
+    """Step 4 with the 'minimum rise' method writes one transient per qualifying rise on dF/F."""
+    base_directory = tmp_path / "input_root_folder"
+    base_directory.mkdir()
+    session_copy = base_directory / "sample_data_csv_1"
+    shutil.copytree(Path(STUBBED_TESTING_DATA) / "csv" / "sample_data_csv_1", session_copy)
+    for stale_output in session_copy.glob("sample_data_csv_1_output_*"):
+        shutil.rmtree(stale_output)
+
+    base_dir = str(base_directory)
+    selected_folders = [str(session_copy)]
+    store_id_to_store_label = {
+        "Sample_Control_Channel": "control_region",
+        "Sample_Signal_Channel": "signal_region",
+        "Sample_TTL": "ttl",
+    }
+    selected_runs = {str(session_copy): ["1"]}
+
+    step1(base_dir=base_dir, selected_folders=selected_folders, store_id_to_store_label=store_id_to_store_label)
+    step2(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step3(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
+    step4(
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        select_for_transients="dff",
+        transient_detection_method="minimum rise",
+        transient_minimum_rise=2.0,
+        selected_runs=selected_runs,
+    )
+
+    output_directory = Path(locate_run_folder(session=str(session_copy)))
+    occurrences = pd.read_csv(output_directory / "transientsOccurrences_dff_region.csv", index_col=0)
+    assert (occurrences["amplitude"] > 2.0).all()
+    assert len(occurrences) == 291

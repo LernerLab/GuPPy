@@ -52,6 +52,8 @@ DEFAULT_ANALYSIS_PARAMETERS = {
     "moving_window": 15,
     "highAmpFilt": 2,
     "transientsThresh": 3,
+    "transient_detection_method": "MAD threshold",
+    "transient_minimum_rise": 2.0,
     "computeBinnedMetrics": False,
     "binnedMetricsWidth": 120,
     "averageForGroup": False,

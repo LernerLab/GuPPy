@@ -51,6 +51,8 @@ EXPECTED_JSON_KEYS = {
     "moving_window",
     "highAmpFilt",
     "transientsThresh",
+    "transient_detection_method",
+    "transient_minimum_rise",
     "computeBinnedMetrics",
     "binnedMetricsWidth",
 }

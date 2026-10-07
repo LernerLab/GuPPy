@@ -5,6 +5,7 @@ from guppy.analysis.transients import (
     analyze_transients,
     calculate_freq_amp,
     createChunks,
+    detect_transients_by_rise,
     processChunks,
 )
 
@@ -182,3 +183,54 @@ def test_analyze_transients_output_shapes_are_correct():
     assert arr.shape == (1, 2)
     assert peaks_occurrences.ndim == 2
     assert peaks_occurrences.shape[1] == 2
+
+
+# ── detect_transients_by_rise ─────────────────────────────────────────────────
+
+
+def test_detect_transients_by_rise_keeps_rises_above_minimum():
+    # Local maxima at 1, 3, 5, 7, 9; local minima at 2, 4, 6, 8.
+    # Index 1 has no preceding minimum; indices 3 and 7 rise only 0.5; index 5 rises 5 from index 4
+    # and index 9 rises 2.5 from index 8.
+    trace = np.array([0.0, 3.0, 1.0, 1.5, 0.0, 5.0, 4.0, 4.5, 0.0, 2.5, 0.0])
+    timestamps = np.arange(11, dtype=float)
+
+    _, _, peaks_ind, peaks_occurrences, freq_and_amplitude = detect_transients_by_rise(
+        timestamps=timestamps, trace=trace, minimum_rise=2.0
+    )
+
+    np.testing.assert_array_equal(peaks_ind, np.array([5, 9]))
+    np.testing.assert_allclose(peaks_occurrences, np.array([[5.0, 5.0], [9.0, 2.5]]))
+    # 2 transients over 10 s = 12 events/min; mean rise (5 + 2.5) / 2 = 3.75
+    np.testing.assert_allclose(freq_and_amplitude, np.array([[12.0, 3.75]]))
+
+
+def test_detect_transients_by_rise_ignores_maximum_without_preceding_minimum():
+    # Index 1 rises 3 from the first sample, but the first sample is not a local minimum.
+    trace = np.array([0.0, 3.0, 0.0, 2.5, 0.0])
+    timestamps = np.arange(5, dtype=float)
+
+    _, _, peaks_ind, peaks_occurrences, _ = detect_transients_by_rise(
+        timestamps=timestamps, trace=trace, minimum_rise=2.0
+    )
+
+    np.testing.assert_array_equal(peaks_ind, np.array([3]))
+    np.testing.assert_allclose(peaks_occurrences, np.array([[3.0, 2.5]]))
+
+
+def test_detect_transients_by_rise_does_not_span_nan_gap():
+    # Joined across the gap, the 3.0 at index 6 would rise 3 from the minimum at index 2. Within its own
+    # stretch it sits on the edge and is not a local maximum; only index 8 (rise 2.5 from index 7) counts.
+    trace = np.array([0.0, 1.0, 0.0, 0.5, np.nan, np.nan, 3.0, 0.0, 2.5, 0.0])
+    timestamps = np.arange(10, dtype=float)
+
+    cleaned_trace, cleaned_timestamps, peaks_ind, peaks_occurrences, freq_and_amplitude = detect_transients_by_rise(
+        timestamps=timestamps, trace=trace, minimum_rise=2.0
+    )
+
+    np.testing.assert_array_equal(cleaned_trace, np.array([0.0, 1.0, 0.0, 0.5, 3.0, 0.0, 2.5, 0.0]))
+    np.testing.assert_array_equal(cleaned_timestamps, np.array([0.0, 1.0, 2.0, 3.0, 6.0, 7.0, 8.0, 9.0]))
+    np.testing.assert_array_equal(peaks_ind, np.array([6]))
+    np.testing.assert_allclose(peaks_occurrences, np.array([[8.0, 2.5]]))
+    # 1 transient over 9 s = 60 / 9 events/min
+    np.testing.assert_allclose(freq_and_amplitude, np.array([[60.0 / 9.0, 2.5]]))
