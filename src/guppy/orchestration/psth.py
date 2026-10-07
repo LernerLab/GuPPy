@@ -31,6 +31,7 @@ from ..analysis.standard_io import (
     write_peak_and_area_to_hdf5,
 )
 from ..utils import progress
+from ..utils.process_pool import run_starmap
 from ..utils.progress import step_error_handler
 from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
@@ -290,10 +291,6 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
     """
     session_folders = inputParameters["session_folders"]
     numProcesses = inputParameters["numberOfCores"]
-    # Pinned rather than inherited: this runs on a background thread of the Panel server
-    # process, and forking a process that has other live threads can leave a lock they
-    # held (logging, HDF5) permanently locked in the child.
-    spawn_context = mp.get_context("spawn")
     for i in range(len(session_folders)):
         logger.debug("Computing PSTH, Peak and Area for each event in %s", session_folders[i])
         run_folders = select_run_folders(session_folders[i], inputParameters=inputParameters)
@@ -302,30 +299,21 @@ def orchestrate_psth(inputParameters: dict[str, object]) -> None:
             store_array = read_stores_list(run_folder=filepath)
             event_labels = event_labels_for_analysis(store_array=store_array, inputParameters=inputParameters)
 
-            # Each pool is closed and joined before leaving its block. The context manager's
-            # __exit__ calls terminate(), which signals every worker and then blocks in waitpid()
-            # until it is gone; a worker that is slow to exit never gets there and the parent waits
-            # forever. starmap has already returned, so there is nothing to abort -- close() lets
-            # each worker exit on its own.
-            with spawn_context.Pool(numProcesses) as psth_pool:
-                psth_pool.starmap(execute_compute_psth, zip(repeat(filepath), event_labels, repeat(inputParameters)))
-                psth_pool.close()
-                psth_pool.join()
-
-            with spawn_context.Pool(numProcesses) as peak_area_pool:
-                peak_area_pool.starmap(
-                    execute_compute_psth_peak_and_area,
-                    zip(repeat(filepath), event_labels, repeat(inputParameters)),
-                )
-                peak_area_pool.close()
-                peak_area_pool.join()
-
-            with spawn_context.Pool(numProcesses) as cross_correlation_pool:
-                cross_correlation_pool.starmap(
-                    execute_compute_cross_correlation, zip(repeat(filepath), event_labels, repeat(inputParameters))
-                )
-                cross_correlation_pool.close()
-                cross_correlation_pool.join()
+            run_starmap(
+                function=execute_compute_psth,
+                arguments=zip(repeat(filepath), event_labels, repeat(inputParameters)),
+                process_count=numProcesses,
+            )
+            run_starmap(
+                function=execute_compute_psth_peak_and_area,
+                arguments=zip(repeat(filepath), event_labels, repeat(inputParameters)),
+                process_count=numProcesses,
+            )
+            run_starmap(
+                function=execute_compute_cross_correlation,
+                arguments=zip(repeat(filepath), event_labels, repeat(inputParameters)),
+                process_count=numProcesses,
+            )
 
             progress.advance()
 

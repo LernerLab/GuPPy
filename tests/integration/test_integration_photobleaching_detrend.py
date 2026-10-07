@@ -18,8 +18,8 @@ STORE_ID_TO_STORE_LABEL = {
 EXPECTED_RECORDING_SITE = "region"
 
 
-@pytest.fixture
-def run_preprocessing(tmp_path):
+@pytest.fixture(scope="module")
+def run_preprocessing(tmp_path_factory):
     """Return a callable that runs Steps 1-3 on a fresh copy of the stubbed CSV session.
 
     Each call gets its own workspace, so two runs configured differently can be compared
@@ -29,8 +29,7 @@ def run_preprocessing(tmp_path):
     assert source_session.is_dir(), f"Sample data not available at expected path: {source_session}"
 
     def _run(workspace_name, **step3_kwargs):
-        temporary_base_directory = tmp_path / workspace_name
-        temporary_base_directory.mkdir(parents=True, exist_ok=True)
+        temporary_base_directory = tmp_path_factory.mktemp(workspace_name)
         session_name = source_session.name
         session_copy = temporary_base_directory / session_name
         shutil.copytree(source_session, session_copy)
@@ -57,11 +56,16 @@ def run_preprocessing(tmp_path):
     return _run
 
 
+@pytest.fixture(scope="module")
+def detrended_output(run_preprocessing):
+    """One OLS run with detrending on, shared by the tests that only read its outputs."""
+    return run_preprocessing("detrended", control_fit_method="OLS", photobleaching_detrend=True)
+
+
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing):
+def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing, detrended_output):
     """The bleaching term is part of the control fit, so both the fit and the dF/F move."""
     plain_output = run_preprocessing("plain", control_fit_method="OLS")
-    detrended_output = run_preprocessing("detrended", control_fit_method="OLS", photobleaching_detrend=True)
 
     def load(output_directory, prefix):
         return np.asarray(read_hdf5(f"{prefix}_{EXPECTED_RECORDING_SITE}", output_directory, "data")).ravel()
@@ -77,10 +81,8 @@ def test_detrending_changes_the_fitted_control_and_the_dff(run_preprocessing):
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
-def test_detrending_choice_is_recorded_in_the_parameter_snapshot(run_preprocessing):
-    output_directory = run_preprocessing("recorded", control_fit_method="OLS", photobleaching_detrend=True)
-
-    with (Path(output_directory) / "GuPPyParamtersUsed.json").open() as parameters_file:
+def test_detrending_choice_is_recorded_in_the_parameter_snapshot(detrended_output):
+    with (Path(detrended_output) / "GuPPyParamtersUsed.json").open() as parameters_file:
         parameters = json.load(parameters_file)
     assert parameters["photobleaching_detrend"] is True
 

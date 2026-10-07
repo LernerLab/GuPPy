@@ -8,6 +8,7 @@ relationship and preserves the step in dF/F. One test also enables artifact remo
 chunking x baseline-epoch interaction is exercised through the real pipeline.
 """
 
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -43,13 +44,9 @@ def _output_directory(session):
     return Path(locate_run_folder(session=str(session)))
 
 
-@pytest.fixture
-def injection_session(tmp_path):
-    """Copy the injection session and run step1 + step2; return locators for step3."""
-    import shutil
-
+def _prepare_injection_session(base_dir):
+    """Copy the injection session into ``base_dir`` and run step1 + step2; return locators for step3."""
     source = Path(_stubbed_input_root_folder()) / SESSION_SUBDIR
-    base_dir = str(tmp_path)
     session = Path(base_dir) / SESSION_NAME
     shutil.copytree(source, session)
 
@@ -57,6 +54,18 @@ def injection_session(tmp_path):
     selected_runs = {session: [parse_run_name(_output_directory(session))]}
     step2(base_dir=base_dir, selected_folders=[session], selected_runs=selected_runs)
     return {"base_dir": base_dir, "session": session, "selected_runs": selected_runs}
+
+
+@pytest.fixture
+def injection_session(tmp_path):
+    return _prepare_injection_session(str(tmp_path))
+
+
+@pytest.fixture(scope="module")
+def dff_by_fit_mode(tmp_path_factory):
+    """Run step3 once per fit mode on one session, keeping each mode's timestamps and dF/F."""
+    session = _prepare_injection_session(str(tmp_path_factory.mktemp("baseline_epoch_fit")))
+    return {mode: _run_step3(session, mode=mode) for mode in ("baseline epoch", "full trace")}
 
 
 def _run_step3(injection_session, *, mode, artifact_coords=None):
@@ -80,8 +89,8 @@ def _run_step3(injection_session, *, mode, artifact_coords=None):
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 class TestBaselineEpochFit:
-    def test_baseline_epoch_preserves_injection_step(self, injection_session):
-        timestamps, dff = _run_step3(injection_session, mode="baseline epoch")
+    def test_baseline_epoch_preserves_injection_step(self, dff_by_fit_mode):
+        timestamps, dff = dff_by_fit_mode["baseline epoch"]
         pre = dff[(timestamps > 3) & (timestamps < 55)]
         post = dff[(timestamps > 65) & (timestamps < 115)]
         # Fit estimated on the pre-injection window -> pre-injection dF/F sits at ~0.
@@ -90,8 +99,8 @@ class TestBaselineEpochFit:
         # invert (post dF/F is clearly positive, not negative).
         assert 20.0 < np.nanmean(post) < 27.0
 
-    def test_full_trace_absorbs_the_step(self, injection_session):
-        timestamps, dff = _run_step3(injection_session, mode="full trace")
+    def test_full_trace_absorbs_the_step(self, dff_by_fit_mode):
+        timestamps, dff = dff_by_fit_mode["full trace"]
         post = dff[(timestamps > 65) & (timestamps < 115)]
         # The whole-trace fit absorbs the step, so under half of the ~24% ground-truth
         # deflection survives. How much it absorbs depends on how the drug effect happens
@@ -99,9 +108,9 @@ class TestBaselineEpochFit:
         # half-the-step bound rather than a tight window.
         assert np.nanmean(post) < 12.0
 
-    def test_baseline_epoch_recovers_more_of_the_step_than_full_trace(self, injection_session):
-        _, baseline_epoch_dff = _run_step3(injection_session, mode="baseline epoch")
-        timestamps, full_trace_dff = _run_step3(injection_session, mode="full trace")
+    def test_baseline_epoch_recovers_more_of_the_step_than_full_trace(self, dff_by_fit_mode):
+        _, baseline_epoch_dff = dff_by_fit_mode["baseline epoch"]
+        timestamps, full_trace_dff = dff_by_fit_mode["full trace"]
         mask = (timestamps > 65) & (timestamps < 115)
         # Baseline-epoch recovers the real step; full-trace masks it — a wide, unambiguous gap.
         assert np.nanmean(baseline_epoch_dff[mask]) - np.nanmean(full_trace_dff[mask]) > 12.0

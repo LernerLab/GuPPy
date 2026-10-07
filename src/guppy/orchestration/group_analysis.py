@@ -10,6 +10,7 @@ The group directory is run-folder-shaped for the consumers that read PSTH output
 ``_output_``, so ``discover_run_folders`` can never return one.
 """
 
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -18,8 +19,14 @@ import numpy as np
 
 from .psth_significance import execute_compute_psth_significance
 from .save_parameters import build_analysis_parameters, write_analysis_parameters
+from ..analysis.group_tables import stack_member_tables, summarize_member_tables
 from ..analysis.io_utils import is_channel_label, is_continuous_label
 from ..analysis.psth_average import average_psth_for_group
+from ..analysis.standard_io import (
+    read_covariate_correlations_from_hdf5,
+    read_tonic_from_hdf5,
+    write_group_table,
+)
 from ..analysis.transients_average import average_transients_for_group
 from ..utils import progress
 from ..utils.progress import step_error_handler
@@ -27,6 +34,7 @@ from ..utils.stores_list import read_stores_list, write_stores_list
 from ..utils.utils import (
     GROUP_MEMBERS_FILENAME,
     event_labels_for_analysis,
+    output_label_under,
     parse_group_name,
     parse_session_basename,
     read_group_members,
@@ -89,6 +97,192 @@ def _validate_fiber_recording_sites_consistent_for_group(*, member_run_folders: 
         "store_ids must match. Fix the store_id labels in step 1, or remove the "
         "mismatched run from the group's member selection."
     )
+
+
+def _recording_sites_with_results(*, member_run_folders: list[str], prefix: str) -> list[str]:
+    """Return the recording sites every member holds a ``<prefix><site>.h5`` result for.
+
+    Parameters
+    ----------
+    member_run_folders : list of str
+        Output (run) directories of every member in the group.
+    prefix : str
+        Result filename prefix, e.g. ``"tonic_"``.
+
+    Returns
+    -------
+    list of str
+        Sorted recording sites; empty when no member holds the result at all.
+
+    Raises
+    ------
+    ValueError
+        When some members hold the result for a recording site and others do not.
+    """
+    member_sites = {
+        run_folder: {path.name[len(prefix) : -len(".h5")] for path in Path(run_folder).glob(prefix + "*.h5")}
+        for run_folder in member_run_folders
+    }
+    all_sites = sorted(set().union(*member_sites.values()))
+    for site in all_sites:
+        missing = [run_folder for run_folder, sites in member_sites.items() if site not in sites]
+        if missing:
+            missing_lines = "\n".join(f"  - {parse_session_basename(run_folder)}" for run_folder in missing)
+            raise ValueError(
+                f"Group analysis found {prefix}{site}.h5 in some member runs but not in:\n"
+                f"{missing_lines}\n"
+                "A group summarizes a result only when every member holds it. Produce the result "
+                "for these runs, or remove them from the group's member selection."
+            )
+    return all_sites
+
+
+def _validate_tonic_epochs_consistent_for_group(*, member_run_folders: list[str], sites: list[str]) -> None:
+    """Check that every member defines the same tonic epoch labels for each recording site.
+
+    Parameters
+    ----------
+    member_run_folders : list of str
+        Output (run) directories of every member in the group.
+    sites : list of str
+        Recording sites every member holds tonic means for.
+
+    Raises
+    ------
+    ValueError
+        When the members disagree on the epoch labels of a recording site.
+    """
+    for site in sites:
+        per_member_epochs = {
+            run_folder: tuple(sorted(read_tonic_from_hdf5(run_folder, site).index)) for run_folder in member_run_folders
+        }
+        if len(set(per_member_epochs.values())) <= 1:
+            continue
+        member_lines = "\n".join(
+            f"  - {parse_session_basename(run_folder)}: {', '.join(epochs)}"
+            for run_folder, epochs in per_member_epochs.items()
+        )
+        raise ValueError(
+            f"Group analysis requires every member run to share the same tonic epoch labels, but "
+            f"the members disagree for recording site '{site}':\n"
+            f"{member_lines}\n"
+            "Rename the epochs in Tonic Analysis so they match, or remove the mismatched run from the "
+            "group's member selection."
+        )
+
+
+def _validate_covariate_correlations_consistent_for_group(*, member_run_folders: list[str], sites: list[str]) -> None:
+    """Check that every member's covariate correlations are comparable.
+
+    Members must have used the same binned-metrics bin width and correlated the same
+    (metric, covariate) pairs at every recording site.
+
+    Parameters
+    ----------
+    member_run_folders : list of str
+        Output (run) directories of every member in the group.
+    sites : list of str
+        Recording sites every member holds covariate correlations for.
+
+    Raises
+    ------
+    ValueError
+        When the members used different bin widths or correlated different pairs.
+    """
+    per_member_width = {}
+    for run_folder in member_run_folders:
+        with (Path(run_folder) / "GuPPyParamtersUsed.json").open() as parameters_file:
+            per_member_width[run_folder] = json.load(parameters_file)["binnedMetricsWidth"]
+    if len(set(per_member_width.values())) > 1:
+        member_lines = "\n".join(
+            f"  - {parse_session_basename(run_folder)}: {width} s" for run_folder, width in per_member_width.items()
+        )
+        raise ValueError(
+            "Group analysis requires every member run's covariate correlations to use the same "
+            f"binnedMetricsWidth, but the members differ:\n{member_lines}\n"
+            "Re-run Step 4 with one bin width for every member, or remove the mismatched run from the "
+            "group's member selection."
+        )
+
+    for site in sites:
+        per_member_pairs = {}
+        for run_folder in member_run_folders:
+            correlations = read_covariate_correlations_from_hdf5(filepath=run_folder, recording_site=site)
+            per_member_pairs[run_folder] = tuple(
+                sorted(zip(correlations["metric"], correlations["covariate"], strict=True))
+            )
+        if len(set(per_member_pairs.values())) <= 1:
+            continue
+        member_lines = "\n".join(
+            f"  - {parse_session_basename(run_folder)}: "
+            f"metrics {', '.join(sorted({metric for metric, _ in pairs}))}; "
+            f"covariates {', '.join(sorted({covariate for _, covariate in pairs}))}"
+            for run_folder, pairs in per_member_pairs.items()
+        )
+        raise ValueError(
+            "Group analysis requires every member run to correlate the same behavioral covariates "
+            f"against the same metrics, but the members disagree for recording site '{site}':\n"
+            f"{member_lines}\n"
+            "Label the same covariate stores in Label Stores and select the same transient trace for every "
+            "member, or remove the mismatched run from the group's member selection."
+        )
+
+
+def _write_group_tonic_tables(*, member_labels: dict[str, str], sites: list[str], group_folder: str) -> None:
+    """Write each recording site's per-member tonic means and their across-member summary.
+
+    Parameters
+    ----------
+    member_labels : dict of str to str
+        Label for each member run folder, keyed by the folder.
+    sites : list of str
+        Recording sites every member holds tonic means for.
+    group_folder : str
+        Group output directory.
+    """
+    for site in sites:
+        member_tables = {label: read_tonic_from_hdf5(run_folder, site) for run_folder, label in member_labels.items()}
+        write_group_table(
+            filepath=group_folder, table=stack_member_tables(member_tables=member_tables), name="group_tonic_" + site
+        )
+        write_group_table(
+            filepath=group_folder,
+            table=summarize_member_tables(member_tables=member_tables, value_columns=["mean_zscore", "mean_dff"]),
+            name="group_tonic_summary_" + site,
+        )
+
+
+def _write_group_covariate_correlation_tables(
+    *, member_labels: dict[str, str], sites: list[str], group_folder: str
+) -> None:
+    """Write each recording site's per-member covariate correlations and their across-member summary.
+
+    Parameters
+    ----------
+    member_labels : dict of str to str
+        Label for each member run folder, keyed by the folder.
+    sites : list of str
+        Recording sites every member holds covariate correlations for.
+    group_folder : str
+        Group output directory.
+    """
+    for site in sites:
+        member_tables = {
+            label: read_covariate_correlations_from_hdf5(filepath=run_folder, recording_site=site).set_index(
+                ["metric", "covariate"]
+            )
+            for run_folder, label in member_labels.items()
+        }
+        write_group_table(
+            filepath=group_folder,
+            table=stack_member_tables(member_tables=member_tables),
+            name="group_covariate_correlations_" + site,
+        )
+        write_group_table(
+            filepath=group_folder,
+            table=summarize_member_tables(member_tables=member_tables, value_columns=["pearson_r", "spearman_rho"]),
+            name="group_covariate_correlations_summary_" + site,
+        )
 
 
 def _merge_group_stores_list(*, member_run_folders: list[str]) -> np.ndarray:
@@ -199,12 +393,19 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
     Raises
     ------
     ValueError
-        When the group holds no manifest, its members are unusable, or the members
-        disagree on their fiber recording sites.
+        When the group holds no manifest, its members are unusable, the members
+        disagree on their fiber recording sites, only some members hold a tonic or
+        covariate-correlation result, or those results are not comparable across members.
     """
     member_run_folders = read_group_members(group_folder=group_folder)
     validate_group_member_run_folders(member_run_folders=member_run_folders)
     _validate_fiber_recording_sites_consistent_for_group(member_run_folders=member_run_folders)
+    tonic_sites = _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_")
+    _validate_tonic_epochs_consistent_for_group(member_run_folders=member_run_folders, sites=tonic_sites)
+    covariate_sites = _recording_sites_with_results(
+        member_run_folders=member_run_folders, prefix="covariate_correlations_"
+    )
+    _validate_covariate_correlations_consistent_for_group(member_run_folders=member_run_folders, sites=covariate_sites)
 
     group_name = parse_group_name(group_folder)
     logger.info("Averaging %s member run(s) into '%s'...", len(member_run_folders), group_folder)
@@ -219,6 +420,15 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
         member_run_folders=member_run_folders, group_folder=group_folder, inputParameters=inputParameters
     )
     progress.advance()
+
+    member_labels = {
+        run_folder: output_label_under(path=run_folder, root=inputParameters["output_root_folder"])
+        for run_folder in member_run_folders
+    }
+    _write_group_tonic_tables(member_labels=member_labels, sites=tonic_sites, group_folder=group_folder)
+    _write_group_covariate_correlation_tables(
+        member_labels=member_labels, sites=covariate_sites, group_folder=group_folder
+    )
 
     store_array = _merge_group_stores_list(member_run_folders=member_run_folders)
     averaged_events = []
