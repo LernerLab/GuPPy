@@ -117,7 +117,7 @@ def test_step1_records_what_each_store_was_demultiplexed_from(tmp_path):
         npm_time_unit="milliseconds",
     )
 
-    run_folder = sorted(list(Path(session_copy).glob("sampleData_NPM_3_output_*")))[0]
+    run_folder = locate_run_folder(session=str(session_copy))
     with (Path(run_folder) / ".npm_params.json").open() as npm_params_file:
         npm_params = json.load(npm_params_file)
 

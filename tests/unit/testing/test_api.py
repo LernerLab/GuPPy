@@ -454,7 +454,12 @@ def npm_template_no_excitation_bit(panel_extension, tmp_path):
         "FrameCounter,LedState,Timestamp,Signal\n"
         "0,0,0.00,0.0\n1,16,0.01,1.0\n2,0,0.02,2.0\n3,16,0.03,3.0\n4,0,0.04,4.0\n5,16,0.05,5.0\n"
     )
-    input_parameters = {"noChannels": 2}
+    npm_root = str(tmp_path.parent)
+    input_parameters = {
+        "noChannels": 2,
+        "input_root_folder": npm_root,
+        "output_root_folder": npm_root,
+    }
     _, _, npm_interactive = read_header(input_parameters, 2, tmp_path)
     return build_store_labeling_template(
         [], [], tmp_path, inputParameters=input_parameters, npm_interactive=npm_interactive
