@@ -495,6 +495,19 @@ class TestVerifyDandisets:
         )
         assert verdicts == {"000001": True, "000002": None}
 
+    def test_a_dandiset_without_nwb_assets_is_remembered_as_empty(self, references, tmp_path):
+        cache = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=None)
+        verdicts = verify_dandisets(
+            references[1:],
+            list_assets_function=lambda dandiset_id, version=None: [],
+            cache=cache,
+            process_count=2,
+        )
+
+        assert verdicts == {"000002": False}
+        reloaded = PhotometryVerdictCache(path=tmp_path / "verdicts.json", bundled_path=None)
+        assert reloaded.dandiset_verdict(references[1]) is False
+
     def test_an_unresolved_dandiset_is_not_remembered(self, references, archive_assets, byte_server, tmp_path):
         archive_assets["000002"] = [
             AssetSummary(

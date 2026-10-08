@@ -770,6 +770,8 @@ def _dandiset_holds_photometry(
     if assets is None:
         return None
     if not assets:
+        if cache is not None:
+            cache.record_dandiset(reference, False)
         return False
 
     outstanding = scan_order(assets)
