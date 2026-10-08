@@ -1,0 +1,44 @@
+name: Refresh bundled DANDI cache
+
+# Reads the dandisets that are new or have changed on the DANDI Archive since the bundled verdicts
+# were last written, and opens a pull request with the updated file for review.
+on:
+  schedule:
+    - cron: "0 6 1 * *"  # 06:00 UTC on the first of each month
+  workflow_dispatch:
+
+concurrency:
+  group: refresh-bundled-dandi-cache
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    name: Refresh bundled DANDI cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install GuPPy
+        # Editable, so the refresh writes the bundle into this checkout and not into site-packages.
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e . tqdm
+      - name: Refresh the bundled verdicts
+        # Stops short of the job timeout so that a long refresh still writes what it settled.
+        run: python .github/scripts/refresh_bundled_dandi_cache.py --time-limit-minutes 320
+      - name: Open a pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: refresh_dandi_cache
+          commit-message: Refresh the bundled DANDI photometry verdicts
+          title: Refresh the bundled DANDI photometry verdicts
+          body: Monthly refresh of `src/guppy/utils/bundled_dandi_photometry_verdicts.json` by the refresh-bundled-dandi-cache workflow.
+          add-paths: src/guppy/utils/bundled_dandi_photometry_verdicts.json

@@ -194,7 +194,10 @@ and without a key, since Steps 3–5 read the local files Step 2 wrote.
 
 No recording data from the archive is cached. What GuPPy does keep is the dandiset filter's and
 the file scan's verdicts on which files hold fiber photometry, in its user cache directory;
-`guppy --clear-dandi-cache` deletes them, so the next filter or scan reads every file again.
+`guppy --clear-dandi-cache` deletes them. GuPPy also ships with the dandiset filter's verdicts
+for the whole archive, refreshed each month, so the filter reads only the dandisets that have
+changed since. `guppy --no-bundled-dandi-cache` launches without those, so that together with
+clearing the user cache, the next filter or scan reads every file again.
 Assets materialize as session folders inside the output root folder, and each session's runs are
 written in it:
 

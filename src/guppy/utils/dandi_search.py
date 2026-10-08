@@ -41,6 +41,8 @@ class DandisetSummary:
         Six-digit dandiset ID.
     version : str
         Version the metadata was read from -- a published version string, or ``"draft"``.
+    modified : str
+        When that version last changed, as the archive's ISO 8601 timestamp.
     name : str
         Dandiset title.
     description : str
@@ -65,6 +67,7 @@ class DandisetSummary:
 
     identifier: str
     version: str
+    modified: str
     name: str
     description: str
     species: tuple[str, ...]
@@ -93,6 +96,7 @@ def _summarize_dandiset(
     *,
     identifier: str,
     version: str,
+    modified: str,
     metadata: dict[str, object],
     file_count: int | None = None,
     size_in_bytes: int | None = None,
@@ -111,6 +115,7 @@ def _summarize_dandiset(
     return DandisetSummary(
         identifier=identifier,
         version=version,
+        modified=modified,
         name=name,
         description=description,
         species=tuple(species.split(" - ")[0] for species in _names(assets_summary.get("species") or ())),
@@ -150,6 +155,7 @@ def _fetch_summary_for_row(*, client: DandiAPIClient, row: dict[str, object]) ->
     return _summarize_dandiset(
         identifier=identifier,
         version=resolved_version,
+        modified=version_record["modified"],
         metadata=info.get("metadata") or {},
         file_count=version_record["asset_count"],
         size_in_bytes=version_record["size"],
