@@ -17,16 +17,12 @@ from ..analysis.io_utils import (
     recording_site_from_preprocessed_label,
 )
 from ..analysis.standard_io import (
-    read_binned_metrics_from_hdf5,
+    read_binned_metrics_from_csv,
     read_covariate_series,
     write_binned_covariates_to_csv,
-    write_binned_covariates_to_hdf5,
     write_binned_metrics_to_csv,
-    write_binned_metrics_to_hdf5,
     write_covariate_correlations_to_csv,
-    write_covariate_correlations_to_hdf5,
     write_freq_and_amp_to_csv,
-    write_freq_and_amp_to_hdf5,
     write_transients_as_event_to_hdf5,
     write_transients_to_hdf5,
 )
@@ -92,9 +88,6 @@ def findFreqAndAmp(
                 timestamps, window, numProcesses, highAmpFilt, transientsThresh, sampling_rate, z_score
             )
         fileName = [parse_session_basename(filepath)]
-        write_freq_and_amp_to_hdf5(
-            filepath, freq_and_amp, basename, index=fileName, columns=["freq (events/min)", "amplitude"]
-        )
         write_freq_and_amp_to_csv(
             filepath,
             freq_and_amp,
@@ -155,7 +148,6 @@ def findBinnedMetrics(
             transient_timestamps=site_to_transient_timestamps[recording_site],
             bin_width=bin_width,
         )
-        write_binned_metrics_to_hdf5(filepath, binned_metrics, recording_site)
         write_binned_metrics_to_csv(filepath, binned_metrics, recording_site)
 
     logger.info("Binned metrics computed.")
@@ -198,7 +190,7 @@ def findCovariateCorrelations(filepath: str, inputParameters: dict[str, object],
 
     logger.debug("Correlating behavioral covariates against binned metrics....")
     for recording_site in recording_sites:
-        binned_metrics = read_binned_metrics_from_hdf5(filepath, recording_site)
+        binned_metrics = read_binned_metrics_from_csv(filepath, recording_site)
         binned_covariates = compute_binned_covariates(
             covariate_series=covariate_series,
             bin_edges=bin_edges_from_binned_metrics(binned_metrics=binned_metrics),
@@ -206,14 +198,8 @@ def findCovariateCorrelations(filepath: str, inputParameters: dict[str, object],
         correlations = compute_covariate_correlations(
             binned_metrics=binned_metrics, binned_covariates=binned_covariates
         )
-        write_binned_covariates_to_hdf5(
-            filepath=filepath, binned_covariates=binned_covariates, recording_site=recording_site
-        )
         write_binned_covariates_to_csv(
             filepath=filepath, binned_covariates=binned_covariates, recording_site=recording_site
-        )
-        write_covariate_correlations_to_hdf5(
-            filepath=filepath, correlations=correlations, recording_site=recording_site
         )
         write_covariate_correlations_to_csv(filepath=filepath, correlations=correlations, recording_site=recording_site)
 

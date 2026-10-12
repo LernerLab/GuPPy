@@ -5,6 +5,7 @@ from itertools import repeat
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from scipy import signal as ss
 
 from .psth_significance import execute_compute_psth_significance
@@ -26,10 +27,7 @@ from ..analysis.psth_utils import (
     getCorrCombinations,
     match_trials_by_timestamp,
 )
-from ..analysis.standard_io import (
-    write_peak_and_area_to_csv,
-    write_peak_and_area_to_hdf5,
-)
+from ..analysis.standard_io import write_peak_and_area_to_csv
 from ..utils import progress
 from ..utils.process_pool import run_starmap
 from ..utils.progress import step_error_handler
@@ -182,13 +180,35 @@ def execute_compute_psth_peak_and_area(filepath: str, event: str, inputParameter
         psth_mean_bin_names = trials_names + bin_names + ["mean"]
         psth_mean_bin_mean = np.asarray(psth[psth_mean_bin_names])
         timestamps = np.asarray(psth["timestamps"]).ravel()
-        peak_area = compute_psth_peak_and_area(
-            psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
+        peak_area = pd.DataFrame(
+            compute_psth_peak_and_area(
+                psth_mean_bin_mean, timestamps, sampling_rate, peak_startPoint, peak_endPoint, auc_units=auc_units
+            ),
+            index=range(len(psth_mean_bin_names)),
         )
-        fileName = [parse_session_basename(filepath)]
-        index = [fileName[0] + "_" + name for name in psth_mean_bin_names]
-        write_peak_and_area_to_hdf5(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
-        write_peak_and_area_to_csv(filepath, peak_area, event + "_" + name_1 + "_" + basename, index=index)
+        session = parse_session_basename(filepath)
+        trial_rows = list(range(len(trials_names))) + [len(psth_mean_bin_names) - 1]
+        trials = pd.concat(
+            [
+                pd.DataFrame({"session": session, "trial": trials_names + ["mean"]}),
+                peak_area.iloc[trial_rows].reset_index(drop=True),
+            ],
+            axis=1,
+        )
+        if bin_names:
+            bin_rows = list(range(len(trials_names), len(trials_names) + len(bin_names)))
+            bins = pd.concat(
+                [
+                    pd.DataFrame({"session": session, "bin": bin_names}),
+                    peak_area.iloc[bin_rows].reset_index(drop=True),
+                ],
+                axis=1,
+            )
+        else:
+            bins = None
+        write_peak_and_area_to_csv(
+            filepath=filepath, trials=trials, bins=bins, name=event + "_" + name_1 + "_" + basename
+        )
         logger.info("Peak and Area for PSTH mean signal for event %s computed.", event)
 
 

@@ -194,7 +194,7 @@ def test_mixed_modality_npm_csv_ttl(tmp_path):
     # The TTLs must land inside the NPM recording, not merely be written out: an event
     # outside the signal span yields an empty PSTH that the checks above still accept.
     run_folder = Path(locate_run_folder(session=str(session_copy)))
-    psth = pd.read_hdf(Path(run_folder) / "ttl_region_region_z_score_region.h5")
+    psth = pd.read_csv(Path(run_folder) / "ttl_region_region_z_score_region.csv")
     trial_times = sorted(float(column) for column in psth.columns if _is_float_label(column))
     np.testing.assert_allclose(trial_times, csv_ttl_timestamps)
 

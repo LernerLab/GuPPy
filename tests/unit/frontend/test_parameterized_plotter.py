@@ -7,6 +7,7 @@ import pandas as pd
 import panel as pn
 import pytest
 
+from guppy.analysis.psth_utils import write_psth_table
 from guppy.frontend.parameterized_plotter import (
     ParameterizedPlotter,
     available_psth_metrics,
@@ -35,13 +36,13 @@ def one_site_output_directory(tmp_path):
     dF/F) so a test can tell which of the two was read.
     """
     (tmp_path / "storesList.csv").write_text("Dv1A,Dv2A,PrtN\ncontrol_DMS,signal_DMS,RewardPort\n")
-    columns = ["trial_1", "trial_2", "trial_3", "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    columns = ["1.5", "4.5", "7.5", "bin_(0-1)", "bin_err_(0-1)", "timestamps", "mean", "err"]
     timestamps = np.linspace(-5.0, 10.0, 30)
     for metric, value in (("z_score", 1.0), ("dff", 2.0)):
         frame = pd.DataFrame(
             {column: (timestamps if column == "timestamps" else np.full(30, value)) for column in columns}
         )
-        frame.to_hdf(tmp_path / f"RewardPort_DMS_{metric}_DMS.h5", key="df", mode="w")
+        write_psth_table(filepath=tmp_path, stem=f"RewardPort_DMS_{metric}_DMS", psth=frame)
     return tmp_path
 
 
@@ -62,22 +63,66 @@ class TestBuildPlotter:
         assert plotter.Y_Label == "\u0394F/F"
         np.testing.assert_allclose(plotter.df_new["RewardPort_DMS"]["mean"].to_numpy(), np.full(30, 2.0))
 
+    def test_binned_trials_are_offered_as_their_own_plots(self, one_site_output_directory, panel_extension):
+        plotter = build_plotter(
+            filepath=str(one_site_output_directory), events=["RewardPort"], metric="z_score", x_min=-5.0, x_max=10.0
+        )
+
+        assert list(plotter.df_new["RewardPort_DMS"].columns) == [
+            "1.5",
+            "4.5",
+            "7.5",
+            "bin_(0-1)",
+            "bin_err_(0-1)",
+            "timestamps",
+            "mean",
+            "err",
+        ]
+        assert "RewardPort_DMS_bin_(0-1)" in plotter.selector_for_multipe_events_plot_objects
+
+    def test_cross_correlation_results_are_loaded_for_the_metric(self, one_site_output_directory, panel_extension):
+        correlation_folder = one_site_output_directory / "cross_correlation_output"
+        correlation_folder.mkdir()
+        timestamps = np.linspace(-5.0, 10.0, 30)
+        for metric, value in (("z_score", 3.0), ("dff", 4.0)):
+            correlation = pd.DataFrame(
+                {
+                    "1.5": np.full(30, value),
+                    "bin_(0-1)": np.full(30, value),
+                    "bin_err_(0-1)": np.zeros(30),
+                    "timestamps": timestamps,
+                    "mean": np.full(30, value),
+                    "err": np.zeros(30),
+                }
+            )
+            write_psth_table(filepath=correlation_folder, stem=f"corr_RewardPort_{metric}_DMS_DLS", psth=correlation)
+
+        plotter = build_plotter(
+            filepath=str(one_site_output_directory), events=["RewardPort"], metric="z_score", x_min=-5.0, x_max=10.0
+        )
+
+        # Neither the dF/F correlation nor the binned companion file is read as a correlation of its own.
+        assert plotter.event_selector_objects == ["RewardPort_DMS", "corr_RewardPort_z_score_DMS_DLS"]
+        np.testing.assert_allclose(
+            plotter.df_new["corr_RewardPort_z_score_DMS_DLS"]["mean"].to_numpy(), np.full(30, 3.0)
+        )
+
 
 class TestPsthResultPaths:
     def test_names_one_file_per_event_and_site(self, two_site_output_directory):
         paths = psth_result_paths(filepath=str(two_site_output_directory), events=["RewardPort"], metric="z_score")
 
         assert [path.name for path in paths] == [
-            "RewardPort_DMS_z_score_DMS.h5",
-            "RewardPort_DLS_z_score_DLS.h5",
+            "RewardPort_DMS_z_score_DMS.csv",
+            "RewardPort_DLS_z_score_DLS.csv",
         ]
 
     def test_dff_metric_names_dff_files(self, two_site_output_directory):
         paths = psth_result_paths(filepath=str(two_site_output_directory), events=["RewardPort"], metric="dff")
 
         assert [path.name for path in paths] == [
-            "RewardPort_DMS_dff_DMS.h5",
-            "RewardPort_DLS_dff_DLS.h5",
+            "RewardPort_DMS_dff_DMS.csv",
+            "RewardPort_DLS_dff_DLS.csv",
         ]
 
     def test_path_separators_in_an_event_label_are_replaced(self, two_site_output_directory):
@@ -85,8 +130,8 @@ class TestPsthResultPaths:
         paths = psth_result_paths(filepath=str(two_site_output_directory), events=["Reward/Port"], metric="z_score")
 
         assert [path.name for path in paths] == [
-            "Reward_Port_DMS_z_score_DMS.h5",
-            "Reward_Port_DLS_z_score_DLS.h5",
+            "Reward_Port_DMS_z_score_DMS.csv",
+            "Reward_Port_DLS_z_score_DLS.csv",
         ]
 
 
@@ -96,20 +141,20 @@ class TestAvailablePsthMetrics:
 
     def test_reports_only_the_complete_metric(self, two_site_output_directory):
         for site in ("DMS", "DLS"):
-            (two_site_output_directory / f"RewardPort_{site}_z_score_{site}.h5").write_bytes(b"")
+            (two_site_output_directory / f"RewardPort_{site}_z_score_{site}.csv").write_bytes(b"")
 
         assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == ["z_score"]
 
     def test_a_partially_written_metric_is_not_offered(self, two_site_output_directory):
         # Only one of the two sites has a dff result, so loading dff would fail.
-        (two_site_output_directory / "RewardPort_DMS_dff_DMS.h5").write_bytes(b"")
+        (two_site_output_directory / "RewardPort_DMS_dff_DMS.csv").write_bytes(b"")
 
         assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == []
 
     def test_both_metrics_are_reported_z_score_first(self, two_site_output_directory):
         for metric in ("z_score", "dff"):
             for site in ("DMS", "DLS"):
-                (two_site_output_directory / f"RewardPort_{site}_{metric}_{site}.h5").write_bytes(b"")
+                (two_site_output_directory / f"RewardPort_{site}_{metric}_{site}.csv").write_bytes(b"")
 
         assert available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort"]) == [
             "z_score",
@@ -118,7 +163,7 @@ class TestAvailablePsthMetrics:
 
     def test_every_event_must_be_present(self, two_site_output_directory):
         for site in ("DMS", "DLS"):
-            (two_site_output_directory / f"RewardPort_{site}_z_score_{site}.h5").write_bytes(b"")
+            (two_site_output_directory / f"RewardPort_{site}_z_score_{site}.csv").write_bytes(b"")
 
         assert (
             available_psth_metrics(filepath=str(two_site_output_directory), events=["RewardPort", "transients_z_score"])

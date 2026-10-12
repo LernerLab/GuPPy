@@ -19,7 +19,7 @@ from ..utils.validation import validate_group_definitions
 logger = logging.getLogger(__name__)
 
 # Glob patterns matching the PSTH result files step 4 writes, one per metric.
-PSTH_FILE_PATTERNS = ("*_z_score_*.h5", "*_dff_*.h5")
+PSTH_FILE_PATTERNS = ("*_z_score_*.csv", "*_dff_*.csv")
 
 
 def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, object], *, label: str) -> None:
@@ -132,15 +132,15 @@ def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
     Raises
     ------
     ValueError
-        When none of the selected output directories contain PSTH ``.h5`` files.
+        When none of the selected output directories contain PSTH ``.csv`` files.
     """
     run_folders = _output_directories(inputParameters)
 
     if not run_folders:
         return  # Nothing to check; the main function will handle the empty case.
 
-    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the metric name,
-    # e.g. "<event>_<site>_z_score_<site>.h5". Step-3 z-score/dff files use ".hdf5" and
+    # PSTH output files are CSV tables that embed the metric name, e.g.
+    # "<event>_<site>_z_score_<site>.csv". Step-3 z-score/dff files use ".hdf5" and
     # are therefore never false-positives.
     if any(any(Path(run_folder).glob(pattern)) for run_folder in run_folders for pattern in PSTH_FILE_PATTERNS):
         return

@@ -28,7 +28,7 @@ def test_cross_correlation(tmp_path):
     Notes:
       - Cross-correlation requires at least two distinct signal recording sites.
       - getCorrCombinations returns np.unique(["dls", "dms"]) → ["dls", "dms"],
-        so the output file is corr_port_entries_z_score_dls_dms.h5.
+        so the output file is corr_port_entries_z_score_dls_dms.csv.
     """
     session_subdir = "tdt/Photo_63_207-181030-103332"
     store_id_to_store_label = {
@@ -85,21 +85,19 @@ def test_cross_correlation(tmp_path):
 
     # Standard PSTH outputs for both recording sites
     for recording_site in ("dms", "dls"):
-        freq_amp_h5 = Path(out_dir) / (f"freqAndAmp_z_score_{recording_site}.h5")
         freq_amp_csv = Path(out_dir) / (f"freqAndAmp_z_score_{recording_site}.csv")
         trans_occ_csv = Path(out_dir) / (f"transientsOccurrences_z_score_{recording_site}.csv")
-        assert Path(freq_amp_h5).exists(), f"Missing freq/amp HDF5: {freq_amp_h5}"
         assert Path(freq_amp_csv).exists(), f"Missing freq/amp CSV: {freq_amp_csv}"
         assert Path(trans_occ_csv).exists(), f"Missing transients occurrences CSV: {trans_occ_csv}"
 
     # Cross-correlation outputs
     corr_dir = Path(out_dir) / "cross_correlation_output"
     assert Path(corr_dir).is_dir(), f"Missing cross_correlation_output directory: {corr_dir}"
-    corr_h5 = Path(corr_dir) / "corr_port_entries_z_score_dls_dms.h5"
-    assert Path(corr_h5).exists(), f"Missing cross-correlation HDF5: {corr_h5}"
-    df = pd.read_hdf(corr_h5, key="df")
-    assert "timestamps" in df.columns, f"'timestamps' column missing in {corr_h5}"
-    assert "mean" in df.columns, f"'mean' column missing in {corr_h5}"
+    corr_csv = Path(corr_dir) / "corr_port_entries_z_score_dls_dms.csv"
+    assert Path(corr_csv).exists(), f"Missing cross-correlation CSV: {corr_csv}"
+    df = pd.read_csv(corr_csv)
+    assert "timestamps" in df.columns, f"'timestamps' column missing in {corr_csv}"
+    assert "mean" in df.columns, f"'mean' column missing in {corr_csv}"
 
     hv.extension("bokeh")
     captured_dashboards: list[VisualizationDashboard] = []

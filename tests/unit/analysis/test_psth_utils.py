@@ -6,26 +6,96 @@ from guppy.analysis.psth_utils import (
     create_Df_for_psth,
     getCorrCombinations,
     match_trials_by_timestamp,
+    write_psth_table,
 )
+
+# ── write_psth_table ──────────────────────────────────────────────────────────
+
+
+def test_write_psth_table_without_bins_writes_only_the_psth_csv(tmp_path):
+    psth = pd.DataFrame(
+        {
+            "1.5": [1.0, 2.0],
+            "timestamps": [0.0, 0.5],
+            "mean": [1.0, 2.0],
+            "err": [0.0, 0.0],
+        }
+    )
+
+    write_psth_table(filepath=tmp_path, stem="event_lever_z_score_dms", psth=psth)
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["event_lever_z_score_dms.csv"]
+    written = pd.read_csv(tmp_path / "event_lever_z_score_dms.csv")
+    expected = pd.DataFrame({"timestamps": [0.0, 0.5], "1.5": [1.0, 2.0], "mean": [1.0, 2.0], "err": [0.0, 0.0]})
+    pd.testing.assert_frame_equal(written, expected)
+
+
+def test_write_psth_table_splits_bin_columns_into_binned_companion(tmp_path):
+    psth = pd.DataFrame(
+        {
+            "1.5": [1.0, 2.0],
+            "4.5": [3.0, 4.0],
+            "bin_(0-2)": [2.0, 3.0],
+            "bin_err_(0-2)": [1.0, 1.0],
+            "timestamps": [0.0, 0.5],
+            "mean": [2.0, 3.0],
+            "err": [1.0, 1.0],
+        }
+    )
+
+    write_psth_table(filepath=tmp_path, stem="event_lever_z_score_dms", psth=psth)
+
+    written = pd.read_csv(tmp_path / "event_lever_z_score_dms.csv")
+    expected = pd.DataFrame(
+        {"timestamps": [0.0, 0.5], "1.5": [1.0, 2.0], "4.5": [3.0, 4.0], "mean": [2.0, 3.0], "err": [1.0, 1.0]}
+    )
+    pd.testing.assert_frame_equal(written, expected)
+    binned = pd.read_csv(tmp_path / "binned_event_lever_z_score_dms.csv")
+    expected_binned = pd.DataFrame({"timestamps": [0.0, 0.5], "bin_(0-2)": [2.0, 3.0], "bin_err_(0-2)": [1.0, 1.0]})
+    pd.testing.assert_frame_equal(binned, expected_binned)
+
+
+def test_write_psth_table_without_bins_removes_stale_binned_companion(tmp_path):
+    (tmp_path / "binned_event_lever_z_score_dms.csv").write_text("timestamps,bin_(0-2)\n0.0,1.0\n")
+    psth = pd.DataFrame({"1.5": [1.0], "timestamps": [0.0], "mean": [1.0], "err": [0.0]})
+
+    write_psth_table(filepath=tmp_path, stem="event_lever_z_score_dms", psth=psth)
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["event_lever_z_score_dms.csv"]
+
 
 # ── create_Df_for_psth ────────────────────────────────────────────────────────
 
 
-def test_create_df_for_psth_creates_hdf5_file_with_mean_column(tmp_path):
+def test_create_df_for_psth_writes_csv_with_mean_and_err_columns(tmp_path):
     # 2 trial rows + 1 timestamps row; 3 timepoints
-    # After transpose: shape (3, 3); mean across trials [0,1] at each timepoint
-    # timepoint 0: mean([1.0, 2.0]) = 1.5; timepoint 1: mean([3.0, 4.0]) = 3.5
+    # timepoint 0: mean([1.0, 2.0]) = 1.5, err = std([1, 2]) / sqrt(2) = 0.5 / sqrt(2)
     psth = np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0], [0.0, 1.0, 2.0]])
     columns = ["sess1", "sess2", "timestamps"]
 
     create_Df_for_psth(str(tmp_path), "event_lever", "z_score_dms", psth, columns=columns)
 
-    assert (tmp_path / "event_lever_z_score_dms.h5").exists()
-    df = pd.read_hdf(tmp_path / "event_lever_z_score_dms.h5", key="df")
-    assert "mean" in df.columns
-    assert "err" in df.columns
-    np.testing.assert_allclose(df["mean"].iloc[0], 1.5, atol=1e-4)
-    np.testing.assert_allclose(df["mean"].iloc[1], 3.5, atol=1e-4)
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["event_lever_z_score_dms.csv"]
+    df = pd.read_csv(tmp_path / "event_lever_z_score_dms.csv")
+    assert list(df.columns) == ["timestamps", "sess1", "sess2", "mean", "err"]
+    np.testing.assert_allclose(df["timestamps"].values, [0.0, 1.0, 2.0], atol=1e-6)
+    np.testing.assert_allclose(df["mean"].values, [1.5, 3.5, 5.5], atol=1e-4)
+    np.testing.assert_allclose(df["err"].values, [0.35355, 0.35355, 0.35355], atol=1e-4)
+
+
+def test_create_df_for_psth_writes_bin_columns_to_binned_companion(tmp_path):
+    # Trial columns precede bin columns, as compute_psth lays them out.
+    psth = np.array([[1.0, 3.0], [3.0, 5.0], [2.0, 4.0], [1.0, 1.0], [0.0, 1.0]])
+    columns = ["1.5", "4.5", "bin_(0-2)", "bin_err_(0-2)", "timestamps"]
+
+    create_Df_for_psth(str(tmp_path), "event_lever", "z_score_dms", psth, columns=columns)
+
+    df = pd.read_csv(tmp_path / "event_lever_z_score_dms.csv")
+    assert list(df.columns) == ["timestamps", "1.5", "4.5", "mean", "err"]
+    np.testing.assert_allclose(df["mean"].values, [2.0, 4.0], atol=1e-4)
+    binned = pd.read_csv(tmp_path / "binned_event_lever_z_score_dms.csv")
+    assert list(binned.columns) == ["timestamps", "bin_(0-2)", "bin_err_(0-2)"]
+    np.testing.assert_allclose(binned["bin_(0-2)"].values, [2.0, 4.0], atol=1e-6)
 
 
 def test_create_df_for_psth_timestamps_column_excluded_from_mean(tmp_path):
@@ -35,9 +105,9 @@ def test_create_df_for_psth_timestamps_column_excluded_from_mean(tmp_path):
 
     create_Df_for_psth(str(tmp_path), "event_lever", "z_score_dms", psth, columns=columns)
 
-    df = pd.read_hdf(tmp_path / "event_lever_z_score_dms.h5", key="df")
+    df = pd.read_csv(tmp_path / "event_lever_z_score_dms.csv")
     # mean of a single trial equals the trial itself
-    np.testing.assert_allclose(df["mean"].iloc[0], 10.0, atol=1e-4)
+    np.testing.assert_allclose(df["mean"].values, [10.0, 20.0, 30.0], atol=1e-4)
 
 
 def test_create_df_for_psth_without_a_name_writes_the_event_only_filename(tmp_path):
@@ -46,9 +116,8 @@ def test_create_df_for_psth_without_a_name_writes_the_event_only_filename(tmp_pa
 
     create_Df_for_psth(str(tmp_path), "event_lever", "", psth, columns=columns)
 
-    assert (tmp_path / "event_lever.h5").exists()
-    assert not (tmp_path / "event_lever_.h5").exists()
-    df = pd.read_hdf(tmp_path / "event_lever.h5", key="df")
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["event_lever.csv"]
+    df = pd.read_csv(tmp_path / "event_lever.csv")
     # mean over the two trial columns at each timepoint: [(1+3)/2, (2+4)/2, (3+5)/2]
     np.testing.assert_allclose(df["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-4)
 
@@ -56,18 +125,17 @@ def test_create_df_for_psth_without_a_name_writes_the_event_only_filename(tmp_pa
 # ── create_Df_for_cross_correlation ───────────────────────────────────────────
 
 
-def test_create_df_for_cross_correlation_creates_hdf5_file_with_mean_column(tmp_path):
+def test_create_df_for_cross_correlation_writes_csv_with_mean_column(tmp_path):
     # Same structure as PSTH; 2 sessions + timestamps
     psth = np.array([[0.1, 0.3, 0.5], [0.2, 0.4, 0.6], [0.0, 1.0, 2.0]])
     columns = ["sess1", "sess2", "timestamps"]
 
     create_Df_for_cross_correlation(str(tmp_path), "corr_lever", "z_score_dms_nac", psth, columns=columns)
 
-    assert (tmp_path / "corr_lever_z_score_dms_nac.h5").exists()
-    df = pd.read_hdf(tmp_path / "corr_lever_z_score_dms_nac.h5", key="df")
-    assert "mean" in df.columns
-    # mean at timepoint 0: mean([0.1, 0.2]) = 0.15
-    np.testing.assert_allclose(df["mean"].iloc[0], 0.15, atol=1e-4)
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["corr_lever_z_score_dms_nac.csv"]
+    df = pd.read_csv(tmp_path / "corr_lever_z_score_dms_nac.csv")
+    assert list(df.columns) == ["timestamps", "sess1", "sess2", "mean", "err"]
+    np.testing.assert_allclose(df["mean"].values, [0.15, 0.35, 0.55], atol=1e-4)
 
 
 def test_create_df_for_cross_correlation_without_a_name_writes_the_event_only_filename(tmp_path):
@@ -76,11 +144,9 @@ def test_create_df_for_cross_correlation_without_a_name_writes_the_event_only_fi
 
     create_Df_for_cross_correlation(str(tmp_path), "corr_lever", "", psth, columns=columns)
 
-    assert (tmp_path / "corr_lever.h5").exists()
-    assert not (tmp_path / "corr_lever_.h5").exists()
-    df = pd.read_hdf(tmp_path / "corr_lever.h5", key="df")
-    # mean at timepoint 0: mean([0.1, 0.2]) = 0.15
-    np.testing.assert_allclose(df["mean"].iloc[0], 0.15, atol=1e-4)
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["corr_lever.csv"]
+    df = pd.read_csv(tmp_path / "corr_lever.csv")
+    np.testing.assert_allclose(df["mean"].values, [0.15, 0.35, 0.55], atol=1e-4)
 
 
 # ── getCorrCombinations ───────────────────────────────────────────────────────
@@ -172,8 +238,8 @@ def test_match_drops_trial_present_in_only_one_recording_site():
     assert matched == [10.0, 30.0]
 
 
-def test_match_parses_string_labels_from_hdf5():
-    # Columns read back from HDF5 arrive as strings.
+def test_match_parses_string_labels_from_csv():
+    # Column headers read back from CSV arrive as strings.
     indices_a, indices_b, matched = match_trials_by_timestamp(["10.0", "20.0"], ["10.0", "20.0"])
     np.testing.assert_array_equal(indices_a, [0, 1])
     np.testing.assert_array_equal(indices_b, [0, 1])

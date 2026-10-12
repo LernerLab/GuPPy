@@ -1071,7 +1071,7 @@ def psth_result_paths(*, filepath: str, events: list[str], metric: str) -> list[
     """
     directory = Path(filepath)
     sites = recording_sites_for_output_directory(filepath)
-    return [directory / f"{_sanitize_event(event)}_{site}_{metric}_{site}.h5" for event in events for site in sites]
+    return [directory / f"{_sanitize_event(event)}_{site}_{metric}_{site}.csv" for event in events for site in sites]
 
 
 def available_psth_metrics(*, filepath: str, events: list[str]) -> list[str]:
@@ -1122,10 +1122,10 @@ def build_plotter(*, filepath: str, events: list[str], metric: str, x_min: float
     correlation_folder = Path(filepath) / "cross_correlation_output"
     if correlation_folder.exists():
         event_corr, frames = [], []
-        correlation_paths = list(correlation_folder.glob(f"*_{metric}_*"))
+        correlation_paths = list(correlation_folder.glob(f"corr_*_{metric}_*.csv"))
         for correlation_path in correlation_paths:
-            event_corr.append(Path(correlation_path).name.split(".")[0])
-            frames.append(pd.read_hdf(correlation_path, key="df", mode="r"))
+            event_corr.append(correlation_path.stem)
+            frames.append(read_Df(correlation_folder, correlation_path.stem, ""))
         if len(frames) > 0:
             df_corr = pd.concat(frames, keys=event_corr, axis=1)
         else:

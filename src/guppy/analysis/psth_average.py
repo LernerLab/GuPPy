@@ -11,6 +11,11 @@ from .io_utils import (
     recording_site_from_preprocessed_label,
 )
 from .psth_utils import create_Df_for_psth, getCorrCombinations
+from .standard_io import (
+    PEAK_AUC_PREFIX,
+    read_peak_and_area_from_csv,
+    write_peak_and_area_to_csv,
+)
 from ..utils.utils import output_label_under, read_Df
 
 logger = logging.getLogger(__name__)
@@ -92,7 +97,7 @@ def average_psth_for_group(
         bin_columns = []
         session_entries = new_path[i]
         for j in range(len(session_entries)):
-            psth_path = Path(session_entries[j][0]) / (session_entries[j][1] + f"_{session_entries[j][2]}.h5")
+            psth_path = Path(session_entries[j][0]) / (session_entries[j][1] + f"_{session_entries[j][2]}.csv")
             if not psth_path.exists():
                 continue
             else:
@@ -143,18 +148,17 @@ def average_psth_for_group(
     # read PSTH peak and area for each event and combine them. Save the final output to an average folder
     for i in range(len(new_path)):
         peak_area_frames = []
-        row_indices = []
+        binned_peak_area_frames = []
         session_entries = new_path[i]
         for j in range(len(session_entries)):
-            peak_auc_path = Path(session_entries[j][0]) / (
-                "peak_AUC_" + session_entries[j][1] + "_" + session_entries[j][2] + ".h5"
-            )
-            if not peak_auc_path.exists():
+            name = session_entries[j][1] + "_" + session_entries[j][2]
+            if not (Path(session_entries[j][0]) / (PEAK_AUC_PREFIX + name + ".csv")).exists():
                 continue
             else:
-                df = read_Df_area_peak(session_entries[j][0], session_entries[j][1] + "_" + session_entries[j][2])
-                peak_area_frames.append(df)
-                row_indices.append(list(df.index))
+                trials, bins = read_peak_and_area_from_csv(filepath=session_entries[j][0], name=name)
+                peak_area_frames.append(trials)
+                if bins is not None:
+                    binned_peak_area_frames.append(bins)
 
         if len(peak_area_frames) == 0:
             logger.warning(
@@ -164,17 +168,11 @@ def average_psth_for_group(
                 session_entries[0][2],
             )
             continue
-        row_indices = list(np.concatenate(row_indices))
-        new_df = pd.concat(peak_area_frames, axis=0)
-        new_df.to_csv(
-            Path(run_folder) / f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.csv",
-            index=row_indices,
-        )
-        new_df.to_hdf(
-            Path(run_folder) / f"peak_AUC_{session_entries[j][1]}_{session_entries[j][2]}.h5",
-            key="df",
-            mode="w",
-            index=row_indices,
+        write_peak_and_area_to_csv(
+            filepath=run_folder,
+            trials=pd.concat(peak_area_frames, ignore_index=True),
+            bins=pd.concat(binned_peak_area_frames, ignore_index=True) if binned_peak_area_frames else None,
+            name=name,
         )
 
     # read cross-correlation files and combine them. Save the final output to an average folder
@@ -193,7 +191,7 @@ def average_psth_for_group(
             for k in range(1, len(corr_info)):
                 correlation_folder = Path(member_run_folders[j]) / "cross_correlation_output"
                 name = type[i] + "_" + corr_info[k - 1] + "_" + corr_info[k]
-                if not (correlation_folder / ("corr_" + event + "_" + name + ".h5")).exists():
+                if not (correlation_folder / ("corr_" + event + "_" + name + ".csv")).exists():
                     continue
                 else:
                     df = read_Df(correlation_folder, "corr_" + event, name)
@@ -251,25 +249,3 @@ def psth_shape_check(psth: list[np.ndarray]) -> list[np.ndarray]:
             psth[i] = psth[i]
 
     return psth
-
-
-def read_Df_area_peak(filepath: str, name: str) -> pd.DataFrame:
-    """
-    Read a peak/AUC HDF5 file and return its DataFrame.
-
-    Parameters
-    ----------
-    filepath : str
-        Directory containing the ``peak_AUC_<name>.h5`` file.
-    name : str
-        Filename stem (without the ``peak_AUC_`` prefix or ``.h5`` suffix).
-
-    Returns
-    -------
-    df : pd.DataFrame
-        DataFrame of peak and area-under-curve metrics.
-    """
-    output_path = Path(filepath) / ("peak_AUC_" + name + ".h5")
-    df = pd.read_hdf(output_path, key="df", mode="r")
-
-    return df

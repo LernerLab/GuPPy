@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -20,7 +21,8 @@ from guppy_test_data import STUBBED_TESTING_DATA
 def test_bin_psth_trials_by_number_of_trials(tmp_path):
     """
     Verify that step4 with bin_psth_trials=2 and use_time_or_trials='# of trials'
-    produces bin columns in the per-session PSTH output HDF5, and that running
+    writes the bin columns to binned_<stem>.csv companions of the per-session PSTH and
+    peak/AUC CSVs, and that running
     the Group Analysis step on that binned output also produces
     bin columns in the averaged PSTH — exercising the bin-averaging branch in
     psth_average.averageForGroup.
@@ -91,17 +93,37 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
 
     output_directory = locate_run_folder(session=str(session_copy))
 
-    psth_file_path = Path(output_directory) / (
-        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
-    )
-    assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
+    stem = f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}"
+    psth_file_path = Path(output_directory) / f"{stem}.csv"
+    binned_psth_file_path = Path(output_directory) / f"binned_{stem}.csv"
+    peak_auc_file_path = Path(output_directory) / f"peak_AUC_{stem}.csv"
+    binned_peak_auc_file_path = Path(output_directory) / f"binned_peak_AUC_{stem}.csv"
 
-    psth_dataframe = pd.read_hdf(psth_file_path, key="df")
-    bin_columns = [column for column in psth_dataframe.columns if column.startswith("bin_(")]
-    assert bin_columns, (
-        f"Expected at least one 'bin_(...)' column in PSTH output with bin_psth_trials=2, "
-        f"but got columns: {list(psth_dataframe.columns)}"
-    )
+    # Five TTLs binned two at a time give the bins [0, 2), [2, 4) and [4, 5).
+    expected_bins = ["bin_(0-2)", "bin_(2-4)", "bin_(4-5)"]
+    expected_binned_columns = [
+        "timestamps",
+        "bin_(0-2)",
+        "bin_err_(0-2)",
+        "bin_(2-4)",
+        "bin_err_(2-4)",
+        "bin_(4-5)",
+        "bin_err_(4-5)",
+    ]
+
+    psth_dataframe = pd.read_csv(psth_file_path)
+    assert [column for column in psth_dataframe.columns if column.startswith("bin_")] == []
+    binned_psth_dataframe = pd.read_csv(binned_psth_file_path)
+    assert list(binned_psth_dataframe.columns) == expected_binned_columns
+    np.testing.assert_array_equal(binned_psth_dataframe["timestamps"], psth_dataframe["timestamps"])
+
+    peak_auc = pd.read_csv(peak_auc_file_path)
+    assert list(peak_auc["trial"])[-1] == "mean"
+    assert len(peak_auc) == 6  # five trials plus the mean row
+    binned_peak_auc = pd.read_csv(binned_peak_auc_file_path)
+    assert list(binned_peak_auc.columns[:2]) == ["session", "bin"]
+    assert list(binned_peak_auc["bin"]) == expected_bins
+    assert list(binned_peak_auc["session"]) == [session_name] * 3
 
     # Run group averaging on the binned per-session output.  This exercises the
     # `if len(bin_columns) > 0:` branch inside psth_average.average_psth_for_group, which
@@ -116,13 +138,18 @@ def test_bin_psth_trials_by_number_of_trials(tmp_path):
     average_directory = Path(base_dir) / "binned_group"
     assert Path(average_directory).is_dir(), f"No group directory found under {base_dir}"
 
-    average_psth_file_path = Path(average_directory) / (
-        f"{expected_ttl}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
-    )
-    assert Path(average_psth_file_path).exists(), f"Missing averaged PSTH HDF5: {average_psth_file_path}"
-
-    average_psth_dataframe = pd.read_hdf(average_psth_file_path, key="df")
-    average_bin_columns = [column for column in average_psth_dataframe.columns if column.startswith("bin_(")]
-    assert average_bin_columns, (
-        f"Expected bin columns in averaged PSTH output, " f"but got columns: {list(average_psth_dataframe.columns)}"
-    )
+    assert Path(average_directory / f"{stem}.csv").exists(), f"Missing averaged PSTH CSV in {average_directory}"
+    # Group averaging writes every bin mean before the bin errors.
+    average_binned_psth_dataframe = pd.read_csv(average_directory / f"binned_{stem}.csv")
+    assert list(average_binned_psth_dataframe.columns) == [
+        "timestamps",
+        "bin_(0-2)",
+        "bin_(2-4)",
+        "bin_(4-5)",
+        "bin_err_(0-2)",
+        "bin_err_(2-4)",
+        "bin_err_(4-5)",
+    ]
+    average_binned_peak_auc = pd.read_csv(average_directory / f"binned_peak_AUC_{stem}.csv")
+    assert list(average_binned_peak_auc["bin"]) == expected_bins
+    assert list(average_binned_peak_auc["session"]) == [session_name] * 3

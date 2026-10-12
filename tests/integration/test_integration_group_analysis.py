@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.standard_io import (
-    read_covariate_correlations_from_hdf5,
-    read_tonic_from_hdf5,
+    read_covariate_correlations_from_csv,
+    read_tonic_means,
 )
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 from guppy.testing import default_output_root_folder
@@ -28,7 +28,7 @@ from guppy.testing.api import (
 from guppy.testing.covariate_session import RECORDING_SITE as COVARIATE_RECORDING_SITE
 from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
-from guppy.utils.utils import output_label_under, parse_run_name
+from guppy.utils.utils import output_label_under, parse_run_name, read_Df
 from guppy_test_data import STUBBED_TESTING_DATA
 
 SESSION_SUBDIRS = [
@@ -133,11 +133,11 @@ def test_group_analysis(processed_sessions, saline_group):
     assert group_directory.is_dir(), f"No group directory found under {temporary_base_directory}"
 
     group_psth_file_path = Path(group_directory) / (
-        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
-    assert Path(group_psth_file_path).exists(), f"Missing group PSTH HDF5: {group_psth_file_path}"
+    assert Path(group_psth_file_path).exists(), f"Missing group PSTH CSV: {group_psth_file_path}"
 
-    group_psth_dataframe = pd.read_hdf(group_psth_file_path, key="df")
+    group_psth_dataframe = pd.read_csv(group_psth_file_path)
     assert "timestamps" in group_psth_dataframe.columns, f"'timestamps' column missing in {group_psth_file_path}"
     assert "mean" in group_psth_dataframe.columns, f"'mean' column missing in {group_psth_file_path}"
 
@@ -204,9 +204,9 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
         "unrewarded_nose_pokes": "Photo_63_207-181030-103332/output_1",
     }
     for event, contributing_session in expected_columns_by_event.items():
-        average_path = average_directory / f"{event}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+        average_path = average_directory / f"{event}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
         assert average_path.exists(), f"Missing group PSTH for event {event!r}: {average_path}"
-        average_dataframe = pd.read_hdf(average_path, key="df")
+        average_dataframe = pd.read_csv(average_path)
         # n=1: exactly the one session that recorded this event contributed.
         session_columns = [c for c in average_dataframe.columns if c not in ("timestamps", "mean", "err")]
         assert session_columns == [
@@ -274,8 +274,9 @@ def test_group_analysis_step_writes_a_named_group_directory(processed_sessions, 
     stores_list = np.genfromtxt(group_folder / "storesList.csv", dtype="str", delimiter=",").reshape(2, -1)
     assert EXPECTED_TTL in stores_list[1, :].tolist()
 
-    group_psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
-    group_psth = pd.read_hdf(group_psth_path, key="df")
+    group_psth = read_Df(
+        group_folder, f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}", f"z_score_{EXPECTED_RECORDING_SITE}"
+    )
     # One column per member run, named by its path under the output directory, plus
     # mean/err/timestamps.
     output_base = default_output_root_folder(base_dir=base_dir)
@@ -297,8 +298,8 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(process
     )
     group_analysis(base_dir=base_dir, selected_group_folders=[Path(base_dir) / "dropped_group"])
     group_folder = Path(base_dir) / "dropped_group"
-    psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
-    assert len(pd.read_hdf(psth_path, key="df").columns) == 5  # 2 members + timestamps/mean/err
+    psth_path = group_folder / f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
+    assert len(pd.read_csv(psth_path).columns) == 5  # 2 members + timestamps/mean/err
 
     label_groups(
         member_run_folders=member_run_folders[:1],
@@ -309,7 +310,7 @@ def test_group_analysis_step_rebuilds_the_group_when_a_member_is_dropped(process
 
     with (group_folder / "group_members.json").open() as manifest_file:
         assert json.load(manifest_file) == {"member_run_folders": member_run_folders[:1]}
-    remaining = pd.read_hdf(psth_path, key="df")
+    remaining = pd.read_csv(psth_path)
     output_base = default_output_root_folder(base_dir=base_dir)
     assert output_label_under(path=member_run_folders[0], root=output_base) in remaining.columns
     assert output_label_under(path=member_run_folders[1], root=output_base) not in remaining.columns
@@ -363,21 +364,21 @@ class TestGroupTonicAndCovariateTables:
         group_folder, member_run_folders, base_dir = tonic_and_covariate_group
         output_base = default_output_root_folder(base_dir=base_dir)
 
-        stacked = pd.read_hdf(group_folder / f"group_tonic_{COVARIATE_RECORDING_SITE}.h5", key="df")
+        stacked = pd.read_csv(group_folder / f"group_tonic_{COVARIATE_RECORDING_SITE}.csv", index_col=[0, 1])
 
         assert list(stacked.index.names) == ["member", "epoch"]
         for run_folder in member_run_folders:
             member = stacked.loc[output_label_under(path=run_folder, root=output_base)]
-            pd.testing.assert_frame_equal(member, read_tonic_from_hdf5(run_folder, COVARIATE_RECORDING_SITE))
-        assert (group_folder / f"group_tonic_{COVARIATE_RECORDING_SITE}.csv").exists()
+            pd.testing.assert_frame_equal(member, read_tonic_means(run_folder, COVARIATE_RECORDING_SITE))
+        assert not (group_folder / f"group_tonic_{COVARIATE_RECORDING_SITE}.h5").exists()
 
     def test_tonic_summary_of_identical_members(self, tonic_and_covariate_group):
         group_folder, member_run_folders, _ = tonic_and_covariate_group
 
-        summary = pd.read_hdf(group_folder / f"group_tonic_summary_{COVARIATE_RECORDING_SITE}.h5", key="df")
+        summary = pd.read_csv(group_folder / f"group_tonic_summary_{COVARIATE_RECORDING_SITE}.csv", index_col=0)
 
         # Both members are copies of one session, so the mean is that session's value with no spread.
-        member = read_tonic_from_hdf5(member_run_folders[0], COVARIATE_RECORDING_SITE)
+        member = read_tonic_means(member_run_folders[0], COVARIATE_RECORDING_SITE)
         assert list(summary.index) == ["early", "late"]
         np.testing.assert_allclose(summary["mean_zscore_mean"], member["mean_zscore"])
         np.testing.assert_allclose(summary["mean_zscore_sem"], [0.0, 0.0], atol=1e-12)
@@ -386,9 +387,11 @@ class TestGroupTonicAndCovariateTables:
     def test_covariate_summary_of_identical_members(self, tonic_and_covariate_group):
         group_folder, member_run_folders, _ = tonic_and_covariate_group
 
-        stacked = pd.read_hdf(group_folder / f"group_covariate_correlations_{COVARIATE_RECORDING_SITE}.h5", key="df")
-        summary = pd.read_hdf(
-            group_folder / f"group_covariate_correlations_summary_{COVARIATE_RECORDING_SITE}.h5", key="df"
+        stacked = pd.read_csv(
+            group_folder / f"group_covariate_correlations_{COVARIATE_RECORDING_SITE}.csv", index_col=[0, 1, 2]
+        )
+        summary = pd.read_csv(
+            group_folder / f"group_covariate_correlations_summary_{COVARIATE_RECORDING_SITE}.csv", index_col=[0, 1]
         )
 
         assert list(stacked.index.names) == ["member", "metric", "covariate"]
@@ -398,7 +401,7 @@ class TestGroupTonicAndCovariateTables:
         assert summary.loc[("mean_zscore", "akinesia"), "pearson_r_sem"] == pytest.approx(0.0, abs=1e-12)
         assert summary.loc[("mean_zscore", "akinesia"), "pearson_r_n"] == 2
         assert len(summary) == len(
-            read_covariate_correlations_from_hdf5(
+            read_covariate_correlations_from_csv(
                 filepath=member_run_folders[0], recording_site=COVARIATE_RECORDING_SITE
             )
         )

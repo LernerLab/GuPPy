@@ -32,9 +32,9 @@ def _assert_psth_outputs(*, session_copy: str, input_root_folder: str, recording
 
     assert (Path(output_directory) / "storesList.csv").exists(), "Missing storesList.csv"
 
-    psth_file_path = Path(output_directory) / (f"{ttl}_{recording_site}_z_score_{recording_site}.h5")
-    assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
-    psth_dataframe = pd.read_hdf(psth_file_path, key="df")
+    psth_file_path = Path(output_directory) / (f"{ttl}_{recording_site}_z_score_{recording_site}.csv")
+    assert Path(psth_file_path).exists(), f"Missing PSTH CSV: {psth_file_path}"
+    psth_dataframe = pd.read_csv(psth_file_path)
     assert "timestamps" in psth_dataframe.columns
     assert "mean" in psth_dataframe.columns
 

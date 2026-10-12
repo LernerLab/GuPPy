@@ -19,7 +19,7 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
-from guppy.analysis.standard_io import write_tonic_to_hdf5
+from guppy.analysis.standard_io import write_tonic_means
 from guppy.analysis.tonic import compute_tonic_means
 from guppy.extractors.npm_recording_extractor import DEFAULT_NUM_CHANNELS
 from guppy.frontend.tonic_epochs import load_site_traces
@@ -988,7 +988,7 @@ def tonic_analysis(
         for recording_site, epochs in tonic_epochs.items():
             epochs.to_csv(Path(run_folder) / (f"tonic_epochs_{recording_site}.csv"), index=False)
             trace = site_traces[recording_site]
-            write_tonic_to_hdf5(
+            write_tonic_means(
                 run_folder,
                 compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], epochs),
                 recording_site,

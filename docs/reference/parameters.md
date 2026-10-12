@@ -235,7 +235,7 @@ The peak / AUC widget is a small table with rows of (start, end) pairs. Each row
 | Compute Binned Metrics? | Reduce the whole session to one row per fixed time bin. | bool | `False` | `True` / `False` |
 | Bin Width (s) | Width of those bins. | int | `120` | positive seconds |
 
-**Compute Binned Metrics?** divides the whole recording into equal time bins and reports, for each bin and each recording site, the mean z-score, the mean ΔF/F and the number of transients detected in it. Use it when you want to relate the signal to something measured on its own fixed schedule across the session — a behavior score rated every couple of minutes, say — rather than to discrete events. The results are written as `binned_metrics_<site>.csv` and `.h5`, and shown on the **Binned** tab in Step 5. Off by default; see the [output data model](outputs.md#step-4-compute-the-psth) for the exact table.
+**Compute Binned Metrics?** divides the whole recording into equal time bins and reports, for each bin and each recording site, the mean z-score, the mean ΔF/F and the number of transients detected in it. Use it when you want to relate the signal to something measured on its own fixed schedule across the session — a behavior score rated every couple of minutes, say — rather than to discrete events. The results are written as `binned_metrics_<site>.csv` and shown on the **Binned** tab in Step 5. Off by default; see the [output data model](outputs.md#step-4-compute-the-psth) for the exact table.
 
 **Bin Width (s)** is how wide each bin is. Bins start at the first corrected timestamp; the last bin is kept even when the session does not divide evenly, so it can be shorter than the rest. Whole seconds only.
 

@@ -124,11 +124,8 @@ def figure_session_trace(*, run_folder: Path) -> None:
 
 def load_psth(*, run_folder: Path) -> tuple[pd.DataFrame, list[str]]:
     """Load the PSTH table and return it alongside its single-trial column labels."""
-    psth = pd.read_hdf(run_folder / "RewardPort_A_z_score_A.h5", key="df")
-    summary_columns = {"timestamps", "mean", "err"}
-    trial_columns = [
-        column for column in psth.columns if column not in summary_columns and not column.startswith("bin_")
-    ]
+    psth = pd.read_csv(run_folder / "RewardPort_A_z_score_A.csv")
+    trial_columns = [column for column in psth.columns if column not in {"timestamps", "mean", "err"}]
     return psth, trial_columns
 
 
@@ -187,7 +184,7 @@ def figure_heatmap(*, run_folder: Path) -> None:
 
 def print_peak_and_area(*, run_folder: Path) -> None:
     """Print the peak/AUC table, so the tutorial's quoted output stays honest."""
-    peak_and_area = pd.read_csv(run_folder / "peak_AUC_RewardPort_A_z_score_A.csv", index_col=0)
+    peak_and_area = pd.read_csv(run_folder / "peak_AUC_RewardPort_A_z_score_A.csv")
     print(peak_and_area.to_string())
 
 
@@ -197,6 +194,9 @@ def main() -> None:
         run_folder = run_pipeline(base_directory=Path(temporary_directory))
         print(f"Run folder: {run_folder}")
 
+        psth, _ = load_psth(run_folder=run_folder)
+        print(psth.shape)
+        print(list(psth.columns))
         figure_session_trace(run_folder=run_folder)
         print("Saved session_trace.png")
         figure_psth(run_folder=run_folder)

@@ -5,7 +5,7 @@ main app's ``/tonic-analysis`` route (served by :data:`build_tonic_analysis_view
 composed from the Step-3 outputs already on disk. Averaging those traces over the windows is
 a read-only reduction, so saving on that page both writes the definitions
 (``tonic_epochs_<recording_site>.csv``) and computes the per-epoch means
-(``tonic_<recording_site>.h5``) — no further pipeline step is needed. See
+(``tonic_means_<recording_site>.csv``) — no further pipeline step is needed. See
 ``orchestration/step_view.py`` for the shared token/registry/serving plumbing.
 """
 

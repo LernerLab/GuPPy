@@ -37,21 +37,15 @@ A group directory is not inside any session folder. It is created in the destina
 
 ## File formats
 
-GuPPy's two HDF5 extensions are **not** interchangeable: `.hdf5` and `.h5` are written by different libraries and have to be read by different ones. [Custom Plots from GuPPy Outputs](../tutorials/custom_plots.md) works through loading each of them in Python.
+Time series are written as `.hdf5` and tables as `.csv`. [Custom Plots from GuPPy Outputs](../tutorials/custom_plots.md) works through loading each of them in Python.
 
 ### `.hdf5`
 
 Raw HDF5 written with h5py, following GuPPy's convention of one file per store with several named datasets inside it. Array datasets are one-dimensional and chunked; scalars (a store's name, its sample count) are zero-dimensional datasets. **No HDF5 attributes are set anywhere** — `sampling_rate` and the other scalars are datasets, not attributes.
 
-### `.h5`
-
-A pandas DataFrame written with `DataFrame.to_hdf`, holding exactly one DataFrame under the key `df`, and read back with `pandas.read_hdf` rather than h5py. These are the PSTH, peak/AUC, transient-summary, binned-metrics, covariate, cross-correlation and tonic tables.
-
-`to_hdf` stores the frame in pandas' fixed format, which mirrors its in-memory layout: the column labels in `axis0`, the row index in `axis1`, and the values in one or more `block<N>_values` arrays with columns grouped by dtype. None of that is hidden from h5py, but it is the frame taken apart rather than the assembled table, and `axis0` order does not follow the block grouping — putting it back together by hand means matching each block against its own `block<N>_items`.
-
 ### `.csv`
 
-Flat text. Inside a run folder: the store mappings (`storesList.csv`, `combine_storesList.csv`), the synthetic control trace `cntrl<i>.csv`, tables that also exist as an `.h5` (peak/AUC, transient frequency and amplitude, binned metrics, binned covariates and covariate correlations), and the two tables written as CSV only — `transientsOccurrences_<metric>.csv` and `tonic_epochs_<site>.csv`. Imported custom events are CSV too.
+Flat text with a header row, readable in a spreadsheet or with `pandas.read_csv`. Every table GuPPy computes is a CSV: the PSTH, peak/AUC, transient, binned-metric, covariate, cross-correlation, significance and tonic tables, and the group tables. So are the store mappings (`storesList.csv`, `combine_storesList.csv`), the synthetic control trace `cntrl<i>.csv`, and imported custom events. A table whose rows have meaningful labels writes them as its first column; the file descriptions below name that column.
 
 ### `.npy`
 
@@ -84,7 +78,7 @@ The placeholders used in the filename patterns:
 | `<metric-prefix>` | The metric without its recording site | `z_score`, `dff` |
 | `<event>` | The `store_label` of an event store | `port_entries`, `RewardPort` |
 
-Because `<metric>` already ends in the recording site, filenames that combine an event with a metric carry the site twice: `port_entries_DMS_z_score_DMS.h5` is the PSTH of the event `port_entries` at site `DMS`, computed on the `z_score_DMS` trace.
+Because `<metric>` already ends in the recording site, filenames that combine an event with a metric carry the site twice: `port_entries_DMS_z_score_DMS.csv` is the PSTH of the event `port_entries` at site `DMS`, computed on the `z_score_DMS` trace.
 
 Backslashes and forward slashes in a store or event name are replaced with underscores before the name reaches a filename, so a TDT store named `PAB/` produces files beginning `PAB_`.
 
@@ -185,13 +179,13 @@ Remove Artifacts does not create new files. It rewrites the Step 3 outputs in pl
 | File | Contents |
 |------|----------|
 | `tonic_epochs_<site>.csv` | The epoch windows defined for one recording site |
-| `tonic_<site>.h5` | Each epoch's mean z-score and mean ΔF/F |
+| `tonic_means_<site>.csv` | Each epoch's mean z-score and mean ΔF/F |
 
 Both files are written per recording site, and only for sites that have at least one epoch window. Saving with a site's windows cleared deletes that site's pair.
 
 **`tonic_epochs_<site>.csv`** has a header row and one row per epoch, with columns `label`, `start` and `end`. `start` and `end` are in seconds of absolute session time, on the same timebase as `timestampNew`. There is no index column.
 
-**`tonic_<site>.h5`** holds a DataFrame under the key `df`, indexed by the epoch labels from the CSV (index name `epoch`), with columns `mean_zscore` and `mean_dff` — the mean of `z_score_<site>.hdf5` and of `dff_<site>.hdf5` over that epoch's window. Windows are clamped to the recording's timespan and NaN samples are excluded from the mean.
+**`tonic_means_<site>.csv`** has one row per epoch, with the epoch label from `tonic_epochs_<site>.csv` in its first column, `epoch`, followed by `mean_zscore` and `mean_dff` — the mean of `z_score_<site>.hdf5` and of `dff_<site>.hdf5` over that epoch's window. Windows are clamped to the recording's timespan and NaN samples are excluded from the mean.
 
 The means are computed at save time from the traces then on disk, and the differences between epochs shown in the visualization are derived at view time from a selectable baseline epoch — only the absolute means are stored. See [Measure tonic signal levels across a session](../how-to/tonic-analysis.md).
 
@@ -201,43 +195,49 @@ The means are computed at save time from the traces then on disk, and the differ
 
 | File | Contents |
 |------|----------|
-| `<event>_<site>_<metric>.h5` | The PSTH: one column per trial, plus summary columns |
-| `<event>_<site>_baselineUncorrected_<metric>.h5` | The same PSTH before baseline correction |
-| `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Peak amplitude and area under the curve |
-| `freqAndAmp_<metric>.h5` and `.csv` | Transient frequency and mean amplitude, one row |
+| `<event>_<site>_<metric>.csv` | The PSTH: one column per trial, plus summary columns |
+| `<event>_<site>_baselineUncorrected_<metric>.csv` | The same PSTH before baseline correction |
+| `binned_<event>_<site>_<metric>.csv` | The binned-trial PSTH, when trial binning is enabled |
+| `peak_AUC_<event>_<site>_<metric>.csv` | Peak amplitude and area under the curve, per trial |
+| `binned_peak_AUC_<event>_<site>_<metric>.csv` | Peak amplitude and area under the curve, per trial bin |
+| `freqAndAmp_<metric>.csv` | Transient frequency and mean amplitude, one row |
 | `transientsOccurrences_<metric>.csv` | One row per detected transient |
 | `transient_outputs_<metric>.hdf5` | The trace and peak indices behind the transient results |
 | `transients_<metric>.hdf5` | The transient times as an event train, **Use Transients as Events?** runs only |
-| `binned_metrics_<site>.h5` and `.csv` | One row per fixed-width time bin, when **Compute Binned Metrics?** is enabled |
-| `binned_covariates_<site>.h5` and `.csv` | One row per time bin, holding the behavioral covariate means |
-| `covariate_correlations_<site>.h5` and `.csv` | One row per metric–covariate pair |
-| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | Cross-correlation between two recording sites |
-| `psth_significance_output/significance_<comparison>.h5` and `.csv` | Which stretches of the PSTH window are significant |
+| `binned_metrics_<site>.csv` | One row per fixed-width time bin, when **Compute Binned Metrics?** is enabled |
+| `binned_covariates_<site>.csv` | One row per time bin, holding the behavioral covariate means |
+| `covariate_correlations_<site>.csv` | One row per metric–covariate pair |
+| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.csv` | Cross-correlation between two recording sites |
+| `psth_significance_output/significance_<comparison>.csv` | Which stretches of the PSTH window are significant |
 
-**The PSTH files** hold a `float32` DataFrame under the key `df`, with one row per time point in the peri-event window. The columns, in order: one column per trial, labeled with that trial's event timestamp as a string; then, when trial binning is enabled, a `bin_(<label>)` and `bin_err_(<label>)` pair per bin; then `timestamps` (the peri-event time axis, running from `-nSecPrev` to `+nSecPost`); then `mean` and `err`, the mean and standard error across the single-trial columns only. The `_baselineUncorrected_` file is the same table before the baseline correction was subtracted.
+**The PSTH files** have one row per time point in the peri-event window and no index column. The columns, in order: `timestamps` (the peri-event time axis, running from `-nSecPrev` to `+nSecPost`); one column per trial, labeled with that trial's event timestamp; then `mean` and `err`, the mean and standard error across the trial columns. Values are written at `float32` precision. The `_baselineUncorrected_` file is the same table before the baseline correction was subtracted.
 
-**The peak/AUC files** hold a DataFrame with one row per trial, per bin, and one for `mean` — matching the PSTH columns — and one column per configured peak window: `peak_pos_<N>`, `peak_neg_<N>` and `area_<N>` for the Nth window. The row index is the session folder name joined to the column label, so a trial row reads `<session_name>_<event timestamp>`. A window that falls outside the PSTH yields `peak_<N>` and `area_<N>` set to `NaN`; when no peak windows are configured at all, the columns are a single `peak` and `area` pair, both `NaN`. Whether `area_<N>` is in metric-seconds or in metric-samples depends on the **AUC Units** parameter. The `.h5` and `.csv` hold the same table.
+**The binned PSTH files** appear when trial binning is enabled, one beside each PSTH file and named after it with a `binned_` prefix. They share the PSTH's `timestamps` column, followed by a `bin_(<label>)` and `bin_err_(<label>)` pair per bin: the mean and standard error of the trials that fall in that bin.
 
-**The significance files** appear when **Compute PSTH Significance?** is enabled, one per comparison, holding a DataFrame under the key `df` with one row per time point. Two comparison kinds share the directory, distinguished by their filename:
+**The peak/AUC files** have one row per trial plus one row for the PSTH's `mean` column. The first two columns identify the row: `session`, the session folder name, and `trial`, the trial's event timestamp, or `mean` for the row computed on the mean PSTH. Then comes one group of columns per configured peak window: `peak_pos_<N>`, `peak_neg_<N>` and `area_<N>` for the Nth window. A window that falls outside the PSTH yields `peak_<N>` and `area_<N>` set to `NaN`; when no peak windows are configured at all, the metric columns are a single `peak` and `area` pair, both `NaN`. Whether `area_<N>` is in metric-seconds or in metric-samples depends on the **AUC Units** parameter.
+
+**The binned peak/AUC files** appear when trial binning is enabled. They have the same metric columns, computed on each bin's mean trace, with `session` and `bin` (the `bin_(<label>)` column of the binned PSTH) identifying each row.
+
+**The significance files** appear when **Compute PSTH Significance?** is enabled, one per comparison, with one row per time point and no index column. Two comparison kinds share the directory, distinguished by their filename:
 
 | Filename | Comparison |
 |------|----------|
-| `significance_<event>_<site>_<metric>_<site>.h5` | That event's mean PSTH against zero |
-| `significance_<eventA>_vs_<eventB>_<site>_<metric>_<site>.h5` | Event A's mean PSTH against event B's |
+| `significance_<event>_<site>_<metric>_<site>.csv` | That event's mean PSTH against zero |
+| `significance_<eventA>_vs_<eventB>_<site>_<metric>_<site>.csv` | Event A's mean PSTH against event B's |
 
 The columns are `timestamps` (the same peri-event axis as the PSTH), `estimate` (the mean PSTH, or the A minus B difference), `ci_lower` and `ci_upper` (the bootstrap confidence bounds on `estimate`), `significant` (`1` inside a significant stretch, `0` elsewhere), `alpha` (the two-sided threshold the interval was computed at), and `n` — the number of columns resampled, which is a trial count in a run folder and a member-session count in a group folder. Two-sample files carry an additional `n_b` for the second event.
 
-`ci_lower` and `ci_upper` are `NaN` at timepoints where too few trials overlap to bootstrap, which happens at the window edges and wherever artifact removal blanked a stretch. Those timepoints are reported as not significant. A comparison whose event has fewer than three trials or sessions is skipped entirely rather than written. The `.h5` and `.csv` hold the same table. See the [explainer](../explanation/psth_significance.md) for how the test works and what it does not tell you.
+`ci_lower` and `ci_upper` are `NaN` at timepoints where too few trials overlap to bootstrap, which happens at the window edges and wherever artifact removal blanked a stretch. Those timepoints are reported as not significant. A comparison whose event has fewer than three trials or sessions is skipped entirely rather than written. See the [explainer](../explanation/psth_significance.md) for how the test works and what it does not tell you.
 
-**`freqAndAmp_<metric>.h5` and `.csv`** hold a single row indexed by the session folder name, with columns `freq (events/min)` and `amplitude` — the transient rate and the mean transient amplitude for that trace.
+**`freqAndAmp_<metric>.csv`** holds a single row, with the session folder name in its first column, followed by `freq (events/min)` and `amplitude` — the transient rate and the mean transient amplitude for that trace.
 
-**`transientsOccurrences_<metric>.csv`** has one row per detected transient, with columns `timestamps` and `amplitude` and a plain integer index. There is no `.h5` companion. With the `MAD threshold` detection method, `amplitude` is the peak's height above the median of its moving window, computed after the high-amplitude filter; with `minimum rise`, it is the peak's rise above the local minimum just before it.
+**`transientsOccurrences_<metric>.csv`** has one row per detected transient, with a plain integer index in its first column, followed by `timestamps` and `amplitude`. With the `MAD threshold` detection method, `amplitude` is the peak's height above the median of its moving window, computed after the high-amplitude filter; with `minimum rise`, it is the peak's rise above the local minimum just before it.
 
 **`transient_outputs_<metric>.hdf5`** holds the inputs the transient plot is drawn from: `z_score` (the NaN-free trace the detector ran on), `timestamps`, and `peaksInd` (the integer indices of the detected peaks within that trace).
 
-**`transients_<metric>.hdf5`** appears only when **Use Transients as Events?** is on. It holds a single dataset `ts` — the detected transient times — in exactly the shape of an `<event>_<site>.hdf5` event file, which is how the transients stand in for a TTL train. The event label is `transients_z_score` (or `transients_dff`), so the recording site is the metric's own site: `transients_z_score_DMS.hdf5` is the DMS transient train, and the PSTH computed from it lands in `transients_z_score_DMS_z_score_DMS.h5` with a matching `peak_AUC_` pair. As with any event file, Step 4 rewrites `ts` in place with the subset of transients the PSTH actually used.
+**`transients_<metric>.hdf5`** appears only when **Use Transients as Events?** is on. It holds a single dataset `ts` — the detected transient times — in exactly the shape of an `<event>_<site>.hdf5` event file, which is how the transients stand in for a TTL train. The event label is `transients_z_score` (or `transients_dff`), so the recording site is the metric's own site: `transients_z_score_DMS.hdf5` is the DMS transient train, and the PSTH computed from it lands in `transients_z_score_DMS_z_score_DMS.csv` with a matching `peak_AUC_` file. As with any event file, Step 4 rewrites `ts` in place with the subset of transients the PSTH actually used.
 
-**`binned_metrics_<site>.h5` and `.csv`** are written only when **Compute Binned Metrics?** is enabled. They hold the same table: one row per fixed-width time bin, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end` (seconds of absolute session time, on the same timebase as `timestampNew`), `n_samples`, `mean_zscore`, `mean_dff`, and a `transient_count_z_score` and/or `transient_count_dff` column.
+**`binned_metrics_<site>.csv`** is written only when **Compute Binned Metrics?** is enabled. It has one row per fixed-width time bin, numbered `0..n-1` in its first column, `bin`. The remaining columns are `bin_start` and `bin_end` (seconds of absolute session time, on the same timebase as `timestampNew`), `n_samples`, `mean_zscore`, `mean_dff`, and a `transient_count_z_score` and/or `transient_count_dff` column.
 
 Bins start at the first corrected timestamp and run in **Bin Width** steps to the last. The final bin is kept even when the session does not divide evenly, so it may be shorter than the rest — compare `bin_end - bin_start` against the others to spot it. Bins are half-open, `[bin_start, bin_end)`, except the last, which includes its own end; the transient counts follow the same convention. `n_samples` counts the samples behind the means, so a bin lost entirely to artifact removal reads `0` with `NaN` means.
 
@@ -245,13 +245,13 @@ Which count columns appear depends on **z_score and/or ΔF/F? (transients)**: th
 
 Two cases where a bin does not correspond to a fixed stretch of wall-clock time: with **Combine Data?** enabled the sessions are re-timed onto one synthetic timeline, so a bin can straddle the boundary between two of them; and with the `concatenate` artifact-removal method the time axis is compressed where artifacts were cut, so a 60-second bin spans more than 60 seconds of the original recording.
 
-**`binned_covariates_<site>.h5` and `.csv`** are written only when the session carries a store labeled **behavioral covariate** and **Compute Binned Metrics?** is enabled. They hold one row per time bin, on exactly the bins of the matching `binned_metrics_<site>` table, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end`, then one column per covariate holding its mean over that bin, then one `n_samples_<covariate>` column per covariate. A bin holding no score reads `NaN` with a count of `0`. Scores timestamped outside the binned span are dropped rather than folded into the first or last bin.
+**`binned_covariates_<site>.csv`** is written only when the session carries a store labeled **behavioral covariate** and **Compute Binned Metrics?** is enabled. It has one row per time bin, on exactly the bins of the matching `binned_metrics_<site>` table, numbered in its first column, `bin`. The remaining columns are `bin_start` and `bin_end`, then one column per covariate holding its mean over that bin, then one `n_samples_<covariate>` column per covariate. A bin holding no score reads `NaN` with a count of `0`. Scores timestamped outside the binned span are dropped rather than folded into the first or last bin.
 
-**`covariate_correlations_<site>.h5` and `.csv`** hold one row per (metric, covariate) pair, indexed `0..n-1` (index name `pair`), with columns `metric`, `covariate`, `pearson_r`, `spearman_rho` and `n_bins`. Every column of `binned_metrics_<site>` that is not bin geometry is correlated, so both means and any transient counts appear. `n_bins` is the number of bins where the metric and the covariate are both present — the sample size actually behind the two coefficients, which is usually much smaller than the number of samples in the recording. Coefficients read `NaN` when either series is constant across the paired bins, or when fewer than three bins pair up.
+**`covariate_correlations_<site>.csv`** has one row per (metric, covariate) pair, numbered `0..n-1` in its first column, `pair`, followed by `metric`, `covariate`, `pearson_r`, `spearman_rho` and `n_bins`. Every column of `binned_metrics_<site>` that is not bin geometry is correlated, so both means and any transient counts appear. `n_bins` is the number of bins where the metric and the covariate are both present — the sample size actually behind the two coefficients, which is usually much smaller than the number of samples in the recording. Coefficients read `NaN` when either series is constant across the paired bins, or when fewer than three bins pair up.
 
 **There is no p-value column, by design.** Pearson r and Spearman rho are reported as descriptive statistics only. Both the per-bin photometry values and a behavioral score vary slowly across a session, so successive bins are correlated with each other — and the standard significance tests for r and rho assume the opposite, that every sample is independent. A p-value computed from these numbers would therefore be far too small, and this holds whether GuPPy computes it or you compute it yourself from the reported columns. Treat the coefficients as a description of this one session, and see the [how-to guide](../how-to/correlate-behavioral-covariates.md) for what you can do with them.
 
-**The cross-correlation files** hold a `float32` DataFrame under the key `df`, one row per lag. Columns are the trial labels the two recording sites have in common, then `timestamps`, then `mean` and `err`. Despite its name, the `timestamps` column holds **lag values in seconds**, not times. Cross-correlation cannot run on a recording processed with the `concatenate` artifact-removal method; Step 4 raises instead.
+**The cross-correlation files** have one row per lag and the same layout as a PSTH file: `timestamps`, then one column per trial label the two recording sites have in common, then `mean` and `err`. When trial binning is enabled, a `binned_` file beside each one holds the cross-correlation of the bin columns. Despite its name, the `timestamps` column holds **lag values in seconds**, not times. Cross-correlation cannot run on a recording processed with the `concatenate` artifact-removal method; Step 4 raises instead.
 
 ---
 
@@ -302,25 +302,27 @@ A group directory is named `<group_name>_group` and sits in the destination dire
 | `group_members.json` | The run folders this group averaged, in averaging order |
 | `GuPPyParamtersUsed.json` | The parameters the averaging ran under |
 | `storesList.csv` | The store mapping, listing only the events the group holds a PSTH for |
-| `<event>_<site>_<metric>.h5` | Group PSTH: one column per member run |
-| `peak_AUC_<event>_<site>_<metric>.h5` and `.csv` | Every member's peak/AUC rows concatenated |
-| `freqAndAmp_<metric>.h5` and `.csv` | One row per member run |
-| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5` | One column per member run |
-| `psth_significance_output/significance_<comparison>.h5` and `.csv` | Significance over the group, resampling member sessions |
-| `group_tonic_<site>.h5` and `.csv` | Every member's tonic epoch means |
-| `group_tonic_summary_<site>.h5` and `.csv` | Tonic epoch means summarized across members |
-| `group_covariate_correlations_<site>.h5` and `.csv` | Every member's covariate correlations |
-| `group_covariate_correlations_summary_<site>.h5` and `.csv` | Covariate correlations summarized across members |
+| `<event>_<site>_<metric>.csv` | Group PSTH: one column per member run |
+| `binned_<event>_<site>_<metric>.csv` | Each trial bin averaged across member runs, when members binned their trials |
+| `peak_AUC_<event>_<site>_<metric>.csv` | Every member's peak/AUC rows concatenated |
+| `binned_peak_AUC_<event>_<site>_<metric>.csv` | Every member's binned peak/AUC rows concatenated |
+| `freqAndAmp_<metric>.csv` | One row per member run |
+| `cross_correlation_output/corr_<event>_<metric-prefix>_<siteA>_<siteB>.csv` | One column per member run |
+| `psth_significance_output/significance_<comparison>.csv` | Significance over the group, resampling member sessions |
+| `group_tonic_<site>.csv` | Every member's tonic epoch means |
+| `group_tonic_summary_<site>.csv` | Tonic epoch means summarized across members |
+| `group_covariate_correlations_<site>.csv` | Every member's covariate correlations |
+| `group_covariate_correlations_summary_<site>.csv` | Covariate correlations summarized across members |
 
-The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, followed by the same `timestamps`, `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. Each column is labeled `<session folder name>_output_<run name>`, and when two members come from sessions sharing a folder name their mirrored parent directories are prepended until the labels differ — so a group mixing `subject1/session1` and `subject2/session1` gets `subject1_session1_output_1` and `subject2_session1_output_1`.
+The group PSTH has the same shape as a per-session PSTH, but its trial columns are replaced by one column per member run, between the same `timestamps` column and the same `mean` and `err` columns. Column order matches `group_members.json`, so column *n* is member *n*. Each column is labeled `<session folder name>_output_<run name>`, and when two members come from sessions sharing a folder name their mirrored parent directories are prepended until the labels differ — so a group mixing `subject1/session1` and `subject2/session1` gets `subject1_session1_output_1` and `subject2_session1_output_1`.
 
 `group_members.json` has a single key, `member_run_folders`, holding the absolute paths of the runs the group averages. It is the group's definition: the Label Groups step writes it, and the Group Analysis step reads it to know what to average. A group directory holding only this file is a defined group with no results yet, in the same way a run folder holds `storesList.csv` before Step 2 fills it.
 
 Because the step averages what its members already hold, `storesList.csv` lists only the events a PSTH was actually written for. An event that no member recorded is dropped rather than listed.
 
-**`group_tonic_<site>`** stacks each member's `tonic_<site>.h5`, indexed by `member` (the member's path below the output root folder) and `epoch`, with columns `mean_zscore` and `mean_dff`. **`group_covariate_correlations_<site>`** stacks each member's `covariate_correlations_<site>.h5`, indexed by `member`, `metric` and `covariate`, with columns `pearson_r`, `spearman_rho` and `n_bins`. These per-member tables are the input for statistics across sessions.
+**`group_tonic_<site>`** stacks each member's `tonic_means_<site>.csv`, with `member` (the member's path below the output root folder) and `epoch` as its first two columns, followed by `mean_zscore` and `mean_dff`. **`group_covariate_correlations_<site>`** stacks each member's `covariate_correlations_<site>.csv`, with `member`, `metric` and `covariate` as its first three columns, followed by `pearson_r`, `spearman_rho` and `n_bins`. These per-member tables are the input for statistics across sessions.
 
-Each **`_summary_`** table has one row per epoch, or per metric and covariate pair, and three columns for each value: `<value>_mean`, `<value>_sem` (sample standard deviation over the square root of the count) and `<value>_n` (the number of members with a finite value). Members whose value is NaN, such as a correlation over a constant series, are left out of that row's mean, standard error and count.
+Each **`_summary_`** table has one row per epoch, or per metric and covariate pair, identified by its first column or columns, and three columns for each value: `<value>_mean`, `<value>_sem` (sample standard deviation over the square root of the count) and `<value>_n` (the number of members with a finite value). Members whose value is NaN, such as a correlation over a constant series, are left out of that row's mean, standard error and count.
 
 A group gets these tables only when its members hold the matching results, and Group Analysis refuses a group where some members hold them for a recording site and others do not. It also refuses members whose tonic epoch labels differ at a recording site, or whose covariate correlations used different `binnedMetricsWidth` values or different metric and covariate pairs. Binned metrics and binned covariates are not combined across members.
 
@@ -381,25 +383,22 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     combine_storesList.csv                         step 3, Combine Data? only
     coordsForPreProcessing_<site>.npy              Select Artifact Windows
     tonic_epochs_<site>.csv                        Tonic Analysis   label, start, end
-    tonic_<site>.h5                                Tonic Analysis   DataFrame, key "df"
-    <event>_<site>_<metric>.h5                     step 4   DataFrame, key "df"
-    <event>_<site>_baselineUncorrected_<metric>.h5 step 4   DataFrame, key "df"
-    peak_AUC_<event>_<site>_<metric>.h5            step 4   DataFrame, key "df"
-    peak_AUC_<event>_<site>_<metric>.csv           step 4
-    freqAndAmp_<metric>.h5                         step 4   DataFrame, key "df"
+    tonic_means_<site>.csv                         Tonic Analysis   epoch, mean_zscore, mean_dff
+    <event>_<site>_<metric>.csv                    step 4   timestamps, trials, mean, err
+    <event>_<site>_baselineUncorrected_<metric>.csv
+                                                   step 4   timestamps, trials, mean, err
+    binned_<event>_<site>_<metric>.csv             step 4   timestamps, bins; binning only
+    peak_AUC_<event>_<site>_<metric>.csv           step 4   session, trial, metrics
+    binned_peak_AUC_<event>_<site>_<metric>.csv    step 4   session, bin, metrics; binning only
     freqAndAmp_<metric>.csv                        step 4
     transientsOccurrences_<metric>.csv             step 4
     transient_outputs_<metric>.hdf5                step 4   z_score, timestamps, peaksInd
-    binned_metrics_<site>.h5                       step 4   DataFrame, key "df"
     binned_metrics_<site>.csv                      step 4
-    binned_covariates_<site>.h5                    step 4   DataFrame, key "df"
     binned_covariates_<site>.csv                   step 4
-    covariate_correlations_<site>.h5               step 4   DataFrame, key "df"
     covariate_correlations_<site>.csv              step 4
     cross_correlation_output/
-      corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5   step 4   DataFrame, key "df"
+      corr_<event>_<metric-prefix>_<siteA>_<siteB>.csv  step 4
     psth_significance_output/
-      significance_<comparison>.h5                      step 4   DataFrame, key "df"
       significance_<comparison>.csv                     step 4
     saved_plots/                                   step 5, created empty
     nwb_metadata.yaml                              step 6, optional
@@ -410,15 +409,17 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
     group_members.json
     GuPPyParamtersUsed.json
     storesList.csv
-    <event>_<site>_<metric>.h5
-    peak_AUC_<event>_<site>_<metric>.h5 and .csv
-    freqAndAmp_<metric>.h5 and .csv
+    <event>_<site>_<metric>.csv
+    binned_<event>_<site>_<metric>.csv
+    peak_AUC_<event>_<site>_<metric>.csv
+    binned_peak_AUC_<event>_<site>_<metric>.csv
+    freqAndAmp_<metric>.csv
     cross_correlation_output/
-      corr_<event>_<metric-prefix>_<siteA>_<siteB>.h5
+      corr_<event>_<metric-prefix>_<siteA>_<siteB>.csv
     psth_significance_output/
-      significance_<comparison>.h5 and .csv
-    group_tonic_<site>.h5 and .csv
-    group_tonic_summary_<site>.h5 and .csv
-    group_covariate_correlations_<site>.h5 and .csv
-    group_covariate_correlations_summary_<site>.h5 and .csv
+      significance_<comparison>.csv
+    group_tonic_<site>.csv
+    group_tonic_summary_<site>.csv
+    group_covariate_correlations_<site>.csv
+    group_covariate_correlations_summary_<site>.csv
 ```

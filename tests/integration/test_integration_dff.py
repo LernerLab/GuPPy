@@ -60,39 +60,31 @@ def test_dff(tmp_path):
 
     # PSTH outputs with dff naming
     psth_file_path = Path(output_directory) / (
-        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_dff_{EXPECTED_RECORDING_SITE}.h5"
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_dff_{EXPECTED_RECORDING_SITE}.csv"
     )
     baseline_uncorrected_file_path = Path(output_directory) / (
-        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_dff_{EXPECTED_RECORDING_SITE}.h5"
-    )
-    peak_auc_h5_file_path = Path(output_directory) / (
-        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_dff_{EXPECTED_RECORDING_SITE}.h5"
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_dff_{EXPECTED_RECORDING_SITE}.csv"
     )
     peak_auc_csv_file_path = Path(output_directory) / (
         f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_dff_{EXPECTED_RECORDING_SITE}.csv"
     )
 
-    assert Path(psth_file_path).exists(), f"Missing DFF PSTH HDF5: {psth_file_path}"
+    assert Path(psth_file_path).exists(), f"Missing DFF PSTH CSV: {psth_file_path}"
     assert Path(
         baseline_uncorrected_file_path
-    ).exists(), f"Missing baseline-uncorrected DFF PSTH HDF5: {baseline_uncorrected_file_path}"
-    assert Path(peak_auc_h5_file_path).exists(), f"Missing DFF peak/AUC HDF5: {peak_auc_h5_file_path}"
+    ).exists(), f"Missing baseline-uncorrected DFF PSTH CSV: {baseline_uncorrected_file_path}"
     assert Path(peak_auc_csv_file_path).exists(), f"Missing DFF peak/AUC CSV: {peak_auc_csv_file_path}"
 
-    psth_dataframe = pd.read_hdf(psth_file_path, key="df")
+    psth_dataframe = pd.read_csv(psth_file_path)
     assert "timestamps" in psth_dataframe.columns, f"'timestamps' column missing in {psth_file_path}"
     assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
 
     # Transient outputs with dff naming
-    frequency_and_amplitude_h5_file_path = Path(output_directory) / (f"freqAndAmp_dff_{EXPECTED_RECORDING_SITE}.h5")
     frequency_and_amplitude_csv_file_path = Path(output_directory) / (f"freqAndAmp_dff_{EXPECTED_RECORDING_SITE}.csv")
     transients_occurrences_csv_file_path = Path(output_directory) / (
         f"transientsOccurrences_dff_{EXPECTED_RECORDING_SITE}.csv"
     )
 
-    assert Path(
-        frequency_and_amplitude_h5_file_path
-    ).exists(), f"Missing DFF freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
     assert Path(
         frequency_and_amplitude_csv_file_path
     ).exists(), f"Missing DFF freq/amp CSV: {frequency_and_amplitude_csv_file_path}"

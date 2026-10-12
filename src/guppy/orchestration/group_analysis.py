@@ -23,10 +23,11 @@ from ..analysis.group_tables import stack_member_tables, summarize_member_tables
 from ..analysis.io_utils import is_channel_label, is_continuous_label
 from ..analysis.psth_average import average_psth_for_group
 from ..analysis.standard_io import (
-    read_covariate_correlations_from_hdf5,
-    read_tonic_from_hdf5,
+    read_covariate_correlations_from_csv,
+    read_tonic_means,
     write_group_table,
 )
+from ..analysis.tonic import TONIC_MEANS_PREFIX
 from ..analysis.transients_average import average_transients_for_group
 from ..utils import progress
 from ..utils.progress import step_error_handler
@@ -100,14 +101,14 @@ def _validate_fiber_recording_sites_consistent_for_group(*, member_run_folders: 
 
 
 def _recording_sites_with_results(*, member_run_folders: list[str], prefix: str) -> list[str]:
-    """Return the recording sites every member holds a ``<prefix><site>.h5`` result for.
+    """Return the recording sites every member holds a ``<prefix><site>.csv`` result for.
 
     Parameters
     ----------
     member_run_folders : list of str
         Output (run) directories of every member in the group.
     prefix : str
-        Result filename prefix, e.g. ``"tonic_"``.
+        Result filename prefix, e.g. ``"tonic_means_"``.
 
     Returns
     -------
@@ -120,7 +121,7 @@ def _recording_sites_with_results(*, member_run_folders: list[str], prefix: str)
         When some members hold the result for a recording site and others do not.
     """
     member_sites = {
-        run_folder: {path.name[len(prefix) : -len(".h5")] for path in Path(run_folder).glob(prefix + "*.h5")}
+        run_folder: {path.name[len(prefix) : -len(".csv")] for path in Path(run_folder).glob(prefix + "*.csv")}
         for run_folder in member_run_folders
     }
     all_sites = sorted(set().union(*member_sites.values()))
@@ -129,7 +130,7 @@ def _recording_sites_with_results(*, member_run_folders: list[str], prefix: str)
         if missing:
             missing_lines = "\n".join(f"  - {parse_session_basename(run_folder)}" for run_folder in missing)
             raise ValueError(
-                f"Group analysis found {prefix}{site}.h5 in some member runs but not in:\n"
+                f"Group analysis found {prefix}{site}.csv in some member runs but not in:\n"
                 f"{missing_lines}\n"
                 "A group summarizes a result only when every member holds it. Produce the result "
                 "for these runs, or remove them from the group's member selection."
@@ -154,7 +155,7 @@ def _validate_tonic_epochs_consistent_for_group(*, member_run_folders: list[str]
     """
     for site in sites:
         per_member_epochs = {
-            run_folder: tuple(sorted(read_tonic_from_hdf5(run_folder, site).index)) for run_folder in member_run_folders
+            run_folder: tuple(sorted(read_tonic_means(run_folder, site).index)) for run_folder in member_run_folders
         }
         if len(set(per_member_epochs.values())) <= 1:
             continue
@@ -207,7 +208,7 @@ def _validate_covariate_correlations_consistent_for_group(*, member_run_folders:
     for site in sites:
         per_member_pairs = {}
         for run_folder in member_run_folders:
-            correlations = read_covariate_correlations_from_hdf5(filepath=run_folder, recording_site=site)
+            correlations = read_covariate_correlations_from_csv(filepath=run_folder, recording_site=site)
             per_member_pairs[run_folder] = tuple(
                 sorted(zip(correlations["metric"], correlations["covariate"], strict=True))
             )
@@ -241,7 +242,7 @@ def _write_group_tonic_tables(*, member_labels: dict[str, str], sites: list[str]
         Group output directory.
     """
     for site in sites:
-        member_tables = {label: read_tonic_from_hdf5(run_folder, site) for run_folder, label in member_labels.items()}
+        member_tables = {label: read_tonic_means(run_folder, site) for run_folder, label in member_labels.items()}
         write_group_table(
             filepath=group_folder, table=stack_member_tables(member_tables=member_tables), name="group_tonic_" + site
         )
@@ -268,7 +269,7 @@ def _write_group_covariate_correlation_tables(
     """
     for site in sites:
         member_tables = {
-            label: read_covariate_correlations_from_hdf5(filepath=run_folder, recording_site=site).set_index(
+            label: read_covariate_correlations_from_csv(filepath=run_folder, recording_site=site).set_index(
                 ["metric", "covariate"]
             )
             for run_folder, label in member_labels.items()
@@ -400,7 +401,7 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
     member_run_folders = read_group_members(group_folder=group_folder)
     validate_group_member_run_folders(member_run_folders=member_run_folders)
     _validate_fiber_recording_sites_consistent_for_group(member_run_folders=member_run_folders)
-    tonic_sites = _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_")
+    tonic_sites = _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX)
     _validate_tonic_epochs_consistent_for_group(member_run_folders=member_run_folders, sites=tonic_sites)
     covariate_sites = _recording_sites_with_results(
         member_run_folders=member_run_folders, prefix="covariate_correlations_"

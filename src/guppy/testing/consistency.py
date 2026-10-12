@@ -4,6 +4,10 @@ Consistency utilities for comparing GuPPy output folders across versions.
 The comparison is one-directional: every file present in ``expected_dir`` must
 exist in ``actual_dir`` and be numerically identical. Extra files in
 ``actual_dir`` that are absent from ``expected_dir`` are silently ignored.
+
+The reference outputs hold results tables as PyTables ``.h5`` files, which GuPPy now
+writes as CSV. Each such table is compared against the CSV output reassembled into the
+reference's layout.
 """
 
 from __future__ import annotations
@@ -16,6 +20,9 @@ from pathlib import Path
 import h5py
 import numpy as np
 import pandas as pd
+
+from ..analysis.standard_io import PEAK_AUC_PREFIX, read_peak_and_area_from_csv
+from ..utils.utils import read_Df
 
 # Subdirectories to skip entirely (plots are not numerically reproducible).
 _SKIP_DIRS = {"saved_plots"}
@@ -32,8 +39,6 @@ _HDF5_KEY_RENAMES = {"storename": "store_id"}
 _FLOAT_PAT = r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
 _BARE_FLOAT_RE = re.compile(rf"^({_FLOAT_PAT})$")
 _PREFIXED_FLOAT_RE = re.compile(rf"^(.+)_({_FLOAT_PAT})$")
-# Union used only for probing whether a value is a PSTH label at all.
-_PSTH_LABEL_RE = re.compile(rf"^{_FLOAT_PAT}$|^.+_{_FLOAT_PAT}$")
 
 
 def compare_output_folders(
@@ -121,6 +126,8 @@ def compare_output_folders(
                     mismatches.append(f"UNEXPECTEDLY PRESENT (mapped to None): {rel_path}")
                 continue
             actual_rel = mapped
+        elif rel_path.endswith(".h5"):
+            actual_rel = rel_path[: -len(".h5")] + ".csv"
         else:
             actual_rel = rel_path
 
@@ -133,7 +140,18 @@ def compare_output_folders(
             continue
 
         extension = Path(rel_path).suffix.lower()
-        if extension in {".hdf5", ".h5"}:
+        if extension == ".h5" or Path(rel_path).name.startswith(PEAK_AUC_PREFIX):
+            _compare_table(
+                actual_path,
+                expected_path,
+                rel_path,
+                mismatches,
+                rtol,
+                atol,
+                event_ts_offset,
+                label_map,
+            )
+        elif extension == ".hdf5":
             _compare_hdf5(
                 actual_path,
                 expected_path,
@@ -169,10 +187,6 @@ def compare_output_folders(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-# HDF5 dataset names that store pandas axis/column metadata and may contain
-# PSTH timestamp labels.
-_PANDAS_AXIS_KEYS = {"axis0", "axis1", "block0_items"}
 
 # HDF5 dataset names carrying the continuous acquisition clock: "timestamps" in the
 # per-store step-2 files and "timestampNew" in timeCorrection_*. Per-store event files
@@ -215,18 +229,6 @@ def _normalize_psth_index(index: pd.Index, *, bare_offset: float = 0.0, prefixed
     return pd.Index(
         [_normalize_psth_label(str(label), bare_offset=bare_offset, prefixed_offset=prefixed_offset) for label in index]
     )
-
-
-def _normalize_psth_str_array(
-    string_array: np.ndarray, *, bare_offset: float = 0.0, prefixed_offset: float = 0.0
-) -> np.ndarray:
-    """Apply :func:`_normalize_psth_label` to every element of a string/bytes array."""
-    flat = []
-    for item in string_array.flat:
-        if isinstance(item, (bytes, np.bytes_)):
-            item = item.decode("utf-8", errors="replace")
-        flat.append(_normalize_psth_label(str(item), bare_offset=bare_offset, prefixed_offset=prefixed_offset))
-    return np.array(flat, dtype=object).reshape(string_array.shape)
 
 
 def _rename_string_array(string_array: np.ndarray, label_map: dict[str, str]) -> np.ndarray:
@@ -368,39 +370,13 @@ def _compare_hdf5_dataset(
         )
         return
 
-    # String / bytes datasets: exact equality, with targeted tolerance for
-    # pandas axis metadata that encodes PSTH floating-point timestamps.
+    # String / bytes datasets: exact equality.
     if expected_data.dtype.kind in {"S", "U", "O"}:
         if label_map:
             # Decoding the actual side too (with nothing to rename) keeps the two dtypes
             # comparable, since renaming widens the reference's fixed-width bytes dtype.
             actual_data = _rename_string_array(actual_data, {})
             expected_data = _rename_string_array(expected_data, label_map)
-        item_name = item_path.split("/")[-1]
-        filename = Path(rel_path).name
-        is_peak_auc = "peak_AUC" in filename
-        is_psth_file = "z_score" in filename or is_peak_auc or "dff" in filename
-        if is_psth_file and item_name in _PANDAS_AXIS_KEYS and expected_data.size > 0:
-            # Probe the first element: if it looks like a PSTH timestamp label,
-            # normalize float-repr noise before comparing.
-            first = expected_data.flat[0]
-            if isinstance(first, (bytes, np.bytes_)):
-                first = first.decode("utf-8", errors="replace")
-            if _PSTH_LABEL_RE.match(str(first)):
-                # Bare floats are always event timestamps. Prefixed floats are event
-                # timestamps only in the peak_AUC index axis (axis1, e.g.
-                # "<session>_<event_ts>"); elsewhere the suffix is a structural index
-                # (peak_AUC columns "peak_pos_1", group session names "..._output_1").
-                # Shift the reference (expected) labels into the current basis accordingly.
-                prefixed_offset = event_ts_offset if (is_peak_auc and item_name == "axis1") else 0.0
-                if not np.array_equal(
-                    _normalize_psth_str_array(actual_data),
-                    _normalize_psth_str_array(
-                        expected_data, bare_offset=event_ts_offset, prefixed_offset=prefixed_offset
-                    ),
-                ):
-                    mismatches.append(f"{rel_path}: '{item_path}' string data differs")
-                return
         if not np.array_equal(actual_data, expected_data):
             mismatches.append(f"{rel_path}: '{item_path}' string data differs")
         return
@@ -415,6 +391,78 @@ def _compare_hdf5_dataset(
         expected_data = expected_data + continuous_ts_offset
     if not np.allclose(actual_data, expected_data, rtol=rtol, atol=atol, equal_nan=True):
         mismatches.append(f"{rel_path}: '{item_path}' numeric data differs")
+
+
+def _read_actual_peak_and_area(actual_path: Path) -> pd.DataFrame:
+    """Reassemble the peak/AUC CSV output into the reference's single-table layout.
+
+    The reference indexes each row ``<session>_<trial>`` (or ``<session>_<bin>``) and
+    orders each session's rows as its trials, then its bins, then its mean.
+    """
+    name = actual_path.stem[len(PEAK_AUC_PREFIX) :]
+    trials, bins = read_peak_and_area_from_csv(filepath=actual_path.parent, name=name)
+    frames = []
+    for session in trials["session"].unique():
+        session_trials = trials[trials["session"] == session]
+        is_mean = session_trials["trial"] == "mean"
+        rows = [(session_trials[~is_mean], "trial")]
+        if bins is not None:
+            rows.append((bins[bins["session"] == session], "bin"))
+        rows.append((session_trials[is_mean], "trial"))
+        for table, label_column in rows:
+            labels = pd.Index((table["session"] + "_" + table[label_column]).tolist())
+            frames.append(table.drop(columns=["session", label_column]).set_axis(labels, axis=0))
+    return pd.concat(frames)
+
+
+def _compare_table(
+    actual_path: Path,
+    expected_path: Path,
+    rel_path: str,
+    mismatches: list[str],
+    rtol: float,
+    atol: float,
+    event_ts_offset: float = 0.0,
+    label_map: dict[str, str] | None = None,
+) -> None:
+    """Compare a reference results table against the CSV output that replaces it.
+
+    The reference is a PyTables ``.h5`` file or, for peak/AUC, its CSV twin. PSTH labels
+    are normalized for float-repr noise, and reference event-time labels are shifted
+    into the current recording-start basis: bare-float column labels of a PSTH, and the
+    ``<session>_<event time>`` row labels of a peak/AUC table.
+    """
+    is_peak_auc = Path(rel_path).name.startswith(PEAK_AUC_PREFIX)
+    if expected_path.suffix == ".h5":
+        expected_df = pd.read_hdf(expected_path, key="df")
+    else:
+        expected_df = pd.read_csv(expected_path, index_col=0)
+
+    if is_peak_auc:
+        actual_df = _read_actual_peak_and_area(actual_path)
+    elif Path(rel_path).name.startswith("freqAndAmp_"):
+        actual_df = pd.read_csv(actual_path, index_col=0)
+    else:
+        actual_df = read_Df(actual_path.parent, actual_path.stem, "")
+
+    if label_map:
+        expected_df = expected_df.rename(index=label_map, columns=label_map)
+
+    if is_peak_auc:
+        actual_df.index = _normalize_psth_index(actual_df.index)
+        expected_df.index = _normalize_psth_index(
+            expected_df.index, bare_offset=event_ts_offset, prefixed_offset=event_ts_offset
+        )
+    else:
+        actual_df.columns = _normalize_psth_index(actual_df.columns)
+        expected_df.columns = _normalize_psth_index(expected_df.columns, bare_offset=event_ts_offset)
+
+    try:
+        pd.testing.assert_frame_equal(
+            actual_df, expected_df, check_exact=False, rtol=rtol, atol=atol, check_dtype=False
+        )
+    except AssertionError as exc:
+        mismatches.append(f"{rel_path}: table content differs — {exc}")
 
 
 def _compare_csv(
@@ -434,15 +482,6 @@ def _compare_csv(
 
     if label_map:
         expected_df = expected_df.rename(index=label_map, columns=label_map)
-
-    # peak_AUC CSVs use PSTH timestamp labels (prefixed event times) as row indices;
-    # normalize float-repr noise and shift the reference index into the current
-    # recording-start basis before comparing.
-    if "peak_AUC" in Path(rel_path).name:
-        actual_df.index = _normalize_psth_index(actual_df.index)
-        expected_df.index = _normalize_psth_index(
-            expected_df.index, bare_offset=event_ts_offset, prefixed_offset=event_ts_offset
-        )
 
     # transientsOccurrences CSVs carry a "timestamps" column drawn from the continuous
     # clock, so the reference is shifted into the current basis like its HDF5 counterparts.

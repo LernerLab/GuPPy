@@ -16,11 +16,14 @@ from .io_utils import (
     recording_site_from_channel_path,
     write_hdf5,
 )
-from .tonic import TONIC_EPOCH_COLUMNS
+from .tonic import TONIC_EPOCH_COLUMNS, TONIC_MEANS_PREFIX
 from ..utils.stores_list import read_stores_list
-from ..utils.utils import TRANSIENT_EVENT_PREFIX
+from ..utils.utils import BINNED_PREFIX, TRANSIENT_EVENT_PREFIX
 
 logger = logging.getLogger(__name__)
+
+# Filename prefix of a PSTH's peak and area-under-curve table.
+PEAK_AUC_PREFIX = "peak_AUC_"
 
 
 def read_control_and_signal(
@@ -641,52 +644,60 @@ def write_combined_data(
         write_hdf5(ttl_timestamps, compound_name, output_filepath, "ts")
 
 
-def write_peak_and_area_to_hdf5(
-    filepath: str | Path, peak_and_area_data: object, name: str, index: list[object]
-) -> None:
-    """
-    Save peak and area-under-curve metrics to an HDF5 file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Output directory.
-    peak_and_area_data : array-like
-        Metrics data to store in the DataFrame.
-    name : str
-        Filename stem; the file is written as ``peak_AUC_<name>.h5``.
-    index : list
-        Row index labels.
-    """
-
-    output_path = Path(filepath) / ("peak_AUC_" + name + ".h5")
-
-    df = pd.DataFrame(peak_and_area_data, index=index)
-
-    df.to_hdf(output_path, key="df", mode="w")
-
-
 def write_peak_and_area_to_csv(
-    filepath: str | Path, peak_and_area_data: object, name: str, index: list[object]
+    *, filepath: str | Path, trials: pd.DataFrame, bins: pd.DataFrame | None, name: str
 ) -> None:
     """
-    Save peak and area-under-curve metrics to a CSV file.
+    Save peak and area-under-curve tables to CSV files.
+
+    ``trials`` is written as ``peak_AUC_<name>.csv``. ``bins`` is written as
+    ``binned_peak_AUC_<name>.csv``; when it is None, any such file left by an earlier
+    run is removed.
 
     Parameters
     ----------
     filepath : str or Path
         Output directory.
-    peak_and_area_data : array-like
-        Metrics data to store in the DataFrame.
+    trials : pd.DataFrame
+        One row per trial plus a row whose ``trial`` is ``"mean"``, with ``session`` and
+        ``trial`` columns followed by the per-window metric columns.
+    bins : pd.DataFrame or None
+        One row per trial bin, with ``session`` and ``bin`` columns followed by the
+        per-window metric columns.
     name : str
-        Filename stem; the file is written as ``peak_AUC_<name>.csv``.
-    index : list
-        Row index labels.
+        Filename stem.
     """
-    output_path = Path(filepath) / ("peak_AUC_" + name + ".csv")
-    df = pd.DataFrame(peak_and_area_data, index=index)
+    trials.to_csv(Path(filepath) / (PEAK_AUC_PREFIX + name + ".csv"), index=False)
+    binned_path = Path(filepath) / (BINNED_PREFIX + PEAK_AUC_PREFIX + name + ".csv")
+    if bins is None:
+        binned_path.unlink(missing_ok=True)
+    else:
+        bins.to_csv(binned_path, index=False)
 
-    df.to_csv(output_path)
+
+def read_peak_and_area_from_csv(*, filepath: str | Path, name: str) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """
+    Load the peak and area-under-curve tables written by :func:`write_peak_and_area_to_csv`.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        Directory containing ``peak_AUC_<name>.csv``.
+    name : str
+        Filename stem.
+
+    Returns
+    -------
+    trials : pd.DataFrame
+        The per-trial table.
+    bins : pd.DataFrame or None
+        The per-bin table, or None when the PSTH was not binned.
+    """
+    trials = pd.read_csv(Path(filepath) / (PEAK_AUC_PREFIX + name + ".csv"), dtype={"session": str, "trial": str})
+    binned_path = Path(filepath) / (BINNED_PREFIX + PEAK_AUC_PREFIX + name + ".csv")
+    if not binned_path.exists():
+        return trials, None
+    return trials, pd.read_csv(binned_path, dtype={"session": str, "bin": str})
 
 
 def read_tonic_epochs(filepath: str | Path, site: str) -> pd.DataFrame:
@@ -712,7 +723,7 @@ def read_tonic_epochs(filepath: str | Path, site: str) -> pd.DataFrame:
     return pd.read_csv(input_path)
 
 
-def write_tonic_to_hdf5(filepath: str | Path, tonic_data: pd.DataFrame, site: str) -> None:
+def write_tonic_means(filepath: str | Path, tonic_data: pd.DataFrame, site: str) -> None:
     """Save per-epoch tonic means for a single recording site.
 
     Parameters
@@ -723,19 +734,18 @@ def write_tonic_to_hdf5(filepath: str | Path, tonic_data: pd.DataFrame, site: st
         Per-epoch means (index = epoch label, columns ``mean_zscore`` /
         ``mean_dff``) as returned by :func:`guppy.analysis.tonic.compute_tonic_means`.
     site : str
-        Recording-site name; the file is written as ``tonic_<site>.h5``.
+        Recording-site name; the file is written as ``tonic_means_<site>.csv``.
     """
-    output_path = Path(filepath) / ("tonic_" + site + ".h5")
-    tonic_data.to_hdf(output_path, key="df", mode="w")
+    tonic_data.to_csv(Path(filepath) / (TONIC_MEANS_PREFIX + site + ".csv"))
 
 
-def read_tonic_from_hdf5(filepath: str | Path, site: str) -> pd.DataFrame:
+def read_tonic_means(filepath: str | Path, site: str) -> pd.DataFrame:
     """Load per-epoch tonic means for a single recording site.
 
     Parameters
     ----------
     filepath : str or Path
-        Session output (run) directory holding ``tonic_<site>.h5``.
+        Session output (run) directory holding ``tonic_means_<site>.csv``.
     site : str
         Recording-site name.
 
@@ -744,7 +754,7 @@ def read_tonic_from_hdf5(filepath: str | Path, site: str) -> pd.DataFrame:
     pd.DataFrame
         Per-epoch means, indexed by epoch label, with columns ``mean_zscore`` and ``mean_dff``.
     """
-    return pd.read_hdf(Path(filepath) / ("tonic_" + site + ".h5"), key="df", mode="r")
+    return pd.read_csv(Path(filepath) / (TONIC_MEANS_PREFIX + site + ".csv"), index_col="epoch", dtype={"epoch": str})
 
 
 def remove_tonic_results(filepath: str | Path, site: str) -> None:
@@ -755,40 +765,13 @@ def remove_tonic_results(filepath: str | Path, site: str) -> None:
     filepath : str or Path
         Session output (run) directory.
     site : str
-        Recording-site name; removes ``tonic_epochs_<site>.csv`` and ``tonic_<site>.h5``.
+        Recording-site name; removes ``tonic_epochs_<site>.csv`` and ``tonic_means_<site>.csv``.
     """
-    for name in ("tonic_epochs_" + site + ".csv", "tonic_" + site + ".h5"):
+    for name in ("tonic_epochs_" + site + ".csv", TONIC_MEANS_PREFIX + site + ".csv"):
         path = Path(filepath) / name
         if path.exists():
             path.unlink()
             logger.info("Removed %s for recording site %s.", name, site)
-
-
-def write_freq_and_amp_to_hdf5(
-    filepath: str | Path, freq_and_amp_data: object, name: str, index: list[object], columns: list[object]
-) -> None:
-    """
-    Save transient frequency and amplitude metrics to an HDF5 file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Output directory.
-    freq_and_amp_data : array-like
-        Metrics data to store in the DataFrame.
-    name : str
-        Filename stem; the file is written as ``freqAndAmp_<name>.h5``.
-    index : list
-        Row index labels.
-    columns : list
-        Column labels.
-    """
-
-    output_path = Path(filepath) / ("freqAndAmp_" + name + ".h5")
-
-    df = pd.DataFrame(freq_and_amp_data, index=index, columns=columns)
-
-    df.to_hdf(output_path, key="df", mode="w")
 
 
 def write_freq_and_amp_to_csv(
@@ -815,26 +798,23 @@ def write_freq_and_amp_to_csv(
     df.to_csv(output_path)
 
 
-def read_freq_and_amp_from_hdf5(filepath: str | Path, name: str) -> pd.DataFrame:
+def read_freq_and_amp_from_csv(filepath: str | Path, name: str) -> pd.DataFrame:
     """
-    Load transient frequency and amplitude metrics from an HDF5 file.
+    Load transient frequency and amplitude metrics from a CSV file.
 
     Parameters
     ----------
     filepath : str or Path
-        Directory containing the ``freqAndAmp_<name>.h5`` file.
+        Directory containing the ``freqAndAmp_<name>.csv`` file.
     name : str
-        Filename stem (without the ``freqAndAmp_`` prefix or ``.h5`` suffix).
+        Filename stem (without the ``freqAndAmp_`` prefix or ``.csv`` suffix).
 
     Returns
     -------
     df : pd.DataFrame
         DataFrame of frequency and amplitude metrics.
     """
-    output_path = Path(filepath) / ("freqAndAmp_" + name + ".h5")
-    df = pd.read_hdf(output_path, key="df", mode="r")
-
-    return df
+    return pd.read_csv(Path(filepath) / ("freqAndAmp_" + name + ".csv"), index_col=0)
 
 
 def write_transients_to_hdf5(
@@ -909,25 +889,6 @@ def read_transients_from_hdf5(filepath: str | Path, name: str) -> tuple[np.ndarr
     return z_score, timestamps, peaksInd
 
 
-def write_binned_metrics_to_hdf5(filepath: str | Path, binned_metrics: pd.DataFrame, recording_site: str) -> None:
-    """
-    Save whole-session time-binned metrics to an HDF5 file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Output directory.
-    binned_metrics : pd.DataFrame
-        One row per time bin, as returned by
-        :func:`guppy.analysis.binned_metrics.compute_binned_metrics`.
-    recording_site : str
-        Recording site name; the file is written as ``binned_metrics_<recording_site>.h5``.
-    """
-    output_path = Path(filepath) / ("binned_metrics_" + recording_site + ".h5")
-
-    binned_metrics.to_hdf(output_path, key="df", mode="w")
-
-
 def write_binned_metrics_to_csv(filepath: str | Path, binned_metrics: pd.DataFrame, recording_site: str) -> None:
     """
     Save whole-session time-binned metrics to a CSV file.
@@ -947,45 +908,23 @@ def write_binned_metrics_to_csv(filepath: str | Path, binned_metrics: pd.DataFra
     binned_metrics.to_csv(output_path)
 
 
-def read_binned_metrics_from_hdf5(filepath: str | Path, recording_site: str) -> pd.DataFrame:
+def read_binned_metrics_from_csv(filepath: str | Path, recording_site: str) -> pd.DataFrame:
     """
-    Load whole-session time-binned metrics from an HDF5 file.
+    Load whole-session time-binned metrics from a CSV file.
 
     Parameters
     ----------
     filepath : str or Path
-        Directory containing the ``binned_metrics_<recording_site>.h5`` file.
+        Directory containing the ``binned_metrics_<recording_site>.csv`` file.
     recording_site : str
-        Recording site name (without the ``binned_metrics_`` prefix or ``.h5`` suffix).
+        Recording site name (without the ``binned_metrics_`` prefix or ``.csv`` suffix).
 
     Returns
     -------
     binned_metrics : pd.DataFrame
         One row per time bin.
     """
-    output_path = Path(filepath) / ("binned_metrics_" + recording_site + ".h5")
-    binned_metrics = pd.read_hdf(output_path, key="df", mode="r")
-
-    return binned_metrics
-
-
-def write_psth_significance_to_hdf5(*, filepath: str | Path, significance: pd.DataFrame, name: str) -> None:
-    """
-    Save a PSTH significance comparison to an HDF5 file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Output directory, normally the ``psth_significance_output/`` subdirectory.
-    significance : pd.DataFrame
-        One row per timepoint, as returned by
-        :func:`guppy.orchestration.psth_significance.compute_comparison`.
-    name : str
-        Comparison name; the file is written as ``significance_<name>.h5``.
-    """
-    output_path = Path(filepath) / (PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
-
-    significance.to_hdf(output_path, key="df", mode="w")
+    return pd.read_csv(Path(filepath) / ("binned_metrics_" + recording_site + ".csv"), index_col="bin")
 
 
 def write_psth_significance_to_csv(*, filepath: str | Path, significance: pd.DataFrame, name: str) -> None:
@@ -1007,47 +946,23 @@ def write_psth_significance_to_csv(*, filepath: str | Path, significance: pd.Dat
     significance.to_csv(output_path, index=False)
 
 
-def read_psth_significance_from_hdf5(*, filepath: str | Path, name: str) -> pd.DataFrame:
+def read_psth_significance_from_csv(*, filepath: str | Path, name: str) -> pd.DataFrame:
     """
-    Load a PSTH significance comparison from an HDF5 file.
+    Load a PSTH significance comparison from a CSV file.
 
     Parameters
     ----------
     filepath : str or Path
-        Directory containing the ``significance_<name>.h5`` file.
+        Directory containing the ``significance_<name>.csv`` file.
     name : str
-        Comparison name (without the ``significance_`` prefix or ``.h5`` suffix).
+        Comparison name (without the ``significance_`` prefix or ``.csv`` suffix).
 
     Returns
     -------
     significance : pd.DataFrame
         One row per timepoint.
     """
-    output_path = Path(filepath) / (PSTH_SIGNIFICANCE_PREFIX + name + ".h5")
-    significance = pd.read_hdf(output_path, key="df", mode="r")
-
-    return significance
-
-
-def write_binned_covariates_to_hdf5(
-    *, filepath: str | Path, binned_covariates: pd.DataFrame, recording_site: str
-) -> None:
-    """
-    Save per-bin behavioral covariate means to an HDF5 file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Output directory.
-    binned_covariates : pd.DataFrame
-        One row per time bin, as returned by
-        :func:`guppy.analysis.covariates.compute_binned_covariates`.
-    recording_site : str
-        Recording site name; the file is written as ``binned_covariates_<recording_site>.h5``.
-    """
-    output_path = Path(filepath) / ("binned_covariates_" + recording_site + ".h5")
-
-    binned_covariates.to_hdf(output_path, key="df", mode="w")
+    return pd.read_csv(Path(filepath) / (PSTH_SIGNIFICANCE_PREFIX + name + ".csv"))
 
 
 def write_binned_covariates_to_csv(
@@ -1071,47 +986,23 @@ def write_binned_covariates_to_csv(
     binned_covariates.to_csv(output_path)
 
 
-def read_binned_covariates_from_hdf5(*, filepath: str | Path, recording_site: str) -> pd.DataFrame:
+def read_binned_covariates_from_csv(*, filepath: str | Path, recording_site: str) -> pd.DataFrame:
     """
-    Load per-bin behavioral covariate means from an HDF5 file.
+    Load per-bin behavioral covariate means from a CSV file.
 
     Parameters
     ----------
     filepath : str or Path
-        Directory containing the ``binned_covariates_<recording_site>.h5`` file.
+        Directory containing the ``binned_covariates_<recording_site>.csv`` file.
     recording_site : str
-        Recording site name (without the ``binned_covariates_`` prefix or ``.h5`` suffix).
+        Recording site name (without the ``binned_covariates_`` prefix or ``.csv`` suffix).
 
     Returns
     -------
     binned_covariates : pd.DataFrame
         One row per time bin.
     """
-    output_path = Path(filepath) / ("binned_covariates_" + recording_site + ".h5")
-    binned_covariates = pd.read_hdf(output_path, key="df", mode="r")
-
-    return binned_covariates
-
-
-def write_covariate_correlations_to_hdf5(
-    *, filepath: str | Path, correlations: pd.DataFrame, recording_site: str
-) -> None:
-    """
-    Save covariate-versus-metric correlation coefficients to an HDF5 file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Output directory.
-    correlations : pd.DataFrame
-        One row per (metric, covariate) pair, as returned by
-        :func:`guppy.analysis.covariates.compute_covariate_correlations`.
-    recording_site : str
-        Recording site name; the file is written as ``covariate_correlations_<recording_site>.h5``.
-    """
-    output_path = Path(filepath) / ("covariate_correlations_" + recording_site + ".h5")
-
-    correlations.to_hdf(output_path, key="df", mode="w")
+    return pd.read_csv(Path(filepath) / ("binned_covariates_" + recording_site + ".csv"), index_col="bin")
 
 
 def write_covariate_correlations_to_csv(
@@ -1135,26 +1026,27 @@ def write_covariate_correlations_to_csv(
     correlations.to_csv(output_path)
 
 
-def read_covariate_correlations_from_hdf5(*, filepath: str | Path, recording_site: str) -> pd.DataFrame:
+def read_covariate_correlations_from_csv(*, filepath: str | Path, recording_site: str) -> pd.DataFrame:
     """
-    Load covariate-versus-metric correlation coefficients from an HDF5 file.
+    Load covariate-versus-metric correlation coefficients from a CSV file.
 
     Parameters
     ----------
     filepath : str or Path
-        Directory containing the ``covariate_correlations_<recording_site>.h5`` file.
+        Directory containing the ``covariate_correlations_<recording_site>.csv`` file.
     recording_site : str
-        Recording site name (without the ``covariate_correlations_`` prefix or ``.h5`` suffix).
+        Recording site name (without the ``covariate_correlations_`` prefix or ``.csv`` suffix).
 
     Returns
     -------
     correlations : pd.DataFrame
         One row per (metric, covariate) pair.
     """
-    output_path = Path(filepath) / ("covariate_correlations_" + recording_site + ".h5")
-    correlations = pd.read_hdf(output_path, key="df", mode="r")
-
-    return correlations
+    return pd.read_csv(
+        Path(filepath) / ("covariate_correlations_" + recording_site + ".csv"),
+        index_col="pair",
+        dtype={"metric": str, "covariate": str},
+    )
 
 
 def read_covariate_series(filepath: str | Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -1187,7 +1079,7 @@ def read_covariate_series(filepath: str | Path) -> dict[str, tuple[np.ndarray, n
 
 
 def write_group_table(*, filepath: str | Path, table: pd.DataFrame, name: str) -> None:
-    """Save a group-level table as both HDF5 and CSV.
+    """Save a group-level table as CSV.
 
     Parameters
     ----------
@@ -1196,7 +1088,6 @@ def write_group_table(*, filepath: str | Path, table: pd.DataFrame, name: str) -
     table : pd.DataFrame
         Table to save; its index is written alongside its columns.
     name : str
-        File stem; the files are written as ``<name>.h5`` and ``<name>.csv``.
+        File stem; the file is written as ``<name>.csv``.
     """
-    table.to_hdf(Path(filepath) / (name + ".h5"), key="df", mode="w")
     table.to_csv(Path(filepath) / (name + ".csv"))

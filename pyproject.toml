@@ -56,7 +56,6 @@ dependencies = [
     "pynwb>=4",
     "scipy",
     "statsmodels",
-    "tables",
     "selenium",
     "dandi",
     "remfile",
@@ -88,6 +87,8 @@ test = [
     # LabeledEvents, and importing it registers the hand-written class, so the extractor's
     # non-cached-spec read path gets exercised. 0.4 redefines the core EventsTable type.
     "ndx-events==0.2.2",
+    # The consistency tests' v1.3.0 reference outputs hold PyTables tables.
+    "tables",
 ]
 
 dev = [
