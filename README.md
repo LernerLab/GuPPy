@@ -8,7 +8,7 @@ Guided Photometry Analysis in Python, a free and open-source fiber photometry da
 
 ## Quick start
 
-Requires Python 3.10 or greater. We recommend installing into a conda environment:
+Requires Python 3.11 or greater. We recommend installing into a conda environment:
 
 ```bash
 conda create -n guppy_env python=3.12
