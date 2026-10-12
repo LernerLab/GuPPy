@@ -25,6 +25,7 @@ def make_summary(**overrides):
     fields = {
         "identifier": "000001",
         "version": "0.240101.0000",
+        "modified": "2024-01-01T00:00:00.000000Z",
         "name": "Dorsomedial striatum dopamine",
         "description": "GCaMP7b recordings in the DMS.",
         "species": ("Mus musculus",),

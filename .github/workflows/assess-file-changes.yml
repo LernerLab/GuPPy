@@ -36,7 +36,11 @@ jobs:
           echo "CHANGELOG_ENTRY_ADDED=false" >> $GITHUB_OUTPUT
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo $file
-            if [[ $file == "src/"* || $file == "tests/"* || $file == "pyproject.toml" || $file == ".github/"* ]]
+            # The bundled DANDI verdicts are data refreshed by a scheduled workflow, not a change to note.
+            if [[ $file == "src/guppy/utils/bundled_dandi_photometry_verdicts.json" ]]
+            then
+              echo "Bundled DANDI verdicts refreshed"
+            elif [[ $file == "src/"* || $file == "tests/"* || $file == "pyproject.toml" || $file == ".github/"* ]]
             then
               echo "Source changed"
               echo "SOURCE_CHANGED=true" >> $GITHUB_OUTPUT

@@ -126,6 +126,19 @@ class TestMain:
         assert capsys.readouterr().out.strip() == f"No DANDI scan cache to clear at {verdict_cache_path}"
         assert served == {}
 
+    @pytest.mark.parametrize(
+        ("argv", "bundled_path"),
+        [([], dandi_filter.BUNDLED_VERDICT_CACHE_PATH), (["--no-bundled-dandi-cache"], None)],
+        ids=["default", "no_bundled"],
+    )
+    def test_the_bundled_dandi_cache_reaches_the_catalog_unless_declined(
+        self, served, exported, panel_extension, verdict_cache_path, argv, bundled_path
+    ):
+        main(argv=argv)
+        template = served["routes"]["/"]()
+
+        assert template._widgets["dandi_file_panel"].search_panel.verdict_cache.bundled_path == bundled_path
+
     def test_version_prints_the_installed_version_without_starting_a_server(self, served, exported, capsys):
         with pytest.raises(SystemExit) as exit_info:
             main(argv=["--version"])

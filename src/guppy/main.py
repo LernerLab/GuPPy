@@ -53,6 +53,7 @@ def main(*, argv: list[str] | None = None) -> None:
     - --version: Print the installed GuPPy version and exit
     - --export-logs: Export the log file to Desktop for sharing with support
     - --clear-dandi-cache: Delete the cached DANDI photometry scan results and exit
+    - --no-bundled-dandi-cache: Launch without the DANDI photometry scan results shipped with GuPPy
     - --input-root: Set the folder the session folders live under
     - --output-root: Set the folder the mirrored output tree is written into
     - (no flags): Launch the GUI application
@@ -79,6 +80,11 @@ def main(*, argv: list[str] | None = None) -> None:
         "--clear-dandi-cache",
         action="store_true",
         help="Delete the cached results of DANDI fiber photometry scans, so the next scan reads every file again",
+    )
+    parser.add_argument(
+        "--no-bundled-dandi-cache",
+        action="store_true",
+        help="Launch without the DANDI fiber photometry scan results shipped with GuPPy, for this session only",
     )
     parser.add_argument(
         "--input-root",
@@ -116,6 +122,7 @@ def main(*, argv: list[str] | None = None) -> None:
     serve_app(
         input_root_folder=_resolve_root_folder(parser=parser, flag="--input-root", value=args.input_root),
         output_root_folder=_resolve_root_folder(parser=parser, flag="--output-root", value=args.output_root),
+        use_bundled_dandi_cache=not args.no_bundled_dandi_cache,
     )
 
 

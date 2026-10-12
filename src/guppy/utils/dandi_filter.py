@@ -28,10 +28,16 @@ from pathlib import Path
 
 import h5py
 import requests
+from dandi.dandiapi import DandiAPIClient
 from platformdirs import user_cache_dir
 from requests.adapters import HTTPAdapter
 
-from .dandi_search import AssetSummary, DandisetSummary, list_nwb_assets
+from .dandi_search import (
+    AssetSummary,
+    DandisetSummary,
+    _version_record,
+    list_nwb_assets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +84,11 @@ SCAN_RETRY_DELAY_IN_SECONDS = 1.0
 # The series type GuPPy's reader picks up traces from. A file can write the metadata table above
 # and still store its traces as some other series type, so having the container is not enough.
 FIBER_PHOTOMETRY_RESPONSE_SERIES = "FiberPhotometryResponseSeries"
+
+# Dandiset verdicts for the whole archive, refreshed by a scheduled workflow and shipped with each
+# release, so that the catalog filter starts out knowing every dandiset that has not changed
+# since. See refresh_bundled_verdicts.
+BUNDLED_VERDICT_CACHE_PATH = Path(__file__).parent / "bundled_dandi_photometry_verdicts.json"
 
 _scan_session: requests.Session | None = None
 
@@ -256,10 +267,13 @@ class PhotometryVerdictCache:
 
     Two kinds. Asset verdicts are keyed by DANDI asset ID, which addresses an immutable blob,
     so an answer never needs recomputing. Dandiset verdicts are keyed by identifier and stored
-    alongside the asset count they were reached at: a dandiset that holds photometry always
-    will, while one that does not can acquire it, so a negative is trusted only while the
-    dandiset is the size it was when it was read. Either way a repeat costs no requests at
+    alongside the version and modification time they were reached at, and are trusted only
+    while the archive's listing still reports both. Either way a repeat costs no requests at
     all, where asset verdicts alone still leave the listing to be fetched.
+
+    Dandiset verdicts come from two files. The user's own cache is read and written as scans
+    run. Beneath it sits the bundled cache that ships with GuPPy, which holds dandiset verdicts
+    for the whole archive as of its last refresh and is never written at runtime.
 
     Only answers are stored. An asset that could not be read has no verdict to remember, and a
     dandiset holding one is not settled, so neither is written and both are retried next time.
@@ -274,27 +288,32 @@ class PhotometryVerdictCache:
     Parameters
     ----------
     path : Path or None, optional
-        File the verdicts are stored in. Defaults to GuPPy's user cache directory.
+        File the user's verdicts are stored in. Defaults to GuPPy's user cache directory.
+    bundled_path : Path or None, optional
+        Bundled dandiset verdicts consulted after the user's. Defaults to the file shipped with
+        GuPPy; None leaves them out.
     """
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(self, path: Path | None = None, *, bundled_path: Path | None = BUNDLED_VERDICT_CACHE_PATH) -> None:
         self.path = Path(path) if path is not None else default_verdict_cache_path()
+        self.bundled_path = Path(bundled_path) if bundled_path is not None else None
         self._assets: dict[str, bool] = {}
         self._dandisets: dict[str, list] = {}
+        self._bundled_dandisets: dict[str, list] = {}
         self._lock = threading.Lock()
         if self.path.is_file():
             try:
                 stored = json.loads(self.path.read_text())
                 self._assets = {key: bool(value) for key, value in (stored.get("assets") or {}).items()}
-                self._dandisets = {
-                    key: [bool(value[0]), int(value[1])] for key, value in (stored.get("dandisets") or {}).items()
-                }
+                self._dandisets = _parse_dandiset_verdicts(stored)
             except (OSError, ValueError, IndexError, TypeError) as error:
                 logger.warning(
                     "Ignoring unreadable photometry verdict cache %s: %s",
                     self.path,
                     error,
                 )
+        if self.bundled_path is not None:
+            self._bundled_dandisets = _parse_dandiset_verdicts(json.loads(self.bundled_path.read_text()))
 
     def __len__(self) -> int:
         return len(self._assets)
@@ -315,24 +334,22 @@ class PhotometryVerdictCache:
     def dandiset_verdict(self, reference: "DandisetReference") -> bool | None:
         """Return what is known about a whole dandiset, or None when it must be read.
 
-        A remembered positive always stands. A remembered negative stands only while the
-        dandiset still holds the number of assets it held when it was read.
+        A remembered verdict stands only while the dandiset's version and modification time
+        are the ones it was reached at. The user's cache is consulted before the bundled one.
         """
-        remembered = self._dandisets.get(reference.identifier)
-        if remembered is None:
-            return None
-        holds, asset_count = remembered
-        if holds:
-            return True
-        return False if asset_count == reference.asset_count else None
+        for remembered_by_identifier in (self._dandisets, self._bundled_dandisets):
+            remembered = remembered_by_identifier.get(reference.identifier)
+            if remembered is not None and remembered[1:] == [reference.version, reference.modified]:
+                return remembered[0]
+        return None
 
     def record_dandiset(self, reference: "DandisetReference", holds: bool) -> None:
         """Take note of a whole dandiset's settled verdict."""
         with self._lock:
-            self._dandisets[reference.identifier] = [holds, reference.asset_count]
+            self._dandisets[reference.identifier] = [holds, reference.version, reference.modified]
 
     def save(self) -> None:
-        """Write the verdicts out, replacing whatever was there."""
+        """Write the user's verdicts out, replacing whatever was there."""
         with self._lock:
             serialized = json.dumps({"assets": self._assets, "dandisets": self._dandisets})
         try:
@@ -340,6 +357,14 @@ class PhotometryVerdictCache:
             self.path.write_text(serialized)
         except OSError as error:
             logger.warning("Could not write the photometry verdict cache %s: %s", self.path, error)
+
+
+def _parse_dandiset_verdicts(stored: dict[str, object]) -> dict[str, list]:
+    """Read the ``dandisets`` block of a verdict file as ``[holds, version, modified]`` lists."""
+    return {
+        identifier: [bool(value[0]), str(value[1]), str(value[2])]
+        for identifier, value in (stored.get("dandisets") or {}).items()
+    }
 
 
 def default_verdict_cache_path() -> Path:
@@ -421,7 +446,7 @@ class DandisetReference:
 
     The crawl visits every dandiset on the archive, and fetching each one's metadata to do
     that would cost a request per dandiset for information only the confirmed ones ever
-    display. The archive's own listing carries these three fields already.
+    display. The archive's own listing carries these four fields already.
 
     Attributes
     ----------
@@ -431,11 +456,14 @@ class DandisetReference:
         The version to read: its newest published one, else its draft.
     asset_count : int
         How many assets that version holds.
+    modified : str
+        When that version last changed, as the archive's ISO 8601 timestamp.
     """
 
     identifier: str
     version: str
     asset_count: int
+    modified: str
 
     @classmethod
     def from_summary(cls, summary: DandisetSummary) -> "DandisetReference":
@@ -444,7 +472,32 @@ class DandisetReference:
             identifier=summary.identifier,
             version=summary.version,
             asset_count=summary.file_count,
+            modified=summary.modified,
         )
+
+    @classmethod
+    def from_listing_row(cls, row: dict[str, object]) -> "DandisetReference":
+        """Return the reference describing one row of the archive's dandiset listing."""
+        version_record = _version_record(row)
+        return cls(
+            identifier=row["identifier"],
+            version=version_record["version"],
+            asset_count=version_record["asset_count"],
+            modified=version_record["modified"],
+        )
+
+
+def list_archive_dandisets() -> list[DandisetReference]:
+    """List every public dandiset on the DANDI Archive that holds at least one asset.
+
+    Returns
+    -------
+    list of DandisetReference
+        One reference per dandiset, in the archive's own order.
+    """
+    with DandiAPIClient() as client:
+        rows = client.paginate("/dandisets/", params={"empty": "false", "page_size": 100})
+        return [DandisetReference.from_listing_row(row) for row in rows]
 
 
 def order_for_verification(
@@ -547,6 +600,81 @@ def verify_dandisets(
     return verdicts
 
 
+def refresh_bundled_verdicts(
+    references: Sequence[DandisetReference],
+    *,
+    bundled_path: Path = BUNDLED_VERDICT_CACHE_PATH,
+    cache_path: Path | None = None,
+    list_assets_function: object = list_nwb_assets,
+    process_count: int = SCAN_PROCESS_COUNT,
+    on_verdict: Callable[[DandisetReference, bool | None], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> dict[str, bool]:
+    """Read every dandiset whose bundled verdict is out of date, rewriting the bundle as it goes.
+
+    The bundle being refreshed is consulted like any other cache, so only the dandisets that
+    are new or have changed since it was last written are read. The bundle is rewritten after
+    each dandiset settles, so an interrupted refresh keeps what it reached and the next one
+    resumes from there. It holds a verdict for every one of ``references`` that has one: what
+    this run settled, and what the old bundle already knew about the rest. Dandisets that are
+    unresolved, or not yet reached, are left out and read on the next refresh.
+
+    Parameters
+    ----------
+    references : sequence of DandisetReference
+        Every dandiset the bundle should cover, as :func:`list_archive_dandisets` returns them.
+    bundled_path : Path, optional
+        The bundle to refresh. Defaults to the file shipped with GuPPy.
+    cache_path : Path or None, optional
+        User cache the run reads and extends, so asset verdicts carry over between runs.
+        Defaults to GuPPy's user cache directory.
+    list_assets_function : callable, optional
+        Injection point for each dandiset's asset listing.
+    process_count : int, optional
+        How many assets to scan at once.
+    on_verdict : callable or None, optional
+        Called with each reference and its verdict as soon as that dandiset settles.
+    should_stop : callable or None, optional
+        Consulted before each dandiset; a true answer ends the run early and writes the
+        verdicts reached so far.
+
+    Returns
+    -------
+    dict of {str: bool}
+        Dandiset identifier mapped to the verdict now in the bundle.
+    """
+    cache = PhotometryVerdictCache(cache_path, bundled_path=bundled_path)
+
+    def write_bundle() -> dict[str, bool]:
+        entries = {}
+        for reference in sorted(references, key=lambda reference: reference.identifier):
+            holds = cache.dandiset_verdict(reference)
+            if holds is not None:
+                entries[reference.identifier] = [holds, reference.version, reference.modified]
+        # One dandiset per line, so that a refresh reads as a reviewable diff.
+        lines = [f"  {json.dumps(identifier)}: {json.dumps(entry)}" for identifier, entry in entries.items()]
+        # Written beside the bundle and moved over it, so an interruption mid-write cannot leave it truncated.
+        partial_path = Path(bundled_path).with_suffix(".partial")
+        partial_path.write_text('{"dandisets": {\n' + ",\n".join(lines) + "\n}}\n")
+        partial_path.replace(bundled_path)
+        return {identifier: entry[0] for identifier, entry in entries.items()}
+
+    def record(reference: DandisetReference, holds: bool | None) -> None:
+        write_bundle()
+        if on_verdict is not None:
+            on_verdict(reference, holds)
+
+    verify_dandisets(
+        order_for_verification(references),
+        list_assets_function=list_assets_function,
+        cache=cache,
+        process_count=process_count,
+        on_verdict=record,
+        should_stop=should_stop,
+    )
+    return write_bundle()
+
+
 def _list_for_verification(
     *,
     reference: DandisetReference,
@@ -642,6 +770,8 @@ def _dandiset_holds_photometry(
     if assets is None:
         return None
     if not assets:
+        if cache is not None:
+            cache.record_dandiset(reference, False)
         return False
 
     outstanding = scan_order(assets)

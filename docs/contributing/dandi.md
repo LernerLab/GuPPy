@@ -118,19 +118,44 @@ both can run at once on their own threads. It holds two kinds of verdict:
 
 - **Per asset**, keyed by the asset's immutable DANDI ID. An asset's content never changes under
   its ID, so this verdict never expires.
-- **Per dandiset**, keyed by identifier *and* the asset count it was reached at. A positive is
-  permanent, but a negative is only true of the assets that existed when it was taken, so a
-  dandiset that grows is read again.
+- **Per dandiset**, keyed by identifier *and* the version and `modified` timestamp the archive's
+  listing reported when it was reached. Any change to the dandiset moves its `modified`, and
+  publishing moves its version, so either one sends the dandiset to be read again.
 
 `default_verdict_cache_path()` resolves to `dandi_photometry_verdicts.json` under the platform
 cache directory — `~/Library/Caches/guppy/` on macOS, `~/.cache/guppy/` on Linux,
-`%LOCALAPPDATA%\LernerLab\guppy\Cache\` on Windows. Deleting it forces every verdict to be read
-again, which is what to do after a change to the check that would give a file a different answer
-than the one on disk:
+`%LOCALAPPDATA%\LernerLab\guppy\Cache\` on Windows.
+
+Beneath the user's cache sits a bundled one, `src/guppy/utils/bundled_dandi_photometry_verdicts.json`,
+which ships with GuPPy and holds per-dandiset verdicts for every public dandiset on the archive. The
+user's verdicts are consulted first, and only the user's are ever written. The
+`refresh-bundled-dandi-cache` workflow rebuilds the bundle on the first of each month with
+`refresh_bundled_verdicts`, which reads only the dandisets that are new or changed since the bundle
+was written, and opens a pull request with the result for review. It can also be started by hand
+from the Actions tab. A refresh that has a lot to read, such as the first one, is easier to run
+locally from a checkout with GuPPy installed in editable mode, so that the bundle is written into
+the checkout:
+
+```bash
+python .github/scripts/refresh_bundled_dandi_cache.py
+```
+
+It shows a progress bar over the archive's dandisets and rewrites the bundle as each one settles,
+so an interrupted run keeps what it reached and the next run resumes from there.
+
+After a change to the check that would give a file a different answer than the one on disk, clear
+the user's cache and launch without the bundle to read every file again:
 
 ```bash
 guppy --clear-dandi-cache
 ```
+
+```bash
+guppy --no-bundled-dandi-cache
+```
+
+The bundle itself then needs rebuilding from scratch: empty its `dandisets` block before running
+the refresh workflow, since unchanged dandisets would otherwise keep their old verdicts.
 
 ## Panels
 

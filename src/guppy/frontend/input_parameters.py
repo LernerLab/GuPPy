@@ -10,6 +10,7 @@ import panel as pn
 from .dandi_file_panel import DandiFilePanel
 from .frontend_utils import default_root_path
 from ..settings import remember_root_folders, remembered_root_folders
+from ..utils.dandi_filter import BUNDLED_VERDICT_CACHE_PATH, PhotometryVerdictCache
 from ..utils.utils import (
     common_parent_directory,
     discover_run_folders,
@@ -167,6 +168,8 @@ class ParameterForm:
         Folder the session folders live under, pre-selected in the Root Folder Selection card.
     output_root_folder : str, optional
         Folder the mirrored output tree is written into, pre-selected in the same card.
+    use_bundled_dandi_cache : bool, optional
+        Whether the DANDI catalog filter falls back on the dandiset verdicts shipped with GuPPy.
     """
 
     def __init__(
@@ -175,8 +178,10 @@ class ParameterForm:
         template: object,
         input_root_folder: str | None = None,
         output_root_folder: str | None = None,
+        use_bundled_dandi_cache: bool = True,
     ) -> None:
         self.template = template
+        self.use_bundled_dandi_cache = use_bundled_dandi_cache
         # Where the file browsers open before a root is chosen. Choosing an input root
         # re-points the session browser, so this only shows until then.
         self.folder_path = default_root_path()
@@ -269,7 +274,12 @@ class ParameterForm:
         )
         self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
 
-        self.dandi_file_panel = DandiFilePanel(styles=self.styles)
+        self.dandi_file_panel = DandiFilePanel(
+            styles=self.styles,
+            verdict_cache=PhotometryVerdictCache(
+                bundled_path=BUNDLED_VERDICT_CACHE_PATH if self.use_bundled_dandi_cache else None
+            ),
+        )
         # Hidden by default; shown when source_mode == "dandi"
         self.dandi_file_panel.panel.visible = False
 

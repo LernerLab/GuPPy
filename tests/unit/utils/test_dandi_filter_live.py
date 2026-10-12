@@ -52,11 +52,11 @@ class TestDandiFilterAgainstTheArchive(DandiFilterTestMixin):
 
     @pytest.fixture(scope="class")
     def photometry_dandiset(self):
-        return DandisetReference(identifier=DANDISET_ID, version="draft", asset_count=4139)
+        return DandisetReference(identifier=DANDISET_ID, version="draft", asset_count=4139, modified="")
 
     def test_a_dandiset_that_only_writes_about_photometry_is_ruled_out(self):
         # 000251 mentions photometry in its text but stores fluorescence without the
         # ndx-fiber-photometry types, so GuPPy cannot read it and it must not be offered.
         # Ruling a dandiset out has no shortcut -- this reads all 513 of its assets.
-        reference = DandisetReference(identifier="000251", version="draft", asset_count=513)
+        reference = DandisetReference(identifier="000251", version="draft", asset_count=513, modified="")
         assert verify_dandisets([reference]) == {"000251": False}

@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 def build_homepage(
-    *, input_root_folder: str | None = None, output_root_folder: str | None = None
+    *,
+    input_root_folder: str | None = None,
+    output_root_folder: str | None = None,
+    use_bundled_dandi_cache: bool = True,
 ) -> pn.template.BootstrapTemplate:
     """
     Build and return the GuPPy Panel web-application template.
@@ -41,6 +44,8 @@ def build_homepage(
         Directory the session folders live under, pre-selected in the form.
     output_root_folder : str or None, optional
         Directory the mirrored output tree is written into, pre-selected in the form.
+    use_bundled_dandi_cache : bool, optional
+        Whether the DANDI catalog filter falls back on the dandiset verdicts shipped with GuPPy.
 
     Returns
     -------
@@ -67,6 +72,7 @@ def build_homepage(
         template=template,
         input_root_folder=input_root_folder,
         output_root_folder=output_root_folder,
+        use_bundled_dandi_cache=use_bundled_dandi_cache,
     )
     sidebar = Sidebar(template=template)
 
