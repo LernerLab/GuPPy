@@ -201,6 +201,31 @@ class TestVisualizeResultsSelectionSources:
             visualizeResults(parameters)
 
 
+class TestVisualizeResultsLegacyTables:
+    def test_raises_for_a_run_folder_holding_h5_psth_tables(
+        self, tmp_path, make_session, make_parameters, base_input_parameters
+    ):
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "storesList.csv").write_text("Dv1A,Dv2A,PrtN\ncontrol_region,signal_region,ttl\n")
+        (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+        # Earlier versions also wrote the peak/AUC table as CSV, which matches the PSTH file patterns.
+        (run_folder / "peak_AUC_ttl_region_z_score_region.h5").write_bytes(b"")
+        (run_folder / "peak_AUC_ttl_region_z_score_region.csv").write_text("")
+
+        with pytest.raises(ValueError, match="Rerun Step 4"):
+            visualizeResults({**base_input_parameters, **make_parameters(session_dir)})
+
+    def test_raises_for_a_run_folder_holding_tonic_epochs_without_their_means(
+        self, tmp_path, make_session, make_parameters, base_input_parameters
+    ):
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "tonic_epochs_region.csv").write_text("label,start,end\nbaseline,0,10\n")
+        (run_folder / "tonic_region.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Open Tonic Analysis"):
+            visualizeResults({**base_input_parameters, **make_parameters(session_dir)})
+
+
 class TestHelperPlots:
     """A directory the visualizer cannot plot is skipped, so the rest still open."""
 

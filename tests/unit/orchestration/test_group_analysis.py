@@ -19,6 +19,7 @@ from guppy.orchestration.group_analysis import (
     _validate_covariate_correlations_consistent_for_group,
     _validate_fiber_recording_sites_consistent_for_group,
     _validate_tonic_epochs_consistent_for_group,
+    average_one_group,
 )
 from guppy.utils.utils import GROUP_MEMBERS_FILENAME
 
@@ -287,3 +288,40 @@ class TestValidateCovariateCorrelationsConsistentForGroup:
 
         with pytest.raises(ValueError, match="covariates akinesia, grooming"):
             _validate_covariate_correlations_consistent_for_group(member_run_folders=member_run_folders, sites=["DMS"])
+
+
+class TestAverageOneGroup:
+    @pytest.fixture
+    def member_run_folder(self, tmp_path, write_stores_list):
+        run_folder = Path(
+            write_stores_list(tmp_path / "session1" / "session1_output_1", ["control_dms", "signal_dms", "ttl"])
+        )
+        (run_folder / "GuPPyParamtersUsed.json").write_text(json.dumps({"binnedMetricsWidth": 50}))
+        return run_folder
+
+    @pytest.fixture
+    def group_folder(self, tmp_path, member_run_folder):
+        """A group of the one member, holding a result from an earlier averaging."""
+        folder = tmp_path / "saline_group"
+        folder.mkdir()
+        (folder / GROUP_MEMBERS_FILENAME).write_text(json.dumps({"member_run_folders": [str(member_run_folder)]}))
+        (folder / "ttl_dms_z_score_dms.csv").write_text("")
+        return folder
+
+    def test_rejects_a_member_holding_h5_psth_tables(self, member_run_folder, group_folder, base_input_parameters):
+        (member_run_folder / "ttl_dms_z_score_dms.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Rerun Step 4"):
+            average_one_group(group_folder=str(group_folder), inputParameters=base_input_parameters)
+
+        # The member is rejected before the group's earlier results are cleared.
+        assert (group_folder / "ttl_dms_z_score_dms.csv").exists()
+
+    def test_rejects_a_member_holding_tonic_epochs_without_their_means(
+        self, member_run_folder, group_folder, base_input_parameters
+    ):
+        (member_run_folder / "tonic_epochs_dms.csv").write_text("label,start,end\nbaseline,0,10\n")
+        (member_run_folder / "tonic_dms.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Open Tonic Analysis"):
+            average_one_group(group_folder=str(group_folder), inputParameters=base_input_parameters)

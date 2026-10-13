@@ -14,7 +14,11 @@ from ..utils.utils import (
     relative_output_labels,
     select_run_folders,
 )
-from ..utils.validation import validate_group_definitions
+from ..utils.validation import (
+    validate_group_definitions,
+    validate_no_legacy_psth_tables,
+    validate_tonic_means_present,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,11 +169,15 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     Raises
     ------
     ValueError
-        When a selected group directory is not usable, or when no selected output
-        directory holds step-4 PSTH results.
+        When a selected group directory is not usable, when a selected output directory
+        holds PSTH results only as ``.h5`` files or tonic epochs without their means, or
+        when no selected output directory holds step-4 PSTH results.
     """
     inputParameters = inputParameters
 
+    output_directories = _output_directories(inputParameters)
+    validate_no_legacy_psth_tables(output_directories=output_directories)
+    validate_tonic_means_present(output_directories=output_directories)
     _validate_psth_outputs_exist(inputParameters)
     group_folders = list(inputParameters.get("selected_group_folders") or [])
     validate_group_definitions(group_folders=group_folders)

@@ -43,6 +43,8 @@ from ..utils.utils import (
 from ..utils.validation import (
     validate_group_folders_selected,
     validate_group_member_run_folders,
+    validate_no_legacy_psth_tables,
+    validate_tonic_means_present,
 )
 
 logger = logging.getLogger(__name__)
@@ -400,6 +402,8 @@ def average_one_group(*, group_folder: str, inputParameters: dict[str, object]) 
     """
     member_run_folders = read_group_members(group_folder=group_folder)
     validate_group_member_run_folders(member_run_folders=member_run_folders)
+    validate_no_legacy_psth_tables(output_directories=member_run_folders)
+    validate_tonic_means_present(output_directories=member_run_folders)
     _validate_fiber_recording_sites_consistent_for_group(member_run_folders=member_run_folders)
     tonic_sites = _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX)
     _validate_tonic_epochs_consistent_for_group(member_run_folders=member_run_folders, sites=tonic_sites)
