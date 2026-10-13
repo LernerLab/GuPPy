@@ -1,1 +1,1 @@
-["ubuntu-latest", "macos-latest", "windows-2022"]
+["ubuntu-latest", "macos-latest", "windows-latest"]

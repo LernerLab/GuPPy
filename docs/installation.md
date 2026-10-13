@@ -1,6 +1,6 @@
 # Installation
 
-GuPPy runs on Windows, macOS and Linux, and requires **Python 3.11 or greater**.
+GuPPy runs on Windows 11, macOS and Linux, and requires **Python 3.11 or greater**.
 
 ## Step 1: Install Conda
 
