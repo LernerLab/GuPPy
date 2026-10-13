@@ -11,7 +11,6 @@ from guppy.frontend.parameterized_plotter import (
     ParameterizedPlotter,
     available_psth_metrics,
     build_plotter,
-    make_dir,
     overview_y_options,
     psth_result_paths,
     remove_cols,
@@ -193,28 +192,6 @@ def test_overview_y_options_keeps_mean_all_and_bins_drops_trials():
     columns = ["trial_1", "trial_2", "bin_(0-5)", "timestamps", "mean", "err", "bin_err_(0-5)", "All"]
     result = overview_y_options(columns)
     assert result == ["bin_(0-5)", "mean", "All"]
-
-
-# ---------------------------------------------------------------------------
-# make_dir utility
-# ---------------------------------------------------------------------------
-
-
-def test_make_dir_creates_saved_plots_directory(tmp_path):
-    make_dir(str(tmp_path))
-    assert (tmp_path / "saved_plots").is_dir()
-
-
-def test_make_dir_returns_correct_path(tmp_path):
-    result = make_dir(str(tmp_path))
-    assert result == tmp_path / "saved_plots"
-
-
-def test_make_dir_is_idempotent(tmp_path):
-    make_dir(str(tmp_path))
-    # Second call must not raise even though directory already exists
-    result = make_dir(str(tmp_path))
-    assert result == tmp_path / "saved_plots"
 
 
 # ---------------------------------------------------------------------------
@@ -499,7 +476,6 @@ class TestParameterizedPlotter:
         plot = plotter.update_selector()
 
         assert plot is not None
-        assert plotter.results_psth["op_combine"].parts[-2:] == ("saved_plots", "['event1_bin_1']_mean")
 
     def test_cont_plot_all_trials_branch(self, plotter):
         plotter.param["y"].objects = ["trial_1", "trial_2", "trial_3", "bin_1", "mean", "All"]
@@ -508,7 +484,6 @@ class TestParameterizedPlotter:
         plot = plotter.contPlot()
 
         assert plot is not None
-        assert plotter.results_psth["op"].parts[-2:] == ("saved_plots", "event1_All")
 
     def test_plot_specific_trials_mean_branch(self, plotter):
         plotter.psth_y = ["1 - trial_1", "2 - trial_2"]
@@ -532,7 +507,17 @@ class TestParameterizedPlotter:
         image = plotter.heatmap()
 
         assert image is not None
-        assert plotter.results_hm["op"].parts[-2:] == ("saved_plots", "event1_heatmap")
+
+    def test_rendering_every_plot_writes_nothing_to_the_run_folder(self, plotter, tmp_path):
+        plotter.param["y"].objects = ["trial_1", "bin_1", "mean", "All"]
+        for y in ["trial_1", "bin_1", "mean", "All"]:
+            plotter.y = y
+            plotter.contPlot()
+        plotter.update_selector()
+        plotter.plot_specific_trials()
+        plotter.heatmap()
+
+        assert list(tmp_path.iterdir()) == []
 
     def test_heatmap_single_trial_uses_datashaded_path(self, single_trial_plotter, plotter):
         # A single-trial heatmap used to build a raw QuadMesh spanning the full
