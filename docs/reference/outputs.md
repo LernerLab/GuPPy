@@ -29,7 +29,6 @@ Three further directories can appear:
 | `cross_correlation_output/` | inside a run folder | Step 4, when **Compute Cross-correlation** is enabled |
 | `psth_significance_output/` | inside a run or group folder | Step 4 and Group Analysis, when **Compute PSTH Significance?** is enabled |
 | `<name>_group/` | in the destination directory you pick | the Label Groups step (definition) and the Group Analysis step (results) |
-| `saved_plots/` | inside a run folder | Step 5 — created but left empty, see [Step 5](#step-5-visualize-the-results) |
 
 A group directory is not inside any session folder. It is created in the destination directory chosen on the Label Groups page.
 
@@ -257,7 +256,7 @@ Two cases where a bin does not correspond to a fixed stretch of wall-clock time:
 
 ## Step 5: Visualize the results
 
-Step 5 writes no data. It creates a `saved_plots/` subdirectory inside the run folder, but nothing is ever written into it: the **Save As** buttons deliver the figure to the browser as a PNG or SVG download, so exported figures land wherever your browser saves downloads.
+Step 5 writes no data. The **Save As** buttons deliver the figure to the browser as a PNG or SVG download, so exported figures land wherever your browser saves downloads.
 
 ---
 
@@ -400,7 +399,6 @@ The first key is `guppy_version`, the installed version of the `guppy-neuro` pac
       corr_<event>_<metric-prefix>_<siteA>_<siteB>.csv  step 4
     psth_significance_output/
       significance_<comparison>.csv                     step 4
-    saved_plots/                                   step 5, created empty
     nwb_metadata.yaml                              step 6, optional
     <session_name>_output_<run_name>.nwb           step 7, optional
 
