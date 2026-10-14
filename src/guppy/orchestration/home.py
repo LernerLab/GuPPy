@@ -52,7 +52,9 @@ def build_homepage(
     template : pn.template.BootstrapTemplate
         Fully wired Panel template ready to be served or shown.
     """
-    pn.extension(notifications=True)
+    # Naming tabulator here keeps its JavaScript in every session's page, not only the first one
+    # served, since a session's pn.extension call replaces the extensions declared before it.
+    pn.extension("tabulator", notifications=True)
     current_dir = str(Path.cwd())
     # Guards against launching a second pipeline step while one is still running — the
     # handlers no longer block the IOLoop, so without this a user could start overlapping
