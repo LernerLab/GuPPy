@@ -10,6 +10,28 @@ Label Stores GUI.
 This is an **optional** step. If all the events you care about are already in
 the recording, skip it.
 
+## Put event times on the recording's clock
+
+Event times are in seconds, on the same clock GuPPy uses for the recording. Which
+clock that is depends on the acquisition format:
+
+- TDT: seconds from the start of the recording, so the first sample is at `0`.
+- Every other format: the clock the acquisition system wrote, which often does not
+  start at zero. A Neurophotometrics session might report its first sample at
+  `53116.2` seconds.
+
+Times measured from the start of the session, such as elapsed time in a video
+started together with the photometry, need the recording's first timestamp added to
+each one before you import them. Step 3 records that value as `recordingStart` in
+each run's `timeCorrection_<site>.hdf5` (see
+[Output data model](../reference/outputs.md)). For a Neurophotometrics session you
+can also read it from the first row of the timestamp column in the photometry CSV,
+divided by 1000 if that column is in milliseconds.
+
+If Step 4 stops with an error saying an event store "spans" a range where "Every
+trial would be empty", the event times and the signal are on different clocks. The
+message prints both ranges, so you can compare them directly.
+
 ## Option 1: Paste timestamps in the GUI
 
 Use this when you have a list of event times to hand (e.g. a column copied from
@@ -57,8 +79,8 @@ The format is deliberately minimal:
 
 - A single column with the header `timestamps` (matched case-insensitively, so
   `Timestamps` or `TIMESTAMPS` work too).
-- One event time per row, in **seconds**, on the same time base as the
-  recording.
+- One event time per row, in **seconds**, on the recording's clock (see
+  [Put event times on the recording's clock](#put-event-times-on-the-recordings-clock)).
 - The **file name** (minus `.csv`) becomes the event/store name.
 
 For example, `movement_onset.csv`:

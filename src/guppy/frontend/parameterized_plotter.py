@@ -88,26 +88,6 @@ def overview_y_options(columns: list[str]) -> list[str]:
     return [column for column in remove_cols(columns) if column in ("mean", "All") or bin_pattern.match(column)]
 
 
-# make a new directory for saving plots
-def make_dir(filepath: str) -> str:
-    """Create (if needed) and return the ``saved_plots`` subdirectory under ``filepath``.
-
-    Parameters
-    ----------
-    filepath : str
-        Path to the session directory.
-
-    Returns
-    -------
-    Path
-        Absolute path to the ``saved_plots`` directory.
-    """
-    run_folder = Path(filepath) / "saved_plots"
-    run_folder.mkdir(exist_ok=True)
-
-    return run_folder
-
-
 def _headless_chrome_options() -> Options:  # pragma: no cover - configures a real browser subprocess
     options = Options()
     # Modern Chrome (109+) needs the "=new" form; the bare "--headless" flag is
@@ -248,11 +228,6 @@ class ParameterizedPlotter(param.Parameterized):
         # export figure must not be mistaken for the live one, so _range_sync_hook
         # skips recording it (see _render_download).
         self._exporting = False
-
-        # Last rendered plot and its output filename, per plot kind, read back by the
-        # "Save As…" download callbacks.
-        self.results_hm: dict[str, object] = {}
-        self.results_psth: dict[str, object] = {}
 
     _RANGE_PLOTS = (
         ("cont", "cont_X", "cont_Y"),
@@ -663,17 +638,12 @@ class ParameterizedPlotter(param.Parameterized):
                 .opts(opts.Curve(color=palette_colors), opts.Spread(fill_color=palette_colors))
                 .opts(shared_axes=False)
             )
-            run_folder = make_dir(self.filepath)
-            output_filename = Path(run_folder) / (str(selected_events) + "_mean")
-
             plot_combine = plot_combine.opts(
                 hooks=[
                     self._range_sync_hook("overlay", "overlay_X", "overlay_Y"),
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            self.results_psth["plot_combine"] = plot_combine
-            self.results_psth["op_combine"] = output_filename
             return plot_combine
 
     # function to plot mean PSTH, single trial in PSTH and all the trials of PSTH with mean
@@ -740,11 +710,6 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            run_folder = make_dir(self.filepath)
-            output_filename = Path(run_folder) / (self.event_selector + "_" + self.y)
-            self.results_psth["plot"] = image
-            self.results_psth["op"] = output_filename
-
             return image
 
         elif self.y == "mean" or "bin" in self.y:
@@ -788,11 +753,6 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            run_folder = make_dir(self.filepath)
-            output_filename = Path(run_folder) / (self.event_selector + "_" + self.y)
-            self.results_psth["plot"] = plot
-            self.results_psth["op"] = output_filename
-
             return plot
 
         else:
@@ -817,11 +777,6 @@ class ParameterizedPlotter(param.Parameterized):
                     self._hide_minor_ticks_hook("hide_minor_ticks"),
                 ]
             )
-            run_folder = make_dir(self.filepath)
-            output_filename = Path(run_folder) / (self.event_selector + "_" + self.y)
-            self.results_psth["plot"] = plot
-            self.results_psth["op"] = output_filename
-
             return plot
 
     # function to plot specific PSTH trials
@@ -913,11 +868,6 @@ class ParameterizedPlotter(param.Parameterized):
                 self._hide_minor_ticks_hook("hide_minor_ticks"),
             ]
         )
-
-        run_folder = make_dir(self.filepath)
-        output_filename = Path(run_folder) / (self.event_selector + "_selected_trials")
-        self.results_psth["trials"] = result
-        self.results_psth["op_trials"] = output_filename
         return result
 
     # function to show heatmaps for each event
@@ -1038,12 +988,6 @@ class ParameterizedPlotter(param.Parameterized):
                 self._hide_outer_border_hook("hide_outer_border_heatmap"),
             ]
         )
-
-        run_folder = make_dir(self.filepath)
-        output_filename = Path(run_folder) / (self.event_selector_heatmap + "_" + "heatmap")
-        self.results_hm["plot"] = image
-        self.results_hm["op"] = output_filename
-
         return image
 
 
