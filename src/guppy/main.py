@@ -56,6 +56,9 @@ def main(*, argv: list[str] | None = None) -> None:
     - --no-bundled-dandi-cache: Launch without the DANDI photometry scan results shipped with GuPPy
     - --input-root: Set the folder the session folders live under
     - --output-root: Set the folder the mirrored output tree is written into
+    - --port: Serve on a fixed port
+    - --address: Serve on a single network address
+    - --no-browser: Serve without opening a browser on this machine
     - (no flags): Launch the GUI application
 
     Parameters
@@ -98,6 +101,24 @@ def main(*, argv: list[str] | None = None) -> None:
         default=None,
         help="Folder the mirrored output tree is written into; remembered for the next launch",
     )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="Port to serve GuPPy on (default: a free port chosen at launch)",
+    )
+    parser.add_argument(
+        "--address",
+        type=str,
+        default=None,
+        help="Network address to serve GuPPy on, e.g. 127.0.0.1 to accept connections from this machine only "
+        "(default: every network interface)",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Serve without opening a browser on this machine, e.g. when GuPPy runs on a remote server",
+    )
 
     args = parser.parse_args(argv)
 
@@ -123,6 +144,9 @@ def main(*, argv: list[str] | None = None) -> None:
         input_root_folder=_resolve_root_folder(parser=parser, flag="--input-root", value=args.input_root),
         output_root_folder=_resolve_root_folder(parser=parser, flag="--output-root", value=args.output_root),
         use_bundled_dandi_cache=not args.no_bundled_dandi_cache,
+        port=args.port,
+        address=args.address,
+        open_browser=not args.no_browser,
     )
 
 

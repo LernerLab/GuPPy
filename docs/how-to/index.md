@@ -13,4 +13,5 @@ tonic-analysis
 group-analysis
 export-to-nwb
 correlate-behavioral-covariates
+run-in-a-container
 ```

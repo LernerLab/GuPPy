@@ -149,6 +149,21 @@ class TestMain:
         assert served == {}
         assert exported == []
 
+    @pytest.mark.parametrize(
+        ("argv", "expected_kwargs"),
+        [
+            ([], {"port": 0, "address": None, "show": True}),
+            (["--port", "5006"], {"port": 5006, "address": None, "show": True}),
+            (["--address", "127.0.0.1"], {"port": 0, "address": "127.0.0.1", "show": True}),
+            (["--no-browser"], {"port": 0, "address": None, "show": False}),
+        ],
+        ids=["default", "port", "address", "no_browser"],
+    )
+    def test_the_server_flags_reach_the_server(self, served, exported, argv, expected_kwargs):
+        main(argv=argv)
+
+        assert served["kwargs"] == expected_kwargs
+
     def test_unrecognized_argument_exits(self, served, exported):
         with pytest.raises(SystemExit):
             main(argv=["--not-a-flag"])
