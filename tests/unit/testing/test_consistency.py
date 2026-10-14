@@ -5,14 +5,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.analysis.psth_utils import write_psth_table
-from guppy.analysis.standard_io import write_peak_and_area_to_csv
 from guppy.testing.consistency import (
     _collect_relative_paths,
     _compare_json_values,
-    _compare_table,
     _normalize_psth_index,
     _normalize_psth_label,
+    _normalize_psth_str_array,
     compare_output_folders,
 )
 
@@ -29,6 +27,14 @@ class TestNormalizationHelpers:
         result = _normalize_psth_index(index)
 
         assert list(result) == ["1.2", "session_2.3"]
+
+    def test_normalize_psth_str_array_normalizes_bytes_and_preserves_shape(self):
+        values = np.array([[b"1.2000000000000002", b"session_2.3000000000000003"]], dtype=object)
+
+        result = _normalize_psth_str_array(values)
+
+        assert result.shape == (1, 2)
+        assert result.tolist() == [["1.2", "session_2.3"]]
 
     def test_normalize_psth_label_applies_bare_and_prefixed_offsets(self):
         # Bare event-ts label shifts by bare_offset.
@@ -126,6 +132,25 @@ class TestCompareOutputFolders:
         assert "MISSING in actual: missing.csv" in message
         assert "different.csv: CSV content differs" in message
 
+    def test_compare_output_folders_normalizes_psth_axis_labels_for_z_score_hdf5(self, tmp_path):
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        expected_path = expected_directory / "z_score_region.h5"
+        actual_path = actual_directory / "z_score_region.h5"
+
+        with h5py.File(expected_path, "w") as expected_file:
+            expected_file.create_dataset("axis0", data=np.array([b"1.2000000000000002", b"session_2.3000000000000003"]))
+            expected_file.create_dataset("values", data=np.array([1.0, 2.0]))
+
+        with h5py.File(actual_path, "w") as actual_file:
+            actual_file.create_dataset("axis0", data=np.array([b"1.2", b"session_2.3"]))
+            actual_file.create_dataset("values", data=np.array([1.0, 2.0]))
+
+        compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
+
     def test_compare_output_folders_event_ts_offset_reconciles_ts_dataset(self, tmp_path):
         # Event-timestamp arrays (key "ts") moved to the recording-start basis:
         # actual == reference + timeForLightsTurnOn.
@@ -147,48 +172,78 @@ class TestCompareOutputFolders:
         with pytest.raises(AssertionError, match="'ts' numeric data differs"):
             compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
 
-    def test_compare_output_folders_compares_h5_reference_against_csv_output(self, tmp_path):
-        # The reference PSTH is a PyTables .h5 table; the current output is the CSV of the same stem.
+    def test_compare_output_folders_event_ts_offset_shifts_psth_bare_labels(self, tmp_path):
+        # z_score trial columns are bare event-ts floats; the reference is shifted into the
+        # current basis by event_ts_offset.
         expected_directory = tmp_path / "expected"
         actual_directory = tmp_path / "actual"
         expected_directory.mkdir()
         actual_directory.mkdir()
 
-        pd.DataFrame(
-            {"138.238440990448": [0.5, 1.5], "timestamps": [-1.0, 1.0], "mean": [0.5, 1.5], "err": [0.0, 0.0]}
-        ).to_hdf(expected_directory / "ttl_region_z_score_region.h5", key="df", mode="w")
-        psth = pd.DataFrame(
-            {"139.238440990448": [0.5, 1.5], "timestamps": [-1.0, 1.0], "mean": [0.5, 1.5], "err": [0.0, 0.0]}
-        )
-        write_psth_table(filepath=actual_directory, stem="ttl_region_z_score_region", psth=psth)
+        with h5py.File(expected_directory / "z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=np.array([b"138.238440990448", b"189.68911623954773"]))
+        with h5py.File(actual_directory / "z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=np.array([b"139.238440990448", b"190.68911623954773"]))
 
         compare_output_folders(
             actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
         )
-        # Without the offset the reference trial label is (correctly) flagged.
-        with pytest.raises(AssertionError, match="ttl_region_z_score_region.h5: table content differs"):
-            compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
 
     def test_compare_output_folders_event_ts_offset_does_not_shift_group_session_columns(self, tmp_path):
         # Group-average trial columns are session-run names (..._output_1) that match the
         # prefixed-float regex. They must compare equal even when event_ts_offset is set,
-        # because only bare-float PSTH column labels are event times.
+        # because a z_score (non-peak_AUC) file uses prefixed_offset=0.
         expected_directory = tmp_path / "expected"
         actual_directory = tmp_path / "actual"
         expected_directory.mkdir()
         actual_directory.mkdir()
 
-        psth = pd.DataFrame(
-            {
-                "Photo_048_output_1": [0.5, 1.5],
-                "Photo_63_output_1": [1.0, 2.0],
-                "timestamps": [-1.0, 1.0],
-                "mean": [0.75, 1.75],
-                "err": [0.25, 0.25],
-            }
+        cols = np.array([b"Photo_048_output_1", b"Photo_63_output_1"])
+        with h5py.File(expected_directory / "rewarded_z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=cols)
+        with h5py.File(actual_directory / "rewarded_z_score_region.h5", "w") as f:
+            f.create_dataset("axis0", data=cols)
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
         )
-        psth.to_hdf(expected_directory / "rewarded_z_score_region.h5", key="df", mode="w")
-        write_psth_table(filepath=actual_directory, stem="rewarded_z_score_region", psth=psth)
+
+    def test_compare_output_folders_event_ts_offset_shifts_peak_auc_hdf5_index_not_columns(self, tmp_path):
+        # peak_AUC HDF5 stores event-ts labels in the index axis (axis1) and structural
+        # column names (peak_pos_1, area_1) in axis0/block0_items. Only axis1 must shift;
+        # the "_1" column suffixes match the prefixed-float regex but must NOT shift.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        columns = np.array([b"peak_pos_1", b"area_1"])
+        with h5py.File(expected_directory / "peak_AUC_ttl_region.h5", "w") as f:
+            f.create_dataset("axis0", data=columns)
+            f.create_dataset("block0_items", data=columns)
+            f.create_dataset("axis1", data=np.array([b"sample_1_138.238440990448"]))
+        with h5py.File(actual_directory / "peak_AUC_ttl_region.h5", "w") as f:
+            f.create_dataset("axis0", data=columns)
+            f.create_dataset("block0_items", data=columns)
+            f.create_dataset("axis1", data=np.array([b"sample_1_139.238440990448"]))
+
+        compare_output_folders(
+            actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
+        )
+
+    def test_compare_output_folders_event_ts_offset_shifts_peak_auc_csv_index(self, tmp_path):
+        # peak_AUC row index is prefixed floats whose suffix IS the event ts → shift the suffix.
+        expected_directory = tmp_path / "expected"
+        actual_directory = tmp_path / "actual"
+        expected_directory.mkdir()
+        actual_directory.mkdir()
+
+        pd.DataFrame({"area": [0.5]}, index=["sample_data_csv_1_138.238440990448"]).to_csv(
+            expected_directory / "peak_AUC_ttl_region.csv"
+        )
+        pd.DataFrame({"area": [0.5]}, index=["sample_data_csv_1_139.238440990448"]).to_csv(
+            actual_directory / "peak_AUC_ttl_region.csv"
+        )
 
         compare_output_folders(
             actual_dir=str(actual_directory), expected_dir=str(expected_directory), event_ts_offset=1.0
@@ -262,8 +317,8 @@ class TestCompareOutputFolders:
         expected_directory.mkdir()
         actual_directory.mkdir()
 
-        expected_path = expected_directory / "plain_data.hdf5"
-        actual_path = actual_directory / "plain_data.hdf5"
+        expected_path = expected_directory / "plain_data.h5"
+        actual_path = actual_directory / "plain_data.h5"
 
         with h5py.File(expected_path, "w") as expected_file:
             expected_file.create_dataset("labels", data=np.array([b"A", b"B"]))
@@ -274,7 +329,7 @@ class TestCompareOutputFolders:
         with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
             compare_output_folders(actual_dir=str(actual_directory), expected_dir=str(expected_directory))
 
-        assert "plain_data.hdf5: 'labels' string data differs" in str(raised_error.value)
+        assert "plain_data.h5: 'labels' string data differs" in str(raised_error.value)
 
     def test_compare_output_folders_name_map_compares_renamed_file_by_data(self, tmp_path):
         # A reference file mapped to a differently-named actual file passes when the data matches.
@@ -370,9 +425,9 @@ class TestCompareOutputFolders:
         expected_directory.mkdir()
         actual_directory.mkdir()
 
-        with h5py.File(expected_directory / "plain_data.hdf5", "w") as expected_file:
+        with h5py.File(expected_directory / "plain_data.h5", "w") as expected_file:
             expected_file.create_dataset("labels", data=np.array([b"session_a_output_1", b"mean"]))
-        with h5py.File(actual_directory / "plain_data.hdf5", "w") as actual_file:
+        with h5py.File(actual_directory / "plain_data.h5", "w") as actual_file:
             actual_file.create_dataset("labels", data=np.array([b"session_a/output_1", b"mean"]))
 
         compare_output_folders(
@@ -387,9 +442,9 @@ class TestCompareOutputFolders:
         expected_directory.mkdir()
         actual_directory.mkdir()
 
-        with h5py.File(expected_directory / "plain_data.hdf5", "w") as expected_file:
+        with h5py.File(expected_directory / "plain_data.h5", "w") as expected_file:
             expected_file.create_dataset("labels", data=np.array([b"session_a_output_1", b"mean"]))
-        with h5py.File(actual_directory / "plain_data.hdf5", "w") as actual_file:
+        with h5py.File(actual_directory / "plain_data.h5", "w") as actual_file:
             actual_file.create_dataset("labels", data=np.array([b"session_a/output_1", b"median"]))
 
         with pytest.raises(AssertionError, match="Output folder comparison failed") as raised_error:
@@ -398,130 +453,7 @@ class TestCompareOutputFolders:
                 expected_dir=str(expected_directory),
                 label_map={"session_a_output_1": "session_a/output_1"},
             )
-        assert "plain_data.hdf5: 'labels' string data differs" in str(raised_error.value)
-
-
-class TestCompareTable:
-    def test_psth_reference_matches_csv_output_with_bins_and_shifted_labels(self, tmp_path):
-        # Reference columns are in the legacy in-memory order (trials, bins, timestamps, mean,
-        # err) and its bare-float trial labels sit 1.0 s before the current ones.
-        expected_path = tmp_path / "ttl_region_z_score_region.h5"
-        pd.DataFrame(
-            {
-                "138.238440990448": [0.5, 1.5],
-                "189.68911623954773": [1.5, 2.5],
-                "bin_(0-1)": [1.0, 2.0],
-                "bin_err_(0-1)": [0.5, 0.5],
-                "timestamps": [-1.0, 1.0],
-                "mean": [1.0, 2.0],
-                "err": [0.5, 0.5],
-            }
-        ).to_hdf(expected_path, key="df", mode="w")
-        psth = pd.DataFrame(
-            {
-                "139.238440990448": [0.5, 1.5],
-                "190.68911623954773": [1.5, 2.5],
-                "bin_(0-1)": [1.0, 2.0],
-                "bin_err_(0-1)": [0.5, 0.5],
-                "timestamps": [-1.0, 1.0],
-                "mean": [1.0, 2.0],
-                "err": [0.5, 0.5],
-            }
-        )
-        write_psth_table(filepath=tmp_path, stem="ttl_region_z_score_region", psth=psth)
-        mismatches = []
-
-        _compare_table(
-            tmp_path / "ttl_region_z_score_region.csv",
-            expected_path,
-            "ttl_region_z_score_region.h5",
-            mismatches,
-            1e-5,
-            1e-8,
-            event_ts_offset=1.0,
-        )
-
-        assert mismatches == []
-
-    @pytest.mark.parametrize("reference_suffix", [".h5", ".csv"])
-    def test_peak_auc_reference_matches_trials_and_bins_csvs(self, tmp_path, reference_suffix):
-        # The reference is one table indexed "<session>_<trial>", ordered per session as its
-        # trials, then its bins, then its mean, with event times 1.0 s before the current ones.
-        expected_directory = tmp_path / "expected"
-        actual_directory = tmp_path / "actual"
-        expected_directory.mkdir()
-        actual_directory.mkdir()
-        expected = pd.DataFrame(
-            {"peak_pos_1": [1.0, 2.0, 1.5, 1.5, 3.0, 2.5, 3.0], "area_1": [0.5, 1.0, 0.75, 0.75, 1.5, 1.25, 1.5]},
-            index=[
-                "session_a_138.238440990448",
-                "session_a_189.68911623954773",
-                "session_a_bin_(0-1)",
-                "session_a_mean",
-                "session_b_12.5",
-                "session_b_bin_(0-1)",
-                "session_b_mean",
-            ],
-        )
-        expected_path = expected_directory / ("peak_AUC_ttl_region_z_score_region" + reference_suffix)
-        if reference_suffix == ".h5":
-            expected.to_hdf(expected_path, key="df", mode="w")
-        else:
-            expected.to_csv(expected_path)
-        trials = pd.DataFrame(
-            {
-                "session": ["session_a", "session_a", "session_a", "session_b", "session_b"],
-                "trial": ["139.238440990448", "190.68911623954773", "mean", "13.5", "mean"],
-                "peak_pos_1": [1.0, 2.0, 1.5, 3.0, 3.0],
-                "area_1": [0.5, 1.0, 0.75, 1.5, 1.5],
-            }
-        )
-        bins = pd.DataFrame(
-            {
-                "session": ["session_a", "session_b"],
-                "bin": ["bin_(0-1)", "bin_(0-1)"],
-                "peak_pos_1": [1.5, 2.5],
-                "area_1": [0.75, 1.25],
-            }
-        )
-        write_peak_and_area_to_csv(
-            filepath=actual_directory, trials=trials, bins=bins, name="ttl_region_z_score_region"
-        )
-        mismatches = []
-
-        _compare_table(
-            actual_directory / "peak_AUC_ttl_region_z_score_region.csv",
-            expected_path,
-            expected_path.name,
-            mismatches,
-            1e-5,
-            1e-8,
-            event_ts_offset=1.0,
-        )
-
-        assert mismatches == []
-
-    def test_reports_a_numeric_mismatch(self, tmp_path):
-        expected_path = tmp_path / "ttl_region_z_score_region.h5"
-        pd.DataFrame({"12.5": [0.5, 1.5], "timestamps": [-1.0, 1.0], "mean": [0.5, 1.5], "err": [0.0, 0.0]}).to_hdf(
-            expected_path, key="df", mode="w"
-        )
-        psth = pd.DataFrame({"12.5": [0.5, 1.5], "timestamps": [-1.0, 1.0], "mean": [0.5, 2.5], "err": [0.0, 0.0]})
-        write_psth_table(filepath=tmp_path, stem="ttl_region_z_score_region", psth=psth)
-        mismatches = []
-
-        _compare_table(
-            tmp_path / "ttl_region_z_score_region.csv",
-            expected_path,
-            "ttl_region_z_score_region.h5",
-            mismatches,
-            1e-5,
-            1e-8,
-        )
-
-        assert len(mismatches) == 1
-        assert mismatches[0].startswith("ttl_region_z_score_region.h5: table content differs")
-        assert '"mean"' in mismatches[0]
+        assert "plain_data.h5: 'labels' string data differs" in str(raised_error.value)
 
 
 class TestCompareJsonFilePath:
