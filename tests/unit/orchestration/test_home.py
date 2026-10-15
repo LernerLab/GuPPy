@@ -548,3 +548,65 @@ class TestSelectArtifactWindowsHandler:
         assert len(captured_notifications) == 1
         assert error_text in captured_notifications[0]["message"]
         assert captured_notifications[0]["duration"] == 0
+
+
+PAGE_OPENING_HANDLERS = [
+    ("onclickImportCustomEvents", "orchestrate_custom_events_page", "import_custom_events"),
+    ("onclickVisualization", "visualizeResults", "open_visualization"),
+    ("onclickSelectArtifactWindows", "orchestrate_select_artifact_windows", "select_artifact_windows"),
+    ("onclickTonicAnalysis", "orchestrate_tonic_analysis", "tonic_analysis"),
+    ("onclickLabelGroups", "orchestrate_group_labeling_page", "label_groups"),
+    ("onclickMetadata", "orchestrate_metadata_page", "open_metadata"),
+]
+
+
+@pytest.mark.parametrize(
+    "hook_name, orchestrator, button_name", PAGE_OPENING_HANDLERS, ids=[name for _, _, name in PAGE_OPENING_HANDLERS]
+)
+def test_a_page_opening_click_fills_its_tab(
+    homepage, selected_session, monkeypatch, tab_messages, hook_name, orchestrator, button_name
+):
+    monkeypatch.setattr(
+        f"guppy.orchestration.home.{orchestrator}",
+        lambda params: page_links.offer_link(title="Page", href="page-view?token=abc"),
+    )
+
+    homepage._hooks[hook_name]()
+
+    assert tab_messages == [{"key": button_name, "href": "page-view?token=abc"}]
+
+
+# Import Custom Events builds its pages without validating anything, so it has nothing to refuse.
+REFUSING_HANDLERS = PAGE_OPENING_HANDLERS[1:]
+
+
+@pytest.mark.parametrize(
+    "hook_name, orchestrator, button_name", REFUSING_HANDLERS, ids=[name for _, _, name in REFUSING_HANDLERS]
+)
+def test_a_refused_page_opening_click_notifies_and_closes_its_tab(
+    homepage, selected_session, monkeypatch, tab_messages, hook_name, orchestrator, button_name
+):
+    def refuse(params):
+        raise ValueError("Run Step 3 first.")
+
+    monkeypatch.setattr(f"guppy.orchestration.home.{orchestrator}", refuse)
+    notifications = []
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: notifications.append(message))
+
+    homepage._hooks[hook_name]()
+
+    assert notifications == ["Run Step 3 first."]
+    assert tab_messages == [{"key": button_name, "href": None}]
+
+
+def test_remove_artifacts_success_enables_show_results(homepage, selected_session, monkeypatch, capture_periodic):
+    def worker(params):
+        progress.start(1)
+        progress.advance(1)
+
+    monkeypatch.setattr("guppy.orchestration.home.run_remove_artifacts_step", worker)
+
+    homepage._hooks["onclickRemoveArtifacts"]()
+    poll_until_stopped(capture_periodic)
+
+    assert results_html(homepage, "remove_artifacts").startswith('<a href="artifact-view?token=')
