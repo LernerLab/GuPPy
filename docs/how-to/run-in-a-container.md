@@ -12,13 +12,35 @@ the same GuPPy version every time you start it.
 
 GuPPy runs as a web server inside the container. You open it in your own
 browser at `http://localhost:5006`, and every page GuPPy opens reaches you
-through that same port.
+through that same port. Port 5006 is the usual default for Bokeh and Panel apps
+like GuPPy and has no other significance. Any free port works, as long as you use
+the same number in every command below and pass it to GuPPy with `--port`.
+
+## With Docker
+
+On a machine with [Docker](https://docs.docker.com/get-docker/), publish port
+5006 and mount the folder that holds your data:
+
+```bash
+docker run --rm -p 127.0.0.1:5006:5006 -v /path/to/data:/data \
+    ghcr.io/lernerlab/guppy:latest --input-root /data/sessions --output-root /data/outputs
+```
+
+Then open `http://localhost:5006`. Inside the container your data folder is
+`/data`, so every path you give GuPPy starts there. The `127.0.0.1` in `-p`
+keeps GuPPy reachable from your own machine only. Keep 5006 on both sides of
+`-p`, because GuPPy only accepts connections addressed to the port it serves on.
+
+The image is built for `linux/amd64`. Docker Desktop on an Apple silicon Mac
+runs it through emulation, which works but is slower than installing GuPPy
+directly.
 
 ## On a shared compute cluster with Apptainer
 
-Most clusters provide [Apptainer](https://apptainer.org) (formerly Singularity),
-which runs the image without administrator rights. Check with `apptainer
---version`, or ask your cluster's support team how to load it.
+Shared clusters rarely allow Docker, since it needs administrator rights. Most
+provide [Apptainer](https://apptainer.org) (formerly Singularity) instead, which
+runs the same image without them. Check with `apptainer --version`, or ask your
+cluster's support team how to load it.
 
 1. Download the image once into a file you keep:
 
@@ -55,29 +77,10 @@ which runs the image without administrator rights. Check with `apptainer
 
 4. Open `http://localhost:5006` in your browser.
 
-## With Docker
-
-On a machine with [Docker](https://docs.docker.com/get-docker/), publish port
-5006 and mount the folder that holds your data:
-
-```bash
-docker run --rm -p 127.0.0.1:5006:5006 -v /path/to/data:/data \
-    ghcr.io/lernerlab/guppy:latest --input-root /data/sessions --output-root /data/outputs
-```
-
-Then open `http://localhost:5006`. Inside the container your data folder is
-`/data`, so every path you give GuPPy starts there. The `127.0.0.1` in `-p`
-keeps GuPPy reachable from your own machine only. Keep 5006 on both sides of
-`-p`, because GuPPy only accepts connections addressed to the port it serves on.
-
-The image is built for `linux/amd64`. Docker Desktop on an Apple silicon Mac
-runs it through emulation, which works but is slower than installing GuPPy
-directly.
-
 ## Streaming from DANDI
 
 To [analyze data streamed from the DANDI Archive](analyze-dandi-data.md), pass
 your API key into the container, since a key stored with `dandi login` on your
-computer is not visible inside it. With Apptainer, export `DANDI_API_KEY` before
-`apptainer run` and it is passed through. With Docker, add
-`-e DANDI_API_KEY` to `docker run`.
+computer is not visible inside it. With Docker, add `-e DANDI_API_KEY` to
+`docker run`. With Apptainer, export `DANDI_API_KEY` before `apptainer run` and it
+is passed through.
