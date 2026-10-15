@@ -26,8 +26,13 @@ docker run --rm -p 127.0.0.1:5006:5006 -v /path/to/data:/data \
     ghcr.io/lernerlab/guppy:latest --input-root /data/sessions --output-root /data/outputs
 ```
 
-Then open `http://localhost:5006`. Inside the container your data folder is
-`/data`, so every path you give GuPPy starts there. The `127.0.0.1` in `-p`
+Replace `/path/to/data` with the folder on your computer that holds your data.
+Inside the container that folder is `/data`, so every path you give GuPPy starts
+there: replace `/data/sessions` with the folder your session folders live under,
+and `/data/outputs` with the folder GuPPy should write its outputs into. Both
+must already exist.
+
+Then open `http://localhost:5006`. The `127.0.0.1` in `-p`
 keeps GuPPy reachable from your own machine only. Keep 5006 on both sides of
 `-p`, because GuPPy only accepts connections addressed to the port it serves on.
 
@@ -57,8 +62,11 @@ cluster's support team how to load it.
        --input-root /path/to/data/sessions --output-root /path/to/data/outputs
    ```
 
-   Apptainer already makes your home directory visible, so `--bind` is only
-   needed for folders outside it. `--address 127.0.0.1` keeps GuPPy reachable
+   Replace `/path/to/data` with the folder that holds your data, and the two
+   roots with the folder your session folders live under and the folder GuPPy
+   should write its outputs into. Both must already exist. Apptainer already
+   makes your home directory visible, so `--bind` is only needed for folders
+   outside it. `--address 127.0.0.1` keeps GuPPy reachable
    only from the node itself, so other users of the cluster cannot open your
    session. If another user already has port 5006 in use on that node, choose
    another number and use it in the next step too.
@@ -67,11 +75,13 @@ cluster's support team how to load it.
    runs on and the login host you normally connect to:
 
    ```bash
-   ssh -L 5006:localhost:5006 -J <user>@<login host> <user>@<node>
+   ssh -L 5006:localhost:5006 -J <user>@<login-host> <user>@<node>
    ```
 
-   If GuPPy runs on the login host itself, `ssh -L 5006:localhost:5006
-   <user>@<login host>` is enough. Use the same port number on both sides of
+   Replace `<user>` with your cluster username, `<login-host>` with the address
+   you normally `ssh` to, and `<node>` with the name of the node GuPPy runs on,
+   which `hostname` prints on that node. If GuPPy runs on the login host itself,
+   `ssh -L 5006:localhost:5006 <user>@<login-host>` is enough. Use the same port number on both sides of
    `-L`, because GuPPy only accepts connections addressed to the port it
    serves on.
 
