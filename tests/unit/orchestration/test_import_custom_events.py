@@ -3,7 +3,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from guppy.orchestration.import_custom_events import build_custom_events_template
+from guppy.orchestration.import_custom_events import (
+    build_custom_events_template,
+    orchestrate_custom_events_page,
+)
+from guppy.utils import page_links
 
 
 @pytest.fixture
@@ -79,3 +83,18 @@ class TestBuildCustomEventsTemplate:
         config.overwrite.value = True
         template._hooks["save_button"](None)
         assert pd.read_csv(Path(str(tmp_path)) / "ev.csv")["timestamps"].tolist() == [9.0, 8.0]
+
+
+class TestOrchestrateCustomEventsPage:
+    def test_offers_one_page_per_session(self, panel_extension, tmp_path):
+        sessions = [tmp_path / "mouse_01", tmp_path / "mouse_02"]
+        for session in sessions:
+            session.mkdir()
+
+        with page_links.collect() as offers:
+            orchestrate_custom_events_page({"session_folders": [str(session) for session in sessions]})
+
+        assert [(page.name, page.template.title) for page in offers.pages] == [
+            ("mouse_01", "Import Custom Events - mouse_01"),
+            ("mouse_02", "Import Custom Events - mouse_02"),
+        ]
