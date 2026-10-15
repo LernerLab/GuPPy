@@ -34,7 +34,7 @@ open_tonic_analysis_view = _view.open
 
 
 def orchestrate_tonic_analysis(inputParameters: dict[str, object]) -> None:
-    """Open the Tonic Analysis page for the selected sessions.
+    """Offer a link to the Tonic Analysis page for the selected sessions.
 
     Parameters
     ----------

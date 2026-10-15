@@ -1,8 +1,25 @@
+import html
 import logging
 
 import panel as pn
 
+from ..utils.page_links import PageLink
+
 logger = logging.getLogger(__name__)
+
+# The buttons whose step produces pages, each followed in the sidebar by links to them.
+PAGE_PRODUCING_BUTTONS = (
+    "import_custom_events",
+    "open_label_stores",
+    "preprocess",
+    "select_artifact_windows",
+    "remove_artifacts",
+    "tonic_analysis",
+    "psth_computation",
+    "label_groups",
+    "open_visualization",
+    "open_metadata",
+)
 
 
 class Sidebar:
@@ -19,6 +36,7 @@ class Sidebar:
         self.setup_markdown()
         self.setup_buttons()
         self.setup_progress_bars()
+        self.setup_page_links()
 
     def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
@@ -84,37 +102,71 @@ class Sidebar:
         self.export_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
         self.group_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
 
+    def setup_page_links(self) -> None:
+        """Create an empty links column for every page-producing button."""
+        self.page_links = {button_name: pn.Column(width=300) for button_name in PAGE_PRODUCING_BUTTONS}
+
+    def show_page_links(self, *, button_name: str, links: list[PageLink]) -> None:
+        """Replace the links under a button with links to ``links``.
+
+        Each link opens its page in a new browser tab, and says so.
+
+        Parameters
+        ----------
+        button_name : str
+            The page-producing button whose links to replace, e.g. ``"preprocess"``.
+        links : list of PageLink
+            The pages its latest run produced.
+        """
+        self.page_links[button_name].objects = [
+            pn.pane.HTML(
+                f'<a href="{html.escape(link.href)}" target="_blank">Open {html.escape(link.title)}</a> (new tab)',
+                width=300,
+            )
+            for link in links
+        ]
+
     def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""
         self.template.sidebar.append(self.mark_down_import_events)
         self.template.sidebar.append(self.import_custom_events)
+        self.template.sidebar.append(self.page_links["import_custom_events"])
         self.template.sidebar.append(self.mark_down_label_stores)
         self.template.sidebar.append(self.open_label_stores)
+        self.template.sidebar.append(self.page_links["open_label_stores"])
         self.template.sidebar.append(self.mark_down_read)
         self.template.sidebar.append(self.read_rawData)
         self.template.sidebar.append(self.read_progress)
         self.template.sidebar.append(self.mark_down_preprocess)
         self.template.sidebar.append(self.preprocess)
         self.template.sidebar.append(self.extract_progress)
+        self.template.sidebar.append(self.page_links["preprocess"])
         self.template.sidebar.append(self.mark_down_select_windows)
         self.template.sidebar.append(self.select_artifact_windows)
+        self.template.sidebar.append(self.page_links["select_artifact_windows"])
         self.template.sidebar.append(self.mark_down_remove_artifacts)
         self.template.sidebar.append(self.remove_artifacts)
         self.template.sidebar.append(self.remove_artifacts_progress)
+        self.template.sidebar.append(self.page_links["remove_artifacts"])
         self.template.sidebar.append(self.mark_down_tonic_analysis)
         self.template.sidebar.append(self.tonic_analysis)
+        self.template.sidebar.append(self.page_links["tonic_analysis"])
         self.template.sidebar.append(self.mark_down_psth)
         self.template.sidebar.append(self.psth_computation)
         self.template.sidebar.append(self.psth_progress)
+        self.template.sidebar.append(self.page_links["psth_computation"])
         self.template.sidebar.append(self.mark_down_label_groups)
         self.template.sidebar.append(self.label_groups)
+        self.template.sidebar.append(self.page_links["label_groups"])
         self.template.sidebar.append(self.mark_down_group_analysis)
         self.template.sidebar.append(self.group_analysis)
         self.template.sidebar.append(self.group_progress)
         self.template.sidebar.append(self.mark_down_visualization)
         self.template.sidebar.append(self.open_visualization)
+        self.template.sidebar.append(self.page_links["open_visualization"])
         self.template.sidebar.append(self.mark_down_metadata)
         self.template.sidebar.append(self.open_metadata)
+        self.template.sidebar.append(self.page_links["open_metadata"])
         self.template.sidebar.append(self.mark_down_export_nwb)
         self.template.sidebar.append(self.export_nwb)
         self.template.sidebar.append(self.export_progress)

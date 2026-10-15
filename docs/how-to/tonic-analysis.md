@@ -32,8 +32,9 @@ point first:
 ## Defining the epochs
 
 1. Select your session folder(s) and output run(s) on the homepage as usual.
-2. Click **Tonic Analysis**. A page opens in a new browser tab showing the z-score
-   and ΔF/F traces for one recording site on a shared time axis.
+2. Click **Tonic Analysis**, then the **Open GuPPy — Tonic Analysis** link that appears
+   under it. The page opens in a new browser tab showing the z-score and ΔF/F traces for
+   one recording site on a shared time axis.
 
    ```{image} ../_static/images/tonic_analysis_button.png
    :alt: The sidebar with the optional Tonic Analysis step positioned between Remove Artifacts and Step 4 PSTH Computation

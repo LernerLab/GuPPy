@@ -24,8 +24,9 @@ produced, so both optional steps need its outputs on disk.
 ## Marking the periods
 
 1. Select your session folder(s) and output run(s) on the homepage as usual.
-2. Click **Select Artifact Windows**. A page opens in a new browser tab showing one
-   trace of one recording site. The main GuPPy tab stays responsive.
+2. Click **Select Artifact Windows**, then the **Open GuPPy — Select Artifact Windows**
+   link that appears under it. The page opens in a new browser tab showing one trace of
+   one recording site. The main GuPPy tab stays responsive.
 
    ```{image} ../_static/images/select_artifact_windows_button.png
    :alt: The sidebar with the two optional artifact steps, Select Artifact Windows and Remove Artifacts, positioned between Step 3 Preprocess and Step 4 PSTH Computation
@@ -120,8 +121,8 @@ the button and fills as the work runs.
 The step recomputes the control fit, z-score, and dF/F with the marked periods
 excluded, so it takes about as long as Step 3 itself.
 
-When it finishes, GuPPy opens a review tab showing the cleaned traces, so you can
-confirm the result.
+When it finishes, an **Open GuPPy — Artifact Removal** link appears under the button.
+It opens a review tab showing the cleaned traces, so you can confirm the result.
 
 If you click Remove Artifacts without having saved any periods, GuPPy tells you
 which run is unmarked.

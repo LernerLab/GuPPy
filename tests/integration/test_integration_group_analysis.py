@@ -150,12 +150,11 @@ def test_group_analysis(processed_sessions, saline_group):
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step5(
-                base_dir=base_dir,
-                selected_folders=selected_folders,
-                selected_runs=selected_runs,
-            )
+        step5(
+            base_dir=base_dir,
+            selected_folders=selected_folders,
+            selected_runs=selected_runs,
+        )
 
     assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"
 
@@ -225,13 +224,12 @@ def test_group_analysis_different_event_names_per_session(copied_sessions):
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step5(
-                base_dir=base_dir,
-                selected_folders=selected_folders,
-                selected_runs=selected_runs,
-                selected_group_folders=[str(average_directory)],
-            )
+        step5(
+            base_dir=base_dir,
+            selected_folders=selected_folders,
+            selected_runs=selected_runs,
+            selected_group_folders=[str(average_directory)],
+        )
 
     assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"
     # Step 5 opens a dashboard per selected session run *and* per selected group, so pick

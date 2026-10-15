@@ -2,6 +2,7 @@ import panel as pn
 import pytest
 
 from guppy.frontend.sidebar import Sidebar
+from guppy.utils.page_links import PageLink
 
 
 @pytest.fixture
@@ -112,3 +113,43 @@ class TestSidebar:
 
     def test_save_input_parameters_button_removed(self, sidebar):
         assert not hasattr(sidebar, "save_button")
+
+
+class TestShowPageLinks:
+    def test_shows_one_new_tab_link_per_page(self, sidebar):
+        sidebar.show_page_links(
+            button_name="open_label_stores",
+            links=[
+                PageLink(title="Label Stores — session_1", href="http://localhost:5100/"),
+                PageLink(title="Label Stores — session_2", href="http://localhost:5101/"),
+            ],
+        )
+
+        assert [pane.object for pane in sidebar.page_links["open_label_stores"]] == [
+            '<a href="http://localhost:5100/" target="_blank">Open Label Stores — session_1</a> (new tab)',
+            '<a href="http://localhost:5101/" target="_blank">Open Label Stores — session_2</a> (new tab)',
+        ]
+
+    def test_replaces_the_previous_links(self, sidebar):
+        sidebar.show_page_links(button_name="preprocess", links=[PageLink(title="Old", href="old")])
+
+        sidebar.show_page_links(button_name="preprocess", links=[])
+
+        assert sidebar.page_links["preprocess"].objects == []
+
+    def test_escapes_the_title_and_address(self, sidebar):
+        sidebar.show_page_links(button_name="label_groups", links=[PageLink(title="A & <B>", href="page?a=1&b=2")])
+
+        (pane,) = sidebar.page_links["label_groups"]
+        assert pane.object == '<a href="page?a=1&amp;b=2" target="_blank">Open A &amp; &lt;B&gt;</a> (new tab)'
+
+    def test_each_links_column_follows_its_button_in_the_sidebar(self, sidebar):
+        sidebar.add_to_template()
+        sidebar_objects = list(sidebar.template.sidebar)
+
+        assert sidebar_objects.index(sidebar.page_links["open_label_stores"]) == (
+            sidebar_objects.index(sidebar.open_label_stores) + 1
+        )
+        assert sidebar_objects.index(sidebar.page_links["preprocess"]) == (
+            sidebar_objects.index(sidebar.extract_progress) + 1
+        )

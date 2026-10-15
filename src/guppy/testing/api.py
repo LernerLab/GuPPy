@@ -1433,9 +1433,6 @@ def step5(
     the full input parameters via ``getInputParameters()``, and calls
     ``visualizeResults(input_params)``. No GUI is spawned.
 
-    Callers that need to suppress the web server (e.g. tests) should patch
-    ``VisualizationDashboard.show`` before calling this function.
-
     Parameters
     ----------
     base_dir : str

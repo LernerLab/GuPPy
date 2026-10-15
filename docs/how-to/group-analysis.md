@@ -30,7 +30,8 @@ Groups follow the same pattern as individual runs. **Label Groups** defines one,
 Output Folder Selection** card picks which defined groups you are working with, once, for every
 step that touches them.
 
-1. Click **Label Groups** in the sidebar. A new browser tab opens with the Label Groups page.
+1. Click **Label Groups** in the sidebar, then the **Open Label Groups** link that appears under
+   it. The Label Groups page opens in a new browser tab.
 2. Leave the mode at **create_new_group**.
 3. Under **1 · What goes into the group?**, pick the member runs. These are the
    run directories under the output root folder. They may live under different
@@ -67,7 +68,9 @@ definition survives the rebuild.
 ## Visualizing a group
 
 A group folder behaves like any other run folder in the visualizer, so there is no mode
-to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar.
+to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar,
+then the **Open Visualization** link under it. Each selected run and group gets its own tab on
+the page that opens.
 
 You can visualize a group on its own. Step 5 accepts an empty individual selection as long as a
 group is ticked, so you can leave Output Folder Selection alone and open only the groups.

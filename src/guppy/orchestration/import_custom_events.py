@@ -4,7 +4,7 @@ from pathlib import Path
 import panel as pn
 
 from ..frontend.custom_events_config import CustomEventsConfig
-from ..frontend.frontend_utils import scanPortsAndFind
+from ..utils import page_links
 from ..utils.custom_events import (
     is_sorted,
     parse_pasted_timestamps,
@@ -103,9 +103,7 @@ def build_custom_events_page(inputParameters: dict[str, object], folder_path: st
             logger.info("Custom event saved at %s", csv_path)
         return
 
-    template = build_custom_events_template(folder_path)
-    number = scanPortsAndFind(start_port=5000, end_port=5200)
-    template.show(port=number)
+    page_links.offer_page(name=Path(folder_path).name, template=build_custom_events_template(folder_path))
 
 
 def orchestrate_custom_events_page(inputParameters: dict[str, object]) -> None:

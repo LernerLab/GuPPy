@@ -90,7 +90,7 @@ There is no separate "save parameters" action. Each pipeline step records the pa
 
 A **store** is the human-readable label GuPPy uses for one of your data channels. Raw acquisition files come with cryptic, format-specific names (here, the CSV filenames `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL`); GuPPy needs you to map each one to a meaningful name like `control_A`, `signal_A`, or `RewardPort`. Those mapped names are what every downstream step (preprocessing, PSTH, plots, group analysis) refers to. The mapping is saved as `storesList.csv` inside a run folder created in the output root folder.
 
-Click **Label Stores** in the sidebar. A new browser tab opens with the Label Stores panel for the selected folder.
+Click **Label Stores** in the sidebar. An **Open Label Stores — sample_data_csv_1** link appears under the button; click it to open the Label Stores panel for the selected folder in a new browser tab.
 
 ```{image} ../_static/images/02_label_stores.png
 :alt: Label Stores GUI with the three sample CSV channels listed as available options
@@ -185,9 +185,9 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 
 Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
-When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
+When preprocessing finishes, an **Open GuPPy — Preprocessing** link appears under the progress bar, and it opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
-<!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
+<!-- TODO: add a screenshot of the preprocessing results tab that its link opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
 
 ### Optional: remove artifacts
 
@@ -220,7 +220,7 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 ## Step 5: Visualize the results
 
-Click **Open Visualization GUI** in the sidebar. A new browser tab opens with the Visualization GUI for this session, organized into two tabs.
+Click **Open Visualization GUI** in the sidebar, then the **Open Visualization — <run>** link that appears under it. The Visualization GUI for this session opens in a new browser tab, organized into two tabs.
 
 A **Metric** selector sits with the display settings on the PSTH tab, and beside the event selector on the Heat Map tab. It lists the metrics Step 4 actually computed for this run, so here it offers only `z-score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
 
