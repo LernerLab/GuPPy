@@ -74,14 +74,6 @@ The image is built for `linux/amd64`. Docker Desktop on an Apple silicon Mac
 runs it through emulation, which works but is slower than installing GuPPy
 directly.
 
-## Opening pages
-
-Each step that shows a page, such as **Step 1: Label Stores** or a result view
-after **Step 3: Preprocess**, opens it in a new browser tab. If your browser
-blocks the tab, GuPPy shows a notification on the homepage with a link to the
-page. This happens most often after a long step finishes. Allow pop-ups for
-`localhost` to have tabs open on their own.
-
 ## Streaming from DANDI
 
 To [analyze data streamed from the DANDI Archive](analyze-dandi-data.md), pass
