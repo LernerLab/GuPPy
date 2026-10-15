@@ -43,6 +43,7 @@ class TestMain:
         assert sorted(served["routes"]) == [
             "/",
             "/artifact-view",
+            "/page",
             "/preprocess-view",
             "/select-artifact-windows",
             "/tonic-analysis",

@@ -23,6 +23,7 @@ class TestServeApp:
         assert sorted(served["routes"]) == [
             "/",
             "/artifact-view",
+            "/page",
             "/preprocess-view",
             "/select-artifact-windows",
             "/tonic-analysis",
@@ -35,6 +36,7 @@ class TestServeApp:
 
         assert served["routes"]["/preprocess-view"] is app.build_preprocess_view
         assert served["routes"]["/transients-view"] is app.build_transients_view
+        assert served["routes"]["/page"] is app.build_page_view
 
     def test_homepage_route_opens_the_session_browser_in_the_input_root(self, served, panel_extension, tmp_path):
         """The ``/`` route is a closure over the roots; invoking it must build a homepage

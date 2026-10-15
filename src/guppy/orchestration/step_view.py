@@ -10,9 +10,11 @@ A step wires this up by constructing a :class:`StepView` with its route, tab tit
 view's ``route_factory`` (for ``app.py``'s route map) and ``open`` (for the step's
 completion hook in ``home.py``).
 
-Pages built before they are shown (Label Stores, the visualization dashboard, …) are served on a
-port of their own instead: :func:`serve_pages` serves all the pages one click produced as a
-single page, one in-page tab each, and :func:`serve_page` serves a page that is always alone.
+Pages built before they are shown (Label Stores, the visualization dashboard, …) are served on
+the main server's shared ``page`` route instead, again under a token: :func:`serve_pages` serves
+all the pages one click produced as a single page, one in-page tab each, and :func:`serve_page`
+serves a page that is always alone. Every page GuPPy shows is therefore reachable through the main
+server's one port.
 
 None of them opens a browser tab. Each yields a link, which the homepage shows for the user to
 open.
@@ -24,7 +26,6 @@ from uuid import uuid4
 
 import panel as pn
 
-from ..frontend.frontend_utils import scanPortsAndFind
 from ..utils import page_links
 from ..utils.utils import (
     resolve_run_folders,  # noqa: F401  (re-exported for the step views)
@@ -71,14 +72,31 @@ class StepView:
         page_links.offer_link(title=self.title, href=f"{self.route}?token={token}")
 
 
+# token -> template for pages awaiting a browser tab on the shared ``page`` route.
+_pending_pages: dict[str, pn.template.BaseTemplate] = {}
+
+
 def _serve(*, template: pn.template.BaseTemplate) -> str:
-    port = scanPortsAndFind(start_port=5000, end_port=5200)
-    template.show(port=port, open=False)
-    return f"http://localhost:{port}/"
+    token = uuid4().hex
+    _pending_pages[token] = template
+    return f"page?token={token}"
+
+
+def build_page_view() -> pn.template.BaseTemplate:
+    """Per-session factory for the shared ``page`` route — serves the page for the tab's token."""
+    token = _read_token()
+    template = _pending_pages.get(token)
+    if template is None:
+        expired = pn.template.BootstrapTemplate(title="GuPPy")
+        expired.main.append(pn.pane.Markdown("This view has expired. You can close this tab."))
+        return expired
+    # Drop the token when the tab closes so the registry does not grow unbounded.
+    pn.state.on_session_destroyed(lambda session_context: _pending_pages.pop(token, None))
+    return template
 
 
 def serve_page(*, template: pn.template.BaseTemplate, title: str) -> None:
-    """Serve a finished page on a free port and offer a link to it.
+    """Serve a finished page on the shared ``page`` route and offer a link to it.
 
     Parameters
     ----------
@@ -91,7 +109,7 @@ def serve_page(*, template: pn.template.BaseTemplate, title: str) -> None:
 
 
 def serve_pages(*, pages: list[page_links.Page], title: str, plural_noun: str) -> page_links.PageLink:
-    """Serve the pages one click produced as a single page on a free port.
+    """Serve the pages one click produced as a single page on the shared ``page`` route.
 
     A lone page is served as it is. Several are combined into the first page's template, keeping
     its styling, with each page's content in an in-page tab named after it.
