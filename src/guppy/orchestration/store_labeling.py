@@ -22,12 +22,12 @@ from guppy.extractors.npm_recording_extractor import (
     DEFAULT_NUM_CHANNELS,
     DEFAULT_TIME_UNIT,
 )
-from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.store_labeling_instructions import (
     StoreLabelingInstructions,
     StoreLabelingInstructionsNPM,
 )
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
+from guppy.utils import page_links
 from guppy.utils.stores_list import write_stores_list
 from guppy.utils.utils import (
     NPM_PARAM_KEYS,
@@ -458,9 +458,7 @@ def build_store_labeling_template(
         if alert_message != "#### No alerts !!":
             store_labeling_selector.hide_saved_message()
             return
-        store_labeling_selector.show_saved_message(
-            f"Saved the store labels to <b>{select_location}</b>. You may now close this tab."
-        )
+        store_labeling_selector.show_saved_message(f"Saved the store labels to <b>{select_location}</b>.")
         if on_saved is not None:
             on_saved()
 
@@ -639,7 +637,7 @@ def read_header(
 def orchestrate_store_labeling_page(
     inputParameters: dict[str, object], *, on_saved: Callable[[], None] | None = None
 ) -> None:
-    """Open the Label Stores page for every selected session folder.
+    """Build the Label Stores page for every selected session folder and offer each one.
 
     Parameters
     ----------
@@ -666,5 +664,5 @@ def orchestrate_store_labeling_page(
             npm_interactive=npm_interactive,
             on_saved=on_saved,
         )
-        template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
+        page_links.offer_page(name=Path(folder_path).name, template=template)
     logger.info("#" * 400)

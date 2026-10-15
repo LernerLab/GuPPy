@@ -31,7 +31,7 @@ open_select_artifact_windows_view = _view.open
 
 
 def orchestrate_select_artifact_windows(inputParameters: dict[str, object]) -> None:
-    """Open the Select Artifact Windows page for the selected sessions.
+    """Offer a link to the Select Artifact Windows page for the selected sessions.
 
     Parameters
     ----------

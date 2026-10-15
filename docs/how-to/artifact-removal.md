@@ -120,8 +120,8 @@ the button and fills as the work runs.
 The step recomputes the control fit, z-score, and dF/F with the marked periods
 excluded, so it takes about as long as Step 3 itself.
 
-When it finishes, GuPPy opens a review tab showing the cleaned traces, so you can
-confirm the result.
+When it finishes, click **Show results** beside the button. It opens a review tab
+showing the cleaned traces, so you can confirm the result.
 
 If you click Remove Artifacts without having saved any periods, GuPPy tells you
 which run is unmarked.

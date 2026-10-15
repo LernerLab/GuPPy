@@ -13,10 +13,9 @@ from pathlib import Path
 
 import panel as pn
 
-from guppy.frontend.frontend_utils import scanPortsAndFind
-
 from ..frontend import nwb_form_style as style
 from ..frontend.metadata_selector import MetadataSelector
+from ..utils import page_links
 from ..utils.acquisition_format import (
     acquisition_supplies_session_start_time,
     resolve_session_source,
@@ -110,7 +109,7 @@ def build_metadata_template(
     return template
 
 
-def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.template.BootstrapTemplate]:
+def build_metadata_templates(*, inputParameters: dict[str, object]) -> dict[str, pn.template.BootstrapTemplate]:
     """Build one metadata form template per selected session that needs one.
 
     Each template edits that session's ``nwb_metadata.yaml`` (in its output
@@ -126,8 +125,9 @@ def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.t
 
     Returns
     -------
-    list of pn.template.BootstrapTemplate
-        One fully configured template per session needing a metadata form.
+    dict of str to pn.template.BootstrapTemplate
+        One fully configured template per session needing a metadata form, keyed by the session's
+        label, ``"<session> (<run>)"``.
 
     Raises
     ------
@@ -156,9 +156,9 @@ def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.t
         logger.info(message)
         if pn.state.notifications is not None:
             pn.state.notifications.info(message, duration=0)
-        return []
+        return {}
 
-    templates = []
+    templates = {}
     output_root_folder = inputParameters.get("output_root_folder")
     input_root_folder = inputParameters.get("input_root_folder")
     for session_path, run_name in pairs_needing_metadata:
@@ -179,15 +179,12 @@ def build_metadata_templates(*, inputParameters: dict[str, object]) -> list[pn.t
                 session_folder_path=session_path, acquisition_format=acquisition_format
             ),
         )
-        templates.append(template)
+        templates[session_label] = template
     return templates
 
 
 def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
-    """Open one metadata window per selected session that needs one.
-
-    Each window is served on its own port in a new browser tab, mirroring the
-    Label Stores GUI.
+    """Build one metadata form per selected session that needs one, and offer each one.
 
     Parameters
     ----------
@@ -200,5 +197,5 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         If the pipeline was run with ``combine_data`` enabled, or if a selected session's source
         cannot be resolved.
     """
-    for template in build_metadata_templates(inputParameters=inputParameters):
-        template.show(port=scanPortsAndFind(start_port=5000, end_port=5200))
+    for session_label, template in build_metadata_templates(inputParameters=inputParameters).items():
+        page_links.offer_page(name=session_label, template=template)

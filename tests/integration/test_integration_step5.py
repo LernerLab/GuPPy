@@ -129,8 +129,7 @@ def test_step5_offers_only_the_metric_step4_computed(tmp_path):
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step5(**common_kwargs, selected_runs=selected_runs)
+        step5(**common_kwargs, selected_runs=selected_runs)
 
     assert len(captured_dashboards) == 1
     dashboard = captured_dashboards[0]

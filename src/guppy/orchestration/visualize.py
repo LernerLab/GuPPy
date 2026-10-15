@@ -7,6 +7,7 @@ from .save_parameters import save_parameters
 from ..analysis.io_utils import is_continuous_label
 from ..frontend.parameterized_plotter import available_psth_metrics, build_plotter
 from ..frontend.visualization_dashboard import VisualizationDashboard
+from ..utils import page_links
 from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
     event_labels_for_analysis,
@@ -65,7 +66,7 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
         metric=metric,
         available_metrics=available_metrics,
     )
-    dashboard.show()
+    page_links.offer_page(name=label, template=dashboard.build_template())
 
 
 def createPlots(filepath: str, event: list[str], inputParameters: dict[str, object], *, label: str) -> None:

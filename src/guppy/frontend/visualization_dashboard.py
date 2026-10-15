@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Callable
 from io import BytesIO
 
@@ -6,14 +5,11 @@ import panel as pn
 
 from .binned_metrics_view import build_binned_metrics_view
 from .covariate_correlation_view import build_covariate_correlation_view
-from .frontend_utils import scanPortsAndFind
 from .parameterized_plotter import METRIC_LABELS, build_plotter
 from .psth_significance_view import build_psth_significance_view
 from .tonic_epochs import build_tonic_results_view
 
 pn.extension()
-
-logger = logging.getLogger(__name__)
 
 
 class VisualizationDashboard:
@@ -441,10 +437,3 @@ class VisualizationDashboard:
         template = pn.template.MaterialTemplate(title="Visualization GUI")
         template.main.append(self._tabs)
         return template
-
-    def show(self) -> None:
-        """Serve the dashboard in a browser on an available port."""
-        logger.info("app")
-        template = self.build_template()
-        port = scanPortsAndFind(start_port=5000, end_port=5200)
-        template.show(port=port)

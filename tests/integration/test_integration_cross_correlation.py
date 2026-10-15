@@ -110,11 +110,10 @@ def test_cross_correlation(tmp_path):
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step5(
-                base_dir=str(tmp_base),
-                selected_folders=[str(session_copy)],
-                selected_runs=selected_runs,
-            )
+        step5(
+            base_dir=str(tmp_base),
+            selected_folders=[str(session_copy)],
+            selected_runs=selected_runs,
+        )
 
     assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

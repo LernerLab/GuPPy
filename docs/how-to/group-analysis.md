@@ -68,6 +68,7 @@ definition survives the rebuild.
 
 A group folder behaves like any other run folder in the visualizer, so there is no mode
 to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar.
+Each selected run and group gets its own tab on the page that opens.
 
 You can visualize a group on its own. Step 5 accepts an empty individual selection as long as a
 group is ticked, so you can leave Output Folder Selection alone and open only the groups.

@@ -145,11 +145,10 @@ def test_combine_data(tmp_path):
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step5(
-                base_dir=base_dir,
-                selected_folders=[str(session_copies[0])],
-                selected_runs={str(session_copies[0]): ["1"]},
-            )
+        step5(
+            base_dir=base_dir,
+            selected_folders=[str(session_copies[0])],
+            selected_runs={str(session_copies[0]): ["1"]},
+        )
 
     assert len(captured_dashboards) >= 1, "step5 created no VisualizationDashboard instances"

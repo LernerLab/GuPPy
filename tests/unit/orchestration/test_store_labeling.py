@@ -18,6 +18,7 @@ from guppy.orchestration.store_labeling import (
     read_header,
     show_dir,
 )
+from guppy.utils import page_links
 from guppy_test_data import STUBBED_TESTING_DATA
 
 # ---------------------------------------------------------------------------
@@ -902,7 +903,7 @@ def test_save_button_writes_storeslist_and_shows_saved_message(store_labeling_cl
     selector.callbacks["save"](None)
 
     assert selector.alert_message == "#### No alerts !!"
-    assert selector.saved_message == f"Saved the store labels to <b>{run_folder}</b>. You may now close this tab."
+    assert selector.saved_message == f"Saved the store labels to <b>{run_folder}</b>."
     assert selector.on_saved_calls == [None]
     assert (Path(run_folder) / "storesList.csv").exists()
 
@@ -1156,9 +1157,7 @@ def test_fetchValues_returns_alert_when_whitespace_in_covariate_name():
 # ---------------------------------------------------------------------------
 
 
-def test_orchestrate_store_labeling_page_serves_one_page_per_session(panel_extension, monkeypatch):
-    served_ports = []
-    monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port))
+def test_orchestrate_store_labeling_page_offers_one_page_per_session(panel_extension):
     csv_root = str(Path(str(STUBBED_TESTING_DATA)) / "csv")
     input_parameters = {
         "session_folders": [str(Path(csv_root) / "sample_data_csv_1")],
@@ -1169,6 +1168,9 @@ def test_orchestrate_store_labeling_page_serves_one_page_per_session(panel_exten
         "noChannels": 2,
     }
 
-    orchestrate_store_labeling_page(input_parameters)
+    with page_links.collect() as offers:
+        orchestrate_store_labeling_page(input_parameters)
 
-    assert len(served_ports) == 1
+    assert [(page.name, page.template.title) for page in offers.pages] == [
+        ("sample_data_csv_1", "Label Stores GUI - sample_data_csv_1")
+    ]

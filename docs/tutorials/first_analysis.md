@@ -90,7 +90,7 @@ There is no separate "save parameters" action. Each pipeline step records the pa
 
 A **store** is the human-readable label GuPPy uses for one of your data channels. Raw acquisition files come with cryptic, format-specific names (here, the CSV filenames `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL`); GuPPy needs you to map each one to a meaningful name like `control_A`, `signal_A`, or `RewardPort`. Those mapped names are what every downstream step (preprocessing, PSTH, plots, group analysis) refers to. The mapping is saved as `storesList.csv` inside a run folder created in the output root folder.
 
-Click **Label Stores** in the sidebar. A new browser tab opens with the Label Stores panel for the selected folder.
+Click **Label Stores** in the sidebar. A new browser tab opens with the Label Stores panel for the selected folder. With several folders selected, the panel has a tab for each.
 
 ```{image} ../_static/images/02_label_stores.png
 :alt: Label Stores GUI with the three sample CSV channels listed as available options
@@ -185,9 +185,9 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 
 Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
-When preprocessing finishes, GuPPy opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
+When preprocessing finishes, the **Show results** button beside **Preprocess** becomes clickable, and it opens the preprocessing results in a new browser tab. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. The main GuPPy tab stays responsive, so you can leave the results tab open and keep working.
 
-<!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
+<!-- TODO: add a screenshot of the preprocessing results tab that Show results opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
 
 ### Optional: remove artifacts
 

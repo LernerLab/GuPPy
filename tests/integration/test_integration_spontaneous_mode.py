@@ -87,12 +87,11 @@ def visualized_events():
             captured_dashboards.append(self)
 
         with patch.object(VisualizationDashboard, "__init__", capturing_init):
-            with patch.object(VisualizationDashboard, "show", lambda self: None):
-                step5(
-                    **pipeline_result["common_kwargs"],
-                    selected_runs=pipeline_result["selected_runs"],
-                    **step5_kwargs,
-                )
+            step5(
+                **pipeline_result["common_kwargs"],
+                selected_runs=pipeline_result["selected_runs"],
+                **step5_kwargs,
+            )
 
         return [event for dashboard in captured_dashboards for event in dashboard.plotter.event_selector_objects]
 

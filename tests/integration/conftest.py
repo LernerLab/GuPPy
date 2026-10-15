@@ -212,15 +212,14 @@ def _run_step5(*, pipeline_state: dict[str, str | list[bool] | None]) -> dict[st
         captured_dashboards.append(self)
 
     with patch.object(VisualizationDashboard, "__init__", capturing_init):
-        with patch.object(VisualizationDashboard, "show", lambda self: None):
-            step5(
-                base_dir=str(pipeline_state["base_directory"]),
-                selected_folders=[str(pipeline_state["session_copy"])],
-                npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
-                npm_time_unit=pipeline_state["npm_time_unit"],
-                npm_split_events=pipeline_state["npm_split_events"],
-                selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
-            )
+        step5(
+            base_dir=str(pipeline_state["base_directory"]),
+            selected_folders=[str(pipeline_state["session_copy"])],
+            npm_timestamp_column_name=pipeline_state["npm_timestamp_column_name"],
+            npm_time_unit=pipeline_state["npm_time_unit"],
+            npm_split_events=pipeline_state["npm_split_events"],
+            selected_runs=_selected_runs_for_session(pipeline_state=pipeline_state),
+        )
 
     pipeline_state["captured_dashboards"] = captured_dashboards
     return pipeline_state

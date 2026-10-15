@@ -18,6 +18,7 @@ from guppy.orchestration.metadata import (
     build_metadata_templates,
     orchestrate_metadata_page,
 )
+from guppy.utils import page_links
 from guppy.utils.nwb_metadata import Channel, build_metadata_dict, load_yaml
 
 CHANNELS = [Channel("dms", "control", "Dv1A"), Channel("dms", "signal", "Dv2A")]
@@ -300,7 +301,7 @@ class TestOrchestrateMetadataPage:
         # Must return without raising and without opening a server.
         build_metadata_templates(inputParameters=input_parameters)
 
-    def test_orchestrator_serves_each_built_page(self, panel_extension, monkeypatch, tmp_path):
+    def test_orchestrator_offers_each_built_page(self, panel_extension, tmp_path):
         session = tmp_path / "Photo_session"
         output_dir = session / "output_run1"
         output_dir.mkdir(parents=True)
@@ -318,14 +319,12 @@ class TestOrchestrateMetadataPage:
             "output_root_folder": str(tmp_path),
         }
 
-        served_ports = []
-        monkeypatch.setattr(
-            metadata_module.pn.template.BootstrapTemplate, "show", lambda self, port: served_ports.append(port)
-        )
+        with page_links.collect() as offers:
+            orchestrate_metadata_page(input_parameters)
 
-        orchestrate_metadata_page(input_parameters)
-
-        assert len(served_ports) == 1
+        assert [(page.name, page.template.title) for page in offers.pages] == [
+            ("Photo_session (run1)", "Metadata GUI - Photo_session (run1)")
+        ]
 
     def test_combined_run_is_refused_before_any_page_is_built(self, panel_extension, tmp_path):
         # Step 6 edits one metadata file per session output directory, which combining collapses,

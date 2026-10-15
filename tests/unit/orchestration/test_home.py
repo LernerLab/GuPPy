@@ -5,8 +5,9 @@ from importlib.metadata import version
 import panel as pn
 import pytest
 
+from guppy.orchestration import step_view
 from guppy.orchestration.home import build_homepage
-from guppy.utils import progress
+from guppy.utils import page_links, progress
 
 
 def poll_until_stopped(capture_periodic, timeout=3.0):
@@ -403,50 +404,95 @@ def test_second_step_launch_is_refused_while_one_is_running(homepage, selected_s
     assert any("already running" in message for message in notifications)
 
 
-def test_preprocess_success_opens_the_result_view(homepage, selected_session, monkeypatch, capture_periodic):
-    """On a successful preprocess run the completion path opens the preprocessing view."""
+def results_html(homepage, button_name):
+    return homepage._widgets["results_buttons"][button_name].object
 
+
+@pytest.fixture
+def tab_messages(homepage, monkeypatch):
+    """Record what the homepage tells the browser about its placeholder tabs."""
+    messages = []
+    monkeypatch.setattr(homepage._widgets["tab_opener"], "_send_msg", messages.append)
+    return messages
+
+
+@pytest.mark.parametrize(
+    "hook_name, worker_attr, button_name, route",
+    [
+        ("onclickpreprocess", "run_preprocess_step", "preprocess", "preprocess-view"),
+        ("onclickpsth", "run_psth_step", "psth_computation", "transients-view"),
+    ],
+    ids=["preprocess", "psth"],
+)
+def test_step_success_enables_show_results(
+    homepage, selected_session, monkeypatch, capture_periodic, hook_name, worker_attr, button_name, route
+):
     def worker(params):
         progress.start(3)
         progress.advance(3)
 
-    monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", worker)
-    opened = []
-    monkeypatch.setattr(
-        "guppy.orchestration.home.open_preprocess_view",
-        lambda session_folders, params: opened.append((session_folders, params)),
-    )
+    monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", worker)
+
+    homepage._hooks[hook_name]()
+    poll_until_stopped(capture_periodic)
+
+    assert results_html(homepage, button_name).startswith(f'<a href="{route}?token=')
+
+
+def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkeypatch, capture_periodic):
+    homepage._widgets["results_buttons"]["preprocess"].object = '<a href="old">Show results</a>'
+
+    def failing_worker(params):
+        progress.fail("Preprocessing failed")
+
+    monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", failing_worker)
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
 
     homepage._hooks["onclickpreprocess"]()
     poll_until_stopped(capture_periodic)
 
-    assert len(opened) == 1
-    session_folders, params = opened[0]
-    assert session_folders == params["session_folders"]
-    extract_progress = homepage._widgets["extract_progress"]
-    assert (extract_progress.value, extract_progress.max) == (3, 3)
+    assert results_html(homepage, "preprocess").startswith("<span ")
 
 
-def test_psth_success_opens_the_transients_view(homepage, selected_session, monkeypatch, capture_periodic):
-    """On a successful PSTH/transients run the completion path opens the transient-peaks view."""
+def test_label_stores_shows_every_session_in_the_clicks_tab(homepage, selected_session, monkeypatch, tab_messages):
+    served = []
+    # Starting a real server is out of scope for a unit test; record how it would be started.
+    monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, **kwargs: served.append(self.title))
+    monkeypatch.setattr(step_view, "scanPortsAndFind", lambda start_port, end_port: 5100)
 
-    def worker(params):
-        progress.start(3)
-        progress.advance(3)
+    def offer_two_sessions(params, on_saved):
+        for session in ["mouse_01", "mouse_02"]:
+            page_links.offer_page(
+                name=session, template=pn.template.BootstrapTemplate(title=f"Label Stores GUI - {session}")
+            )
 
-    monkeypatch.setattr("guppy.orchestration.home.run_psth_step", worker)
-    opened = []
-    monkeypatch.setattr(
-        "guppy.orchestration.home.open_transients_view",
-        lambda session_folders, params: opened.append((session_folders, params)),
-    )
+    monkeypatch.setattr("guppy.orchestration.home.orchestrate_store_labeling_page", offer_two_sessions)
 
-    homepage._hooks["onclickpsth"]()
-    poll_until_stopped(capture_periodic)
+    homepage._hooks["onclickLabelStores"]()
 
-    assert len(opened) == 1
-    session_folders, params = opened[0]
-    assert session_folders == params["session_folders"]
+    assert served == ["Label Stores — 2 sessions"]
+    assert tab_messages == [{"key": "open_label_stores", "href": "http://localhost:5100/"}]
+
+
+def test_a_click_that_opens_nothing_closes_its_tab(homepage, monkeypatch, tab_messages):
+    # No session is selected, so the click is refused before any page is built.
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
+
+    homepage._hooks["onclickLabelStores"]()
+
+    assert tab_messages == [{"key": "open_label_stores", "href": None}]
+
+
+def test_a_click_that_fails_closes_its_tab(homepage, selected_session, monkeypatch, tab_messages):
+    def fail(params, on_saved):
+        raise RuntimeError("header could not be read")
+
+    monkeypatch.setattr("guppy.orchestration.home.orchestrate_store_labeling_page", fail)
+
+    with pytest.raises(RuntimeError):
+        homepage._hooks["onclickLabelStores"]()
+
+    assert tab_messages == [{"key": "open_label_stores", "href": None}]
 
 
 def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
