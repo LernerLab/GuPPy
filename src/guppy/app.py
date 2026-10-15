@@ -6,6 +6,7 @@ from .orchestration.artifact_view import build_artifact_view
 from .orchestration.home import build_homepage
 from .orchestration.preprocess_view import build_preprocess_view
 from .orchestration.select_artifact_windows import build_select_artifact_windows_view
+from .orchestration.step_view import build_page_view
 from .orchestration.tonic_analysis import build_tonic_analysis_view
 from .orchestration.transients_view import build_transients_view
 
@@ -18,9 +19,10 @@ def serve_app(
 ) -> None:
     """Serve the GuPPy application using Panel.
 
-    Serves the homepage plus the step result-view routes on one persistent server (each a
-    per-session factory). The views live on this never-torn-down server so the browser tab
-    is never abruptly disconnected. ``show=True`` opens the homepage at ``/``.
+    Serves the homepage plus the step result-view routes and the shared ``page`` route on one
+    persistent server (each a per-session factory). Every page GuPPy opens lives on this
+    never-torn-down server, so the browser tab is never abruptly disconnected and the whole
+    application is reachable through a single port. ``show=True`` opens the homepage at ``/``.
 
     Parameters
     ----------
@@ -37,6 +39,7 @@ def serve_app(
             output_root_folder=output_root_folder,
             use_bundled_dandi_cache=use_bundled_dandi_cache,
         ),
+        "/page": build_page_view,
         "/preprocess-view": build_preprocess_view,
         "/select-artifact-windows": build_select_artifact_windows_view,
         "/artifact-view": build_artifact_view,

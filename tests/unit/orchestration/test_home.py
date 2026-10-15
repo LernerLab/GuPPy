@@ -455,11 +455,6 @@ def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkey
 
 
 def test_label_stores_shows_every_session_in_the_clicks_tab(homepage, selected_session, monkeypatch, tab_messages):
-    served = []
-    # Starting a real server is out of scope for a unit test; record how it would be started.
-    monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, **kwargs: served.append(self.title))
-    monkeypatch.setattr(step_view, "scanPortsAndFind", lambda start_port, end_port: 5100)
-
     def offer_two_sessions(params, on_saved):
         for session in ["mouse_01", "mouse_02"]:
             page_links.offer_page(
@@ -470,8 +465,10 @@ def test_label_stores_shows_every_session_in_the_clicks_tab(homepage, selected_s
 
     homepage._hooks["onclickLabelStores"]()
 
-    assert served == ["Label Stores — 2 sessions"]
-    assert tab_messages == [{"key": "open_label_stores", "href": "http://localhost:5100/"}]
+    (message,) = tab_messages
+    assert message["key"] == "open_label_stores"
+    token = message["href"].removeprefix("page?token=")
+    assert step_view._pending_pages[token].title == "Label Stores — 2 sessions"
 
 
 def test_a_click_that_opens_nothing_closes_its_tab(homepage, monkeypatch, tab_messages):

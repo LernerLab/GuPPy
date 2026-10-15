@@ -1,8 +1,12 @@
 import panel as pn
-import pytest
 
 from guppy.orchestration import step_view
-from guppy.orchestration.step_view import StepView, serve_page, serve_pages
+from guppy.orchestration.step_view import (
+    StepView,
+    build_page_view,
+    serve_page,
+    serve_pages,
+)
 from guppy.utils import page_links
 from guppy.utils.page_links import Page, PageLink
 
@@ -44,38 +48,36 @@ class TestStepView:
         assert compose_calls == [(["/a"], {"k": 1})]
 
 
-@pytest.fixture
-def shown(monkeypatch):
-    """Record how each page would be served; starting a real server is out of scope here."""
-    served = []
-    monkeypatch.setattr(
-        pn.template.BootstrapTemplate, "show", lambda self, **kwargs: served.append((self.title, kwargs))
-    )
-    monkeypatch.setattr(step_view, "scanPortsAndFind", lambda start_port, end_port: 5123)
-    return served
+def served_template(link):
+    """The template registered for ``link`` on the shared ``page`` route."""
+    assert link.href.startswith("page?token=")
+    return step_view._pending_pages[link.href.removeprefix("page?token=")]
 
 
 class TestServePage:
-    def test_serves_without_opening_a_browser_and_offers_a_link_to_the_port(self, panel_extension, shown):
-        with page_links.collect() as offers:
-            serve_page(template=pn.template.BootstrapTemplate(title="GuPPy — Label Groups"), title="Label Groups")
+    def test_registers_the_page_on_the_page_route_and_offers_a_link(self, panel_extension):
+        template = pn.template.BootstrapTemplate(title="GuPPy — Label Groups")
 
-        assert shown == [("GuPPy — Label Groups", {"port": 5123, "open": False})]
-        assert offers.links == [PageLink(title="Label Groups", href="http://localhost:5123/")]
+        with page_links.collect() as offers:
+            serve_page(template=template, title="Label Groups")
+
+        (link,) = offers.links
+        assert link.title == "Label Groups"
+        assert served_template(link) is template
 
 
 class TestServePages:
-    def test_a_lone_page_is_served_as_it_is(self, panel_extension, shown):
+    def test_a_lone_page_is_served_as_it_is(self, panel_extension):
         template = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_01")
 
         link = serve_pages(
             pages=[Page(name="mouse_01", template=template)], title="Label Stores", plural_noun="sessions"
         )
 
-        assert shown == [("Label Stores GUI - mouse_01", {"port": 5123, "open": False})]
-        assert link == PageLink(title="Label Stores — mouse_01", href="http://localhost:5123/")
+        assert link.title == "Label Stores — mouse_01"
+        assert served_template(link) is template
 
-    def test_several_pages_share_one_page_with_a_tab_each(self, panel_extension, shown):
+    def test_several_pages_share_one_page_with_a_tab_each(self, panel_extension):
         mouse_01 = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_01")
         mouse_01.main.append(pn.pane.Markdown("labels for mouse_01"))
         mouse_02 = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_02")
@@ -87,8 +89,27 @@ class TestServePages:
             plural_noun="sessions",
         )
 
-        assert shown == [("Label Stores — 2 sessions", {"port": 5123, "open": False})]
-        assert link == PageLink(title="Label Stores — 2 sessions", href="http://localhost:5123/")
-        (tabs,) = mouse_01.main
+        assert link.title == "Label Stores — 2 sessions"
+        combined = served_template(link)
+        assert combined.title == "Label Stores — 2 sessions"
+        (tabs,) = combined.main
         assert tabs._names == ["mouse_01", "mouse_02"]
         assert [column[0].object for column in tabs] == ["labels for mouse_01", "labels for mouse_02"]
+
+
+class TestBuildPageView:
+    def test_serves_the_page_registered_for_the_token(self, panel_extension, monkeypatch):
+        template = pn.template.BootstrapTemplate(title="Page")
+        monkeypatch.setitem(step_view._pending_pages, "tok", template)
+        monkeypatch.setattr(step_view, "_read_token", lambda: "tok")
+        # No live session in the test, so stub the session-destroyed registration.
+        monkeypatch.setattr(step_view.pn.state, "on_session_destroyed", lambda callback: None)
+
+        assert build_page_view() is template
+
+    def test_unknown_token_shows_expired_notice(self, panel_extension, monkeypatch):
+        monkeypatch.setattr(step_view, "_read_token", lambda: "bogus")
+
+        template = build_page_view()
+
+        assert [pane.object for pane in template.main] == ["This view has expired. You can close this tab."]
