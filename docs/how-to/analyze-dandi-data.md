@@ -9,21 +9,21 @@ instead.
 
 ## Before you start
 
-Get a DANDI API key and set it before you launch GuPPy. Streaming an asset's data
-needs one **even for a public dandiset**. Copy your key from your account page on
-dandiarchive.org and export it in the shell you launch `guppy` from:
+Get a DANDI API key. Streaming an asset's data needs one **even for a public
+dandiset**. Copy your key from your account page on dandiarchive.org and paste it
+into the **DANDI API key** field at the top of the DANDI panel. GuPPy uses it until
+it closes and does not save it, so paste it again after each launch.
+
+To skip that step, store the key where GuPPy finds it on its own: run `dandi login`
+once to save it in your keyring, or export it in the shell you launch `guppy` from:
 
 ```bash
 export DANDI_API_KEY=<your key>
 ```
 
-Or run `dandi login` once to store the key in your keyring, where GuPPy also
-finds it.
-
-Set it up front even though the panel appears to work without it. Searching the
-archive, listing a dandiset's assets and previewing a file all read public data,
-so a missing key stays invisible until **Step 1: Label Stores**, which stalls
-while the terminal that launched `guppy` waits at a token prompt you cannot see.
+Searching the archive, listing a dandiset's assets and previewing a file all read
+public data, so they work without a key. **Step 1: Label Stores** and the steps
+after it stream the data, and they tell you to enter a key if none is set.
 
 GuPPy reads the dandiset's `draft` version.
 

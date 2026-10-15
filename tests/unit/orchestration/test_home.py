@@ -607,3 +607,19 @@ def test_remove_artifacts_success_enables_show_results(homepage, selected_sessio
     poll_until_stopped(capture_periodic)
 
     assert results_html(homepage, "remove_artifacts").startswith('<a href="artifact-view?token=')
+
+
+def test_a_refused_label_stores_click_notifies_and_closes_its_tab(
+    homepage, selected_session, monkeypatch, tab_messages
+):
+    def refuse(params, on_saved):
+        raise ValueError("Streaming from the DANDI Archive needs a DANDI API key.")
+
+    monkeypatch.setattr("guppy.orchestration.home.orchestrate_store_labeling_page", refuse)
+    notifications = []
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: notifications.append(message))
+
+    homepage._hooks["onclickLabelStores"]()
+
+    assert notifications == ["Streaming from the DANDI Archive needs a DANDI API key."]
+    assert tab_messages == [{"key": "open_label_stores", "href": None}]

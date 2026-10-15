@@ -12,11 +12,13 @@ from pathlib import Path
 from threading import Thread
 
 import panel as pn
+import param
 from dandi.exceptions import NotFoundError
 
 from .dandi_preview_panel import DandiPreviewPanel
 from .dandi_search_panel import DandiSearchPanel
 from .frontend_utils import DANDI_PANEL_WIDTH, SECONDARY_BUTTON_STYLESHEET
+from ..utils.dandi_auth import use_dandi_api_key
 from ..utils.dandi_filter import (
     PhotometryVerdictCache,
     filter_assets,
@@ -146,6 +148,21 @@ class DandiFilePanel:
         # Re-attached to each rebuilt asset FileSelector by _make_asset_file_selector.
         self._asset_selection_watchers = []
 
+        self.api_key_input = pn.widgets.PasswordInput(
+            name="DANDI API key", placeholder="Paste your key from dandiarchive.org", width=420
+        )
+        self.api_key_input.param.watch(self._on_api_key_entered, "value")
+        self.api_key_section = pn.Column(
+            self.api_key_input,
+            pn.pane.Markdown(
+                "Streaming a file needs a DANDI API key, even from a public dandiset. Copy yours from "
+                "your account page on [dandiarchive.org](https://dandiarchive.org). GuPPy uses it until "
+                "it closes and does not save it. Leave this empty if you have set `DANDI_API_KEY` or "
+                "run `dandi login`.",
+                width=DANDI_PANEL_WIDTH,
+            ),
+        )
+
         self.search_panel = (
             search_panel
             if search_panel is not None
@@ -249,7 +266,11 @@ class DandiFilePanel:
             ),
             visible=False,
         )
-        self.panel = pn.Column(self.catalog_view, self.files_view)
+        self.panel = pn.Column(self.api_key_section, self.catalog_view, self.files_view)
+
+    def _on_api_key_entered(self, event: param.parameterized.Event) -> None:
+        if event.new.strip():
+            use_dandi_api_key(api_key=event.new.strip())
 
     def open_catalog(self, event: object = None) -> None:
         """Show the dandiset catalog, searching the archive the first time it is opened.

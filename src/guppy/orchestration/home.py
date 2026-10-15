@@ -212,13 +212,17 @@ def build_homepage(
         if inputParameters is None:
             return None
         # Each Save on a Label Stores page creates a run folder; re-list the runs so it appears here.
-        return _serve_offered_page(
-            lambda: orchestrate_store_labeling_page(
-                inputParameters, on_saved=parameter_form.refresh_individual_outputs
-            ),
-            title="Label Stores",
-            plural_noun="sessions",
-        )
+        try:
+            return _serve_offered_page(
+                lambda: orchestrate_store_labeling_page(
+                    inputParameters, on_saved=parameter_form.refresh_individual_outputs
+                ),
+                title="Label Stores",
+                plural_noun="sessions",
+            )
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+            return None
 
     def _open_visualization() -> page_links.PageLink | None:
         # Unlike steps 2-4, visualization can run on groups alone, so it does not require

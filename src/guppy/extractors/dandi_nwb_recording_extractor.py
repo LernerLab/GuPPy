@@ -16,6 +16,7 @@ from guppy.extractors.nwb_recording_extractor import (
     _discover_events_from_nwbfile,
     _read_events_from_nwbfile,
 )
+from guppy.utils.dandi_auth import require_dandi_api_key
 from guppy.utils.nwb_io import open_nwbfile_io
 
 logger = logging.getLogger(__name__)
@@ -159,7 +160,13 @@ def _stream_nwb(
         The IO object. Must be closed by the caller when done.
     counter : _CountingRemfile
         Wrapper around the underlying remfile providing per-event byte tracking.
+
+    Raises
+    ------
+    ValueError
+        If no DANDI API key is available.
     """
+    require_dandi_api_key()
     with DandiAPIClient() as client:
         client.dandi_authenticate()
         asset = client.get_dandiset(dandiset_id, "draft").get_asset_by_path(asset_path)

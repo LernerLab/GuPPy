@@ -1,8 +1,10 @@
 """Unit tests for the panel that picks NWB files out of one DANDI dandiset."""
 
+import os
 from pathlib import Path
 from threading import Event
 
+import panel as pn
 import pytest
 from dandi.exceptions import NotFoundError
 
@@ -580,3 +582,27 @@ class TestDandiFilePanelPreviewVisibility:
         assert file_panel.preview_panel.panel.visible is False
         assert file_panel.hide_preview_button.visible is False
         assert file_panel.selected_uris == ["dandi://000971/sub-01/ses-1_behavior.nwb"]
+
+
+class TestDandiFilePanelApiKey:
+    @pytest.fixture(autouse=True)
+    def no_api_key(self, monkeypatch):
+        """Start each test without a key, restoring the real environment afterwards."""
+        monkeypatch.delenv("DANDI_API_KEY", raising=False)
+
+    def test_the_key_field_leads_the_panel(self, file_panel):
+        assert file_panel.panel[0] is file_panel.api_key_section
+        assert file_panel.api_key_section[0] is file_panel.api_key_input
+        assert isinstance(file_panel.api_key_input, pn.widgets.PasswordInput)
+
+    def test_an_entered_key_is_used_for_streaming(self, file_panel):
+        file_panel.api_key_input.value = "  abc123  "
+
+        assert os.environ["DANDI_API_KEY"] == "abc123"
+
+    def test_clearing_the_field_keeps_the_key_in_use(self, file_panel):
+        file_panel.api_key_input.value = "abc123"
+
+        file_panel.api_key_input.value = ""
+
+        assert os.environ["DANDI_API_KEY"] == "abc123"
