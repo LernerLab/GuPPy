@@ -3,9 +3,14 @@ import time
 
 import panel as pn
 import pytest
+from playwright.sync_api import expect
 
 from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.orchestration.home import build_homepage
+
+# The first session on a freshly started Panel server can take well past Playwright's 5s default to
+# render on a shared Windows CI runner.
+expect.set_options(timeout=30_000)
 
 
 @pytest.fixture(scope="session")
