@@ -404,20 +404,28 @@ def test_second_step_launch_is_refused_while_one_is_running(homepage, selected_s
     assert any("already running" in message for message in notifications)
 
 
-def link_html(homepage, button_name):
-    return [pane.object for pane in homepage._widgets["page_links"][button_name]]
+def results_html(homepage, button_name):
+    return homepage._widgets["results_buttons"][button_name].object
+
+
+@pytest.fixture
+def tab_messages(homepage, monkeypatch):
+    """Record what the homepage tells the browser about its placeholder tabs."""
+    messages = []
+    monkeypatch.setattr(homepage._widgets["tab_opener"], "_send_msg", messages.append)
+    return messages
 
 
 @pytest.mark.parametrize(
-    "hook_name, worker_attr, button_name, route, title",
+    "hook_name, worker_attr, button_name, route",
     [
-        ("onclickpreprocess", "run_preprocess_step", "preprocess", "preprocess-view", "GuPPy — Preprocessing"),
-        ("onclickpsth", "run_psth_step", "psth_computation", "transients-view", "GuPPy — Transient peaks"),
+        ("onclickpreprocess", "run_preprocess_step", "preprocess", "preprocess-view"),
+        ("onclickpsth", "run_psth_step", "psth_computation", "transients-view"),
     ],
     ids=["preprocess", "psth"],
 )
-def test_step_success_links_its_result_view(
-    homepage, selected_session, monkeypatch, capture_periodic, hook_name, worker_attr, button_name, route, title
+def test_step_success_enables_show_results(
+    homepage, selected_session, monkeypatch, capture_periodic, hook_name, worker_attr, button_name, route
 ):
     def worker(params):
         progress.start(3)
@@ -428,13 +436,11 @@ def test_step_success_links_its_result_view(
     homepage._hooks[hook_name]()
     poll_until_stopped(capture_periodic)
 
-    (link,) = link_html(homepage, button_name)
-    assert link.startswith(f'<a href="{route}?token=')
-    assert link.endswith(f'" target="_blank">Open {title}</a> (new tab)')
+    assert results_html(homepage, button_name).startswith(f'<a href="{route}?token=')
 
 
-def test_a_failed_rerun_removes_the_previous_links(homepage, selected_session, monkeypatch, capture_periodic):
-    homepage._widgets["page_links"]["preprocess"].objects = [pn.pane.HTML("old link")]
+def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkeypatch, capture_periodic):
+    homepage._widgets["results_buttons"]["preprocess"].object = '<a href="old">Show results</a>'
 
     def failing_worker(params):
         progress.fail("Preprocessing failed")
@@ -445,10 +451,10 @@ def test_a_failed_rerun_removes_the_previous_links(homepage, selected_session, m
     homepage._hooks["onclickpreprocess"]()
     poll_until_stopped(capture_periodic)
 
-    assert link_html(homepage, "preprocess") == []
+    assert results_html(homepage, "preprocess").startswith("<span ")
 
 
-def test_label_stores_serves_every_session_behind_one_link(homepage, selected_session, monkeypatch):
+def test_label_stores_shows_every_session_in_the_clicks_tab(homepage, selected_session, monkeypatch, tab_messages):
     served = []
     # Starting a real server is out of scope for a unit test; record how it would be started.
     monkeypatch.setattr(pn.template.BootstrapTemplate, "show", lambda self, **kwargs: served.append(self.title))
@@ -465,9 +471,28 @@ def test_label_stores_serves_every_session_behind_one_link(homepage, selected_se
     homepage._hooks["onclickLabelStores"]()
 
     assert served == ["Label Stores — 2 sessions"]
-    assert link_html(homepage, "open_label_stores") == [
-        '<a href="http://localhost:5100/" target="_blank">Open Label Stores — 2 sessions</a> (new tab)'
-    ]
+    assert tab_messages == [{"key": "open_label_stores", "href": "http://localhost:5100/"}]
+
+
+def test_a_click_that_opens_nothing_closes_its_tab(homepage, monkeypatch, tab_messages):
+    # No session is selected, so the click is refused before any page is built.
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
+
+    homepage._hooks["onclickLabelStores"]()
+
+    assert tab_messages == [{"key": "open_label_stores", "href": None}]
+
+
+def test_a_click_that_fails_closes_its_tab(homepage, selected_session, monkeypatch, tab_messages):
+    def fail(params, on_saved):
+        raise RuntimeError("header could not be read")
+
+    monkeypatch.setattr("guppy.orchestration.home.orchestrate_store_labeling_page", fail)
+
+    with pytest.raises(RuntimeError):
+        homepage._hooks["onclickLabelStores"]()
+
+    assert tab_messages == [{"key": "open_label_stores", "href": None}]
 
 
 def test_success_snaps_the_bar_to_full_when_the_step_undercounted(

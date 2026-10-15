@@ -52,9 +52,8 @@ GuPPy knows the shape of your recording — how many recording sites, which stor
 is signal and which is control — but nothing about what produced it. NWB needs
 the rest, and no analysis output can supply it. This step collects it.
 
-Click **Input Metadata**, then the **Open Input Metadata** link that appears under the
-button. It opens one browser tab with a tab inside it for each selected session, named
-`<session> (<run>)`. The main GuPPy tab stays responsive.
+Click **Input Metadata**. A page opens in a new browser tab, with a tab inside it for
+each selected session, named `<session> (<run>)`. The main GuPPy tab stays responsive.
 
 ```{image} ../_static/images/export_to_nwb_button.png
 :alt: The bottom of the sidebar showing Step 6, Input Metadata, and Step 7, Export to NWB, with its progress bar, positioned below Step 5, Visualization

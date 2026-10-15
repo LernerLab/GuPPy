@@ -25,6 +25,7 @@ from .transients_view import open_transients_view
 from .visualize import visualizeResults
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.sidebar import Sidebar
+from ..frontend.tab_opener import TabOpener
 from ..utils import page_links
 from ..utils.progress import StepProgress, _current_step
 
@@ -79,6 +80,9 @@ def build_homepage(
         use_bundled_dandi_cache=use_bundled_dandi_cache,
     )
     sidebar = Sidebar(template=template)
+    # Fills the placeholder tab each page-opening click opens; it renders nothing itself.
+    tab_opener = TabOpener()
+    template.header.append(tab_opener)
 
     # ------------------------------------------------------------------------------------------------------------------
     # onclick closure functions for sidebar buttons
@@ -92,24 +96,39 @@ def build_homepage(
             pn.state.notifications.error(str(e), duration=0)
             return None
 
-    def _offer_pages(
-        button_name: str,
+    def _serve_offered_page(
         produce_pages: Callable[[], None],
         *,
         title: str | None = None,
         plural_noun: str | None = None,
-    ) -> None:
-        # Shows the pages produce_pages offers as links under the button, replacing the links
-        # its previous run left. They are cleared first so a run that fails leaves none. Finished
-        # pages it offers, one per session or run, are served together behind a single link
-        # named by title and plural_noun.
-        sidebar.show_page_links(button_name=button_name, links=[])
+    ) -> page_links.PageLink | None:
+        # The one page produce_pages offers, served if it is not already, or None when it offered
+        # none. Pages offered one per session or run are served together as one page, named by
+        # title and plural_noun.
         with page_links.collect() as offers:
             produce_pages()
         links = list(offers.links)
         if offers.pages:
             links.append(serve_pages(pages=offers.pages, title=title, plural_noun=plural_noun))
-        sidebar.show_page_links(button_name=button_name, links=links)
+        if not links:
+            return None
+        (link,) = links
+        return link
+
+    def _opens_page(button_name: str, open_page: Callable[[], page_links.PageLink | None]) -> Callable[[object], None]:
+        # A click handler that shows the page open_page returns in the placeholder tab the
+        # button's click opened, and closes that tab when open_page returns None or raises.
+        def onclick(event: object = None) -> None:
+            link = None
+            try:
+                link = open_page()
+            finally:
+                if link is None:
+                    tab_opener.close(key=button_name)
+                else:
+                    tab_opener.navigate(key=button_name, href=link.href)
+
+        return onclick
 
     def _run_worker_with_progress(
         worker: Callable[[dict[str, object]], None],
@@ -118,7 +137,7 @@ def build_homepage(
         add_curr_dir: bool = False,
         require_selected_outputs: bool = True,
         on_success: Callable[[dict[str, object]], None] | None = None,
-        page_links_button: str | None = None,
+        results_button: str | None = None,
     ) -> None:
         # Shared launch pattern for the pipeline steps that run a worker in a background
         # thread while a progress bar reports what the worker has emitted.
@@ -133,9 +152,9 @@ def build_homepage(
 
         progress_widget.value = 0
         progress_widget.bar_color = "success"
-        if page_links_button is not None:
-            # Links from the previous run would point at results this run is overwriting.
-            sidebar.show_page_links(button_name=page_links_button, links=[])
+        if results_button is not None:
+            # The previous run's results are being overwritten.
+            sidebar.show_results(button_name=results_button, link=None)
 
         # Bind the step's progress sink for the worker only. Running the setter inside the
         # copied context confines the binding to the thread that context carries, leaving
@@ -178,24 +197,22 @@ def build_homepage(
 
         poller["callback"] = pn.state.add_periodic_callback(poll, period=100)
 
-    def onclickImportCustomEvents(event: object = None) -> None:
+    def _open_custom_events() -> page_links.PageLink | None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
-            return
-        _offer_pages(
-            "import_custom_events",
+            return None
+        return _serve_offered_page(
             lambda: orchestrate_custom_events_page(inputParameters),
             title="Import Custom Events",
             plural_noun="sessions",
         )
 
-    def onclickLabelStores(event: object = None) -> None:
+    def _open_label_stores() -> page_links.PageLink | None:
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
-            return
+            return None
         # Each Save on a Label Stores page creates a run folder; re-list the runs so it appears here.
-        _offer_pages(
-            "open_label_stores",
+        return _serve_offered_page(
             lambda: orchestrate_store_labeling_page(
                 inputParameters, on_saved=parameter_form.refresh_individual_outputs
             ),
@@ -203,91 +220,118 @@ def build_homepage(
             plural_noun="sessions",
         )
 
-    def onclickVisualization(event: object = None) -> None:
+    def _open_visualization() -> page_links.PageLink | None:
         # Unlike steps 2-4, visualization can run on groups alone, so it does not require
         # every selected session to have a run picked. visualizeResults reports what is
         # actually missing.
         inputParameters = _getInputParametersOrNotify()
         if inputParameters is None:
-            return
+            return None
         try:
-            _offer_pages(
-                "open_visualization",
+            return _serve_offered_page(
                 lambda: visualizeResults(inputParameters),
                 title="Visualization",
                 plural_noun="dashboards",
             )
         except ValueError as e:
             pn.state.notifications.error(str(e), duration=0)
+            return None
+
+    def _open_select_artifact_windows() -> page_links.PageLink | None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return None
+        try:
+            return _serve_offered_page(lambda: orchestrate_select_artifact_windows(inputParameters))
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+            return None
+
+    def _open_tonic_analysis() -> page_links.PageLink | None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return None
+        try:
+            return _serve_offered_page(lambda: orchestrate_tonic_analysis(inputParameters))
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+            return None
+
+    def _open_label_groups() -> page_links.PageLink | None:
+        inputParameters = _getInputParametersOrNotify()
+        if inputParameters is None:
+            return None
+        link = None
+        try:
+            link = _serve_offered_page(lambda: orchestrate_group_labeling_page(inputParameters))
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+        # A group defined just now becomes selectable without re-navigating the browser.
+        parameter_form.refresh_group_folders()
+        return link
+
+    def _open_metadata() -> page_links.PageLink | None:
+        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
+        if inputParameters is None:
+            return None
+        try:
+            return _serve_offered_page(
+                lambda: orchestrate_metadata_page(inputParameters),
+                title="Input Metadata",
+                plural_noun="sessions",
+            )
+        except ValueError as e:
+            pn.state.notifications.error(str(e), duration=0)
+            return None
+
+    onclickImportCustomEvents = _opens_page("import_custom_events", _open_custom_events)
+    onclickLabelStores = _opens_page("open_label_stores", _open_label_stores)
+    onclickVisualization = _opens_page("open_visualization", _open_visualization)
+    onclickSelectArtifactWindows = _opens_page("select_artifact_windows", _open_select_artifact_windows)
+    onclickTonicAnalysis = _opens_page("tonic_analysis", _open_tonic_analysis)
+    onclickLabelGroups = _opens_page("label_groups", _open_label_groups)
+    onclickMetadata = _opens_page("open_metadata", _open_metadata)
 
     def onclickreaddata(event: object = None) -> None:
         _run_worker_with_progress(run_read_raw_data_step, sidebar.read_progress)
 
     def onclickpreprocess(event: object = None) -> None:
-        def _offer_view(inputParameters: dict[str, object]) -> None:
-            _offer_pages(
-                "preprocess", lambda: open_preprocess_view(inputParameters["session_folders"], inputParameters)
+        def _show_results(inputParameters: dict[str, object]) -> None:
+            link = _serve_offered_page(
+                lambda: open_preprocess_view(inputParameters["session_folders"], inputParameters)
             )
+            sidebar.show_results(button_name="preprocess", link=link)
 
         _run_worker_with_progress(
-            run_preprocess_step, sidebar.extract_progress, on_success=_offer_view, page_links_button="preprocess"
+            run_preprocess_step, sidebar.extract_progress, on_success=_show_results, results_button="preprocess"
         )
 
-    def onclickSelectArtifactWindows(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        try:
-            _offer_pages("select_artifact_windows", lambda: orchestrate_select_artifact_windows(inputParameters))
-        except ValueError as e:
-            pn.state.notifications.error(str(e), duration=0)
-
-    def onclickTonicAnalysis(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        try:
-            _offer_pages("tonic_analysis", lambda: orchestrate_tonic_analysis(inputParameters))
-        except ValueError as e:
-            pn.state.notifications.error(str(e), duration=0)
-
     def onclickRemoveArtifacts(event: object = None) -> None:
-        def _offer_view(inputParameters: dict[str, object]) -> None:
-            _offer_pages(
-                "remove_artifacts", lambda: open_artifact_view(inputParameters["session_folders"], inputParameters)
-            )
+        def _show_results(inputParameters: dict[str, object]) -> None:
+            link = _serve_offered_page(lambda: open_artifact_view(inputParameters["session_folders"], inputParameters))
+            sidebar.show_results(button_name="remove_artifacts", link=link)
 
         _run_worker_with_progress(
             run_remove_artifacts_step,
             sidebar.remove_artifacts_progress,
-            on_success=_offer_view,
-            page_links_button="remove_artifacts",
+            on_success=_show_results,
+            results_button="remove_artifacts",
         )
 
     def onclickpsth(event: object = None) -> None:
-        def _offer_view(inputParameters: dict[str, object]) -> None:
-            _offer_pages(
-                "psth_computation", lambda: open_transients_view(inputParameters["session_folders"], inputParameters)
+        def _show_results(inputParameters: dict[str, object]) -> None:
+            link = _serve_offered_page(
+                lambda: open_transients_view(inputParameters["session_folders"], inputParameters)
             )
+            sidebar.show_results(button_name="psth_computation", link=link)
 
         _run_worker_with_progress(
             run_psth_step,
             sidebar.psth_progress,
             add_curr_dir=True,
-            on_success=_offer_view,
-            page_links_button="psth_computation",
+            on_success=_show_results,
+            results_button="psth_computation",
         )
-
-    def onclickLabelGroups(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify()
-        if inputParameters is None:
-            return
-        try:
-            _offer_pages("label_groups", lambda: orchestrate_group_labeling_page(inputParameters))
-        except ValueError as e:
-            pn.state.notifications.error(str(e), duration=0)
-        # A group defined just now becomes selectable without re-navigating the browser.
-        parameter_form.refresh_group_folders()
 
     def onclickGroupAnalysis(event: object = None) -> None:
         def _list_new_group(inputParameters: dict[str, object]) -> None:
@@ -303,20 +347,6 @@ def build_homepage(
             require_selected_outputs=False,
             on_success=_list_new_group,
         )
-
-    def onclickMetadata(event: object = None) -> None:
-        inputParameters = _getInputParametersOrNotify(require_selected_outputs=True)
-        if inputParameters is None:
-            return
-        try:
-            _offer_pages(
-                "open_metadata",
-                lambda: orchestrate_metadata_page(inputParameters),
-                title="Input Metadata",
-                plural_noun="sessions",
-            )
-        except ValueError as e:
-            pn.state.notifications.error(str(e), duration=0)
 
     def onclickExportNwb(event: object = None) -> None:
         def _notify_exported(inputParameters: dict[str, object]) -> None:
@@ -377,7 +407,8 @@ def build_homepage(
         "output_root_selector": parameter_form.output_root_selector,
         "input_root_selector": parameter_form.input_root_selector,
         "remove_artifacts_progress": sidebar.remove_artifacts_progress,
-        "page_links": sidebar.page_links,
+        "results_buttons": sidebar.results_buttons,
+        "tab_opener": tab_opener,
     }
 
     return template
