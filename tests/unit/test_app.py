@@ -29,7 +29,14 @@ class TestServeApp:
             "/tonic-analysis",
             "/transients-view",
         ]
-        assert served["kwargs"] == {"show": True}
+        assert served["kwargs"] == {"port": 0, "address": None, "show": True, "verbose": True}
+
+    def test_prints_how_to_open_and_stop_guppy(self, served, capsys):
+        app.serve_app()
+
+        assert capsys.readouterr().out == (
+            "GuPPy is starting. Open the address below in your browser, and press Ctrl+C here to stop GuPPy.\n"
+        )
 
     def test_view_routes_are_the_step_view_factories(self, served):
         app.serve_app()
