@@ -2,8 +2,6 @@
 
 GuPPy runs on Windows, macOS and Linux, and requires **Python 3.11 or greater**.
 
-To run GuPPy without installing it, for example on a shared compute cluster, use the container image described in [Run GuPPy in a container](how-to/run-in-a-container.md).
-
 ## Step 1: Install Conda
 
 We recommend installing GuPPy inside a conda virtual environment to avoid conflicts with other Python packages on your system.

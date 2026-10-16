@@ -9,7 +9,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_autodoc_typehints",
     "sphinx_design",
-    "sphinx_copybutton",
 ]
 
 html_theme = "pydata_sphinx_theme"
