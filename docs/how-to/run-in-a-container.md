@@ -23,14 +23,14 @@ On a machine with [Docker](https://docs.docker.com/get-docker/), publish port
 
 ```bash
 docker run --rm -p 127.0.0.1:5006:5006 -v /path/to/data:/data \
-    ghcr.io/lernerlab/guppy:latest --input-root /data/sessions --output-root /data/outputs
+    ghcr.io/lernerlab/guppy:latest --input-root /data --output-root /data
 ```
 
 Replace `/path/to/data` with the folder on your computer that holds your data.
-Inside the container that folder is `/data`, so every path you give GuPPy starts
-there: replace `/data/sessions` with the folder your session folders live under,
-and `/data/outputs` with the folder GuPPy should write its outputs into. Both
-must already exist.
+Inside the container that folder is `/data`, and GuPPy starts with both its
+input and output roots there, so the folder browser shows your own folders. If
+your sessions or outputs live in a subfolder, change either root on the GuPPy
+homepage.
 
 Then open `http://localhost:5006`. The `127.0.0.1` in `-p`
 keeps GuPPy reachable from your own machine only. Keep 5006 on both sides of
@@ -54,19 +54,17 @@ cluster's support team how to load it.
    ```
 
 2. Start GuPPy on the cluster node where you will analyze the data, making the
-   data folders visible inside the container with `--bind`:
+   data folder visible inside the container as `/data` with `--bind`:
 
    ```bash
-   apptainer run --bind /path/to/data guppy.sif \
+   apptainer run --bind /path/to/data:/data guppy.sif \
        --address 127.0.0.1 --port 5006 \
-       --input-root /path/to/data/sessions --output-root /path/to/data/outputs
+       --input-root /data --output-root /data
    ```
 
-   Replace `/path/to/data` with the folder that holds your data, and the two
-   roots with the folder your session folders live under and the folder GuPPy
-   should write its outputs into. Both must already exist. Apptainer already
-   makes your home directory visible, so `--bind` is only needed for folders
-   outside it. `--address 127.0.0.1` keeps GuPPy reachable
+   Replace `/path/to/data` with the folder that holds your data. As with Docker,
+   GuPPy starts with both roots at `/data`, and you can change either one on the
+   GuPPy homepage. `--address 127.0.0.1` keeps GuPPy reachable
    only from the node itself, so other users of the cluster cannot open your
    session. If another user already has port 5006 in use on that node, choose
    another number and use it in the next step too.
