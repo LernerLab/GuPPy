@@ -161,7 +161,6 @@ def _stream_nwb(
         Wrapper around the underlying remfile providing per-event byte tracking.
     """
     with DandiAPIClient() as client:
-        client.dandi_authenticate()
         asset = client.get_dandiset(dandiset_id, "draft").get_asset_by_path(asset_path)
         s3_url = asset.get_content_url(follow_redirects=1, strip_query=False)
     file_system = remfile.File(s3_url)

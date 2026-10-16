@@ -15,6 +15,7 @@ offline mocks — just against a real streamed NWB file instead of a local one.
 
 import numpy as np
 import pytest
+from dandi.dandiapi import DandiAPIClient
 
 from guppy.extractors.dandi_nwb_recording_extractor import (
     DandiNwbRecordingExtractor,
@@ -104,3 +105,23 @@ class TestDandiLiveContract(NwbRecordingExtractorTestMixin):
         extractor.read(events=[self.control_event], outputPath=str(tmp_path))
         committed = extractor.committed_samples_for_event(self.control_event)
         assert committed == total_samples
+
+
+@pytest.mark.dandi_live
+def test_streaming_a_public_asset_never_authenticates(monkeypatch):
+    def refuse(self):
+        raise AssertionError("Streaming a public asset asked for a DANDI API key.")
+
+    monkeypatch.setattr(DandiAPIClient, "dandi_authenticate", refuse)
+    dandiset_id, asset_path = parse_dandi_uri(DANDI_URI)
+
+    nwbfile, io, _ = _stream_nwb(dandiset_id=dandiset_id, asset_path=asset_path)
+
+    assert list(nwbfile.acquisition) == [
+        "commanded_voltage_series_dls_calcium_signal",
+        "commanded_voltage_series_dls_isosbestic_control",
+        "commanded_voltage_series_dms_calcium_signal",
+        "commanded_voltage_series_dms_isosbestic_control",
+        "fiber_photometry_response_series",
+    ]
+    io.close()
