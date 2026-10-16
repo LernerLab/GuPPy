@@ -7,25 +7,8 @@ photometry data, or to check your own dataset after uploading it. If your data i
 already on disk, follow [Your First Analysis](../tutorials/first_analysis.md)
 instead.
 
-## Before you start
-
-Get a DANDI API key and set it before you launch GuPPy. Streaming an asset's data
-needs one **even for a public dandiset**. Copy your key from your account page on
-dandiarchive.org and export it in the shell you launch `guppy` from:
-
-```bash
-export DANDI_API_KEY=<your key>
-```
-
-Or run `dandi login` once to store the key in your keyring, where GuPPy also
-finds it.
-
-Set it up front even though the panel appears to work without it. Searching the
-archive, listing a dandiset's assets and previewing a file all read public data,
-so a missing key stays invisible until **Step 1: Label Stores**, which stalls
-while the terminal that launched `guppy` waits at a token prompt you cannot see.
-
-GuPPy reads the dandiset's `draft` version.
+Streaming a public dandiset needs no DANDI API key. GuPPy reads the dandiset's
+`draft` version.
 
 ## Choosing a dandiset and assets
 
