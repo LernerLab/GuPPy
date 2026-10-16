@@ -152,10 +152,10 @@ class TestMain:
     @pytest.mark.parametrize(
         ("argv", "expected_kwargs"),
         [
-            ([], {"port": 0, "address": None, "show": True}),
-            (["--port", "5006"], {"port": 5006, "address": None, "show": True}),
-            (["--address", "127.0.0.1"], {"port": 0, "address": "127.0.0.1", "show": True}),
-            (["--no-browser"], {"port": 0, "address": None, "show": False}),
+            ([], {"port": 0, "address": None, "show": True, "verbose": True}),
+            (["--port", "5006"], {"port": 5006, "address": None, "show": True, "verbose": True}),
+            (["--address", "127.0.0.1"], {"port": 0, "address": "127.0.0.1", "show": True, "verbose": True}),
+            (["--no-browser"], {"port": 0, "address": None, "show": False, "verbose": True}),
         ],
         ids=["default", "port", "address", "no_browser"],
     )

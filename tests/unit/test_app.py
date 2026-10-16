@@ -29,7 +29,7 @@ class TestServeApp:
             "/tonic-analysis",
             "/transients-view",
         ]
-        assert served["kwargs"] == {"port": 0, "address": None, "show": True}
+        assert served["kwargs"] == {"port": 0, "address": None, "show": True, "verbose": True}
 
     def test_view_routes_are_the_step_view_factories(self, served):
         app.serve_app()
