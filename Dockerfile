@@ -5,6 +5,9 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends chromium chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
+# Without a terminal attached, Python buffers its output, which would hold back the server's startup message.
+ENV PYTHONUNBUFFERED=1
+
 COPY pyproject.toml README.md LICENSE MANIFEST.in /opt/guppy/
 COPY src /opt/guppy/src
 RUN pip install --no-cache-dir /opt/guppy

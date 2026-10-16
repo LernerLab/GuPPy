@@ -25,7 +25,8 @@ def serve_app(
     Serves the homepage plus the step result-view routes and the shared ``page`` route on one
     persistent server (each a per-session factory). Every page GuPPy opens lives on this
     never-torn-down server, so the browser tab is never abruptly disconnected and the whole
-    application is reachable through a single port.
+    application is reachable through a single port. Prints how to open and stop GuPPy, then the
+    server's URL once it starts.
 
     Parameters
     ----------
@@ -55,4 +56,5 @@ def serve_app(
         "/tonic-analysis": build_tonic_analysis_view,
         "/transients-view": build_transients_view,
     }
-    pn.serve(routes, port=port, address=address, show=open_browser)
+    print("GuPPy is starting. Open the address below in your browser, and press Ctrl+C here to stop GuPPy.")
+    pn.serve(routes, port=port, address=address, show=open_browser, verbose=True)
