@@ -86,11 +86,3 @@ cluster's support team how to load it.
    serves on.
 
 4. Open `http://localhost:5006` in your browser.
-
-## Streaming from DANDI
-
-To [analyze data streamed from the DANDI Archive](analyze-dandi-data.md), pass
-your API key into the container, since a key stored with `dandi login` on your
-computer is not visible inside it. With Docker, add `-e DANDI_API_KEY` to
-`docker run`. With Apptainer, export `DANDI_API_KEY` before `apptainer run` and it
-is passed through.
