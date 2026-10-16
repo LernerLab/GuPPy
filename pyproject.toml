@@ -74,6 +74,7 @@ docs = [
     "myst-parser",
     "sphinx-autodoc-typehints",
     "sphinx-design",
+    "sphinx-copybutton",
 ]
 
 test = [
