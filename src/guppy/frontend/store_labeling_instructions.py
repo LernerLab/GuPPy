@@ -75,7 +75,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         Absolute path to the NPM session directory; its basename is shown as a
         heading above the instructions.
     channel_previews : dict
-        Maps each chev/chod/chpr channel name to a dict with ``"x"`` (timestamps)
+        Maps each photometry channel name to a dict with ``"x"`` (timestamps)
         and ``"y"`` (data) arrays to plot. Pass an empty dict to start with no
         preview (populated later via :meth:`set_channel_previews`).
     multiple_event_ttls : list of bool, optional
@@ -104,18 +104,23 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
                                         ### Extra Instructions to follow when using Neurophotometrics data :
                                         - Guppy will take the NPM data, which has interleaved frames
                                         from the signal and control channels, and divide it out into
-                                        separate channels for each site you recordded.
-                                        However, since NPM does not automatically annotate which
-                                        frames belong to the signal channel and which belong to the
-                                        control channel, the user must specify this for GuPPy.
-                                        - Each of your recording sites will have a channel
-                                        named “chod” and a channel named “chev”
-                                        - View the plots below and, for each site,
-                                        determine whether the “chev” or “chod” channel is signal or control
+                                        separate channels for each site you recorded.
+                                        However, NPM does not annotate which excitation wavelength is
+                                        the signal and which is the control, so the user must specify
+                                        this for GuPPy.
+                                        - Each recording site gets one channel per excitation
+                                        wavelength, named after the source file, the wavelength, and
+                                        the region column — for example “signals_415nm_G0” and
+                                        “signals_470nm_G0”. 415 nm is usually the isosbestic control.
+                                        - View the plots below and, for each site, determine which
+                                        wavelength is signal and which is control.
                                         - Label the channels using the Type dropdowns. For example,
-                                        mark “chev1” as **signal** and name it “A”, then mark “chod1”
-                                        as **control** and set its **Control for** to “chev1” (or vice
-                                        versa).
+                                        mark “signals_470nm_G0” as **signal** and name it “A”, then
+                                        mark “signals_415nm_G0” as **control** and set its **Control
+                                        for** to “signals_470nm_G0” (or vice versa).
+                                        - Recordings that do not record the LED state carry no
+                                        wavelength, so their channels are named “chev”, “chod” and
+                                        “chpr” after their position in the interleave cycle instead.
 
                                             """,
             width=550,
@@ -235,7 +240,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         Parameters
         ----------
         channel_previews : dict
-            Maps each chev/chod/chpr channel name to a dict with ``"x"`` and
+            Maps each photometry channel name to a dict with ``"x"`` and
             ``"y"`` arrays to plot.
         """
         self.channel_preview_arrays = {

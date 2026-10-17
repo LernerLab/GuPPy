@@ -223,7 +223,7 @@ The signal also carries a slow nuisance component that no covariate explains. Wi
 
 Neurophotometrics fiber photometry recordings. Two format generations are present: v2 (files contain a `LedState` header column) and legacy (no `LedState` header, rows interleaved by LED state).
 
-`NpmRecordingExtractor` demultiplexes the raw files into per-channel and per-event streams **in memory** and writes nothing back into the session folder. Store names below (`file0_chev*`, `file0_chod*`, `event*`) are those in-memory stream names, not files on disk. Older GuPPy versions did write these as intermediate CSVs into the session folder; any such leftovers in a session folder are stale and will be picked up as `csv` data in preference to the live NPM demultiplexing, so delete them.
+`NpmRecordingExtractor` demultiplexes the raw files into per-channel and per-event streams **in memory** and writes nothing back into the session folder. Store names below (`{file stem}_{wavelength}nm_{region}`, `{file stem}_chev*`/`chod*` for a header-less file, and `event*`) are those in-memory stream names, not files on disk. Older GuPPy versions did write these as intermediate CSVs into the session folder; any such leftovers in a session folder are stale and will be picked up as `csv` data in preference to the live NPM demultiplexing, so delete them.
 
 A session whose photometry file offers more than one timestamp column needs both `Timestamp column` and `Time unit` set in the Label Stores NPM configuration. The event file carries a single unnamed column and is always on the acquisition's **absolute** clock, so it cannot follow the column choice — picking the other column puts events and photometry on different timelines. The per-session entries below record the settings each stub needs.
 
@@ -241,8 +241,8 @@ events ~48,000,000 s away from the photometry.
 **Files:** `bl72bl82_12feb2024_fp.csv` (photometry, v2), `bl72bl82_12feb2024_stimuli.csv` (events)
 
 **Stores (after discover + split):**
-- `file0_chev1`: Isosbestic control channel
-- `file0_chod1`: Calcium Signal Channel
+- `bl72bl82_12feb2024_fp_415nm_G0`: 415 nm isosbestic control
+- `bl72bl82_12feb2024_fp_470nm_G0`: 470 nm calcium signal
 - `eventAfVn`: TTL of unknown meaning
 - `eventAfVu`: TTL of unknown meaning
 - `eventAmVf`: TTL of unknown meaning
@@ -251,25 +251,17 @@ events ~48,000,000 s away from the photometry.
 
 ## `npm/sampleData_NPM_2`
 
-NPM v2 recording split across two source files (one per excitation wavelength), with no TTL events. Used to test multi-file v2 discovery and cross-file channel alignment. Duration: 16.0 s.
+NPM v2 recording split across two source files (one per excitation wavelength), with no TTL events. Used to test multi-file v2 discovery. Duration: 16.0 s.
 
 **Files:** `FiberData415.csv` (415 nm excitation, v2), `FiberData470.csv` (470 nm excitation, v2)
 
 **Stores (after discover):**
-- `file0_chev1`: Stimulation column from 415 nm channel (all zeros. Garbage output.)
-- `file0_chev2`: Output0 column from 415 nm channel (all zeros. Garbage output.)
-- `file0_chev3`: Output1 column from 415 nm channel (all zeros. Garbage output.)
-- `file0_chev4`: Input0 column from 415 nm channel (all zeros. Garbage output.)
-- `file0_chev5`: Input1 column from 415 nm channel (all zeros. Garbage output.)
-- `file0_chev6`: Region0G column from 415 nm channel (isosbestic control data).
-- `file0_chev7`: Region1G column from 415 nm channel (isosbestic control data).
-- `file1_chev1`: Stimulation column from 470 nm channel (all zeros. Garbage output.)
-- `file1_chev2`: Output0 column from 470 nm channel (all zeros. Garbage output.)
-- `file1_chev3`: Output1 column from 470 nm channel (all zeros. Garbage output.)
-- `file1_chev4`: Input0 column from 470 nm channel (all zeros. Garbage output.)
-- `file1_chev5`: Input1 column from 470 nm channel (all zeros. Garbage output.)
-- `file1_chev6`: Region0G column from 470 nm channel (calcium signal data).
-- `file1_chev7`: Region1G column from 470 nm channel (calcium signal data).
+- `FiberData415_415nm_Region0G`: Region0G isosbestic control
+- `FiberData415_415nm_Region1G`: Region1G isosbestic control
+- `FiberData470_470nm_Region0G`: Region0G calcium signal
+- `FiberData470_470nm_Region1G`: Region1G calcium signal
+
+The `Stimulation`, `Output0/1` and `Input0/1` digital-line columns are not regions and yield no stores.
 
 ## `npm/sampleData_NPM_3`
 
@@ -282,47 +274,49 @@ default `SystemTimestamp` decouples events from the photometry.
 **Files:** `signals.csv` (photometry, v2, 4 channels), `ttls.csv` (events, values 1 and 3)
 
 **Stores (after discover + split):**
-- `file0_chev1`: Region G0 isosbestic control
-- `file0_chev2`: Region G1 isosbestic control
-- `file0_chev3`: Region G2 isosbestic control
-- `file0_chev4`: Region G3 isosbestic control
-- `file0_chod1`: Region G0 calcium signal
-- `file0_chod2`: Region G1 calcium signal
-- `file0_chod3`: Region G2 calcium signal
-- `file0_chod4`: Region G3 calcium signal
+- `signals_415nm_G0`: Region G0 isosbestic control
+- `signals_415nm_G1`: Region G1 isosbestic control
+- `signals_415nm_G2`: Region G2 isosbestic control
+- `signals_415nm_G3`: Region G3 isosbestic control
+- `signals_470nm_G0`: Region G0 calcium signal
+- `signals_470nm_G1`: Region G1 calcium signal
+- `signals_470nm_G2`: Region G2 calcium signal
+- `signals_470nm_G3`: Region G3 calcium signal
 - `event1`: TTL events with value 1 in the event column
 - `event3`: TTL events with value 3 in the event column
 
 ## `npm/sampleData_NPM_4`
 
-NPM legacy format (no `LedState` header, rows interleaved by LED state). The event file contains boolean `True`/`False` values; with `split_events=True`, these become separate `eventTrue` and `eventFalse` stores. Also used for Step 2 idempotency testing (running Step 2 twice must not corrupt modality detection). Duration: 578.0 s (10th TTL event — 5 True + 5 False — at ~577.3 s). True/False is some user annotation of unknown meaning.
+NPM v2 recording whose `Flags` column writes one excitation under several values: 415 nm is both `17` and `273`, either side of a digital input going high, and 470 nm both `18` and `274`. The event file contains boolean `True`/`False` values; with `split_events=True`, these become separate `eventTrue` and `eventFalse` stores. Also used for Step 2 idempotency testing (running Step 2 twice must not corrupt modality detection). Duration: 578.0 s (10th TTL event — 5 True + 5 False — at ~577.3 s). True/False is some user annotation of unknown meaning.
 
-**Files:** `PagCeAVgatFear_14421.csv` (photometry, legacy), `PagCeAVgatFear_1442_ts0.csv` (events)
+**Files:** `PagCeAVgatFear_14421.csv` (photometry, v2), `PagCeAVgatFear_1442_ts0.csv` (events)
 
 **Stores (after discover + split):**
-- `file0_chev1`: Reigon0G isosbestic control
-- `file0_chev2`: Region1G isosbestic control
-- `file0_chev3`: Region2G isosbestic control
-- `file0_chod1`: Region0G calcium signal
-- `file0_chod2`: Region1G calcium signal
-- `file0_chod3`: Region2G calcium signal
+- `PagCeAVgatFear_14421_415nm_Region0G`: Region0G isosbestic control
+- `PagCeAVgatFear_14421_415nm_Region1G`: Region1G isosbestic control
+- `PagCeAVgatFear_14421_415nm_Region2G`: Region2G isosbestic control
+- `PagCeAVgatFear_14421_470nm_Region0G`: Region0G calcium signal
+- `PagCeAVgatFear_14421_470nm_Region1G`: Region1G calcium signal
+- `PagCeAVgatFear_14421_470nm_Region2G`: Region2G calcium signal
 - `eventTrue`: TTL events where the event column value is `True`
 - `eventFalse`: TTL events where the event column value is `False`
 
 ## `npm/sampleData_NPM_5`
 
-Second NPM legacy format recording. Unlike `sampleData_NPM_4`, the event file contains a single event type with no boolean split. Copied as-is from the original (too small to stub without breaking tests). Also used for stub idempotency and duration unit tests.
+NPM legacy header-less recording: no state column, so the channels are taken to cycle by row. Unlike `sampleData_NPM_4`, the event file contains a single event type with no boolean split. Copied as-is from the original (too small to stub without breaking tests). Also used for stub idempotency and duration unit tests.
 
 **Files:** `PagCeAVgatFear_1512_1.csv` (photometry, legacy), `PagCeAVgatFear_1512_ts0.csv` (events)
 
 **Stores (after discover):**
-- `file0_chev1`: first column isosbestic control
-- `file0_chev2`: second column isosbestic control
-- `file0_chev3`: third column isosbestic control
-- `file0_chod1`: first column calcium signal
-- `file0_chod2`: second column calcium signal
-- `file0_chod3`: third column calcium signal
+- `PagCeAVgatFear_1512_1_chev1`: first column isosbestic control
+- `PagCeAVgatFear_1512_1_chev2`: second column isosbestic control
+- `PagCeAVgatFear_1512_1_chev3`: third column isosbestic control
+- `PagCeAVgatFear_1512_1_chod1`: first column calcium signal
+- `PagCeAVgatFear_1512_1_chod2`: second column calcium signal
+- `PagCeAVgatFear_1512_1_chod3`: third column calcium signal
 - `event0`: single event type
+
+Nothing in a header-less file names the LED that lit a frame, so its channels are named after their slot in the interleave cycle (`chev`, `chod`) rather than a wavelength.
 
 ## `npm/sampleData_NPM_6`
 
@@ -331,6 +325,11 @@ PhAT's `Sample2_NPM_1fiber.csv`, from the Donaldson Lab's [PhAT toolkit](https:/
 **Files:** `Sample2_NPM_1fiber.csv` (photometry, v2), `LICENSE`
 
 The first row's `LedState` is `0`, which lights no LED; after it the state cycles `4`/`1`/`2` (560/415/470 nm), each crossed with the `Region0R` and `Region1G` regions. `Timestamp` is in seconds and `msTimestamp` is the same clock in milliseconds. The stub is truncated on the raw text lines rather than through `NpmRecordingExtractor.stub()`, so the committed file keeps its blank header cells.
+
+**Stores (after discover):**
+- `Sample2_NPM_1fiber_415nm_Region0R`, `Sample2_NPM_1fiber_415nm_Region1G`: 415 nm excitation
+- `Sample2_NPM_1fiber_470nm_Region0R`, `Sample2_NPM_1fiber_470nm_Region1G`: 470 nm excitation
+- `Sample2_NPM_1fiber_560nm_Region0R`, `Sample2_NPM_1fiber_560nm_Region1G`: 560 nm excitation
 
 ---
 
