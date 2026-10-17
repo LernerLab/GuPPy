@@ -99,7 +99,7 @@ def test_npm_session_routes_all_events_to_npm_extractor(tmp_path):
     stores_list = _make_stores_list(NPM_STORE_ID_TO_STORE_LABEL)
     input_parameters = {
         "noChannels": 2,
-        "npm_split_events": [False, True],
+        "npm_split_events": {"bl72bl82_12feb2024_stimuli.csv": True},
         "npm_timestamp_column_name": None,
         "npm_time_unit": None,
     }

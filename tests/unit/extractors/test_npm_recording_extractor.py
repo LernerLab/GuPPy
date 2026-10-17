@@ -315,7 +315,7 @@ class TestNpmRecordingExtractorStoreRecords:
         store_ids, _ = NpmRecordingExtractor.discover_events_and_flags(
             folder_path=str(excitation_session),
             num_ch=2,
-            inputParameters={"npm_split_events": [False, True]},
+            inputParameters={"npm_split_events": {"b_events.csv": True}},
         )
 
         assert store_ids[-2:] == ["event3", "event5"]
@@ -339,7 +339,7 @@ class TestNpmRecordingExtractorStoreRecords:
         dataframes = NpmRecordingExtractor._read_source_files(excitation_session)
 
         store_records = NpmRecordingExtractor._store_records(
-            dataframes, num_ch=2, npm_timestamp_column_name=None, npm_split_events=[False, True]
+            dataframes, num_ch=2, npm_timestamp_column_name=None, npm_split_events={"b_events.csv": True}
         )
 
         assert store_records["a_signals_470nm_Region1G"] == ChannelStore(
@@ -410,9 +410,9 @@ class TestNpmRecordingExtractorStoreRecords:
 class TestNpmRecordingExtractorRead:
     @pytest.fixture
     def excitation_outputs(self, excitation_session):
-        extractor = NpmRecordingExtractor(str(excitation_session), npm_split_events=[False, True])
+        extractor = NpmRecordingExtractor(str(excitation_session), npm_split_events={"b_events.csv": True})
         store_ids, _ = NpmRecordingExtractor.discover_events_and_flags(
-            folder_path=str(excitation_session), num_ch=2, inputParameters={"npm_split_events": [False, True]}
+            folder_path=str(excitation_session), num_ch=2, inputParameters={"npm_split_events": {"b_events.csv": True}}
         )
         return _outputs_by_store_id(extractor.read(events=store_ids, outputPath=""))
 
@@ -468,7 +468,7 @@ class TestNpmRecordingExtractorRead:
         [("a_signals_415nm_Region0G", 3), ("a_signals_560nm_Region0G", 2), ("event3", 2)],
     )
     def test_count_samples_counts_the_stores_rows(self, excitation_session, store_id, expected_sample_count):
-        extractor = NpmRecordingExtractor(str(excitation_session), npm_split_events=[False, True])
+        extractor = NpmRecordingExtractor(str(excitation_session), npm_split_events={"b_events.csv": True})
 
         assert extractor.count_samples(event=store_id) == expected_sample_count
 
@@ -506,22 +506,22 @@ class TestNpmRecordingExtractorRead:
 
 
 class TestNpmRecordingExtractorHasMultipleEventTtls:
-    def test_a_data_file_is_false(self, tmp_path):
+    def test_a_data_file_is_not_listed(self, tmp_path):
         pd.DataFrame(
             {"FrameCounter": [1, 2], "Timestamp": [0.1, 0.2], "LedState": [1, 2], "Signal": [0.1, 0.2]}
         ).to_csv(tmp_path / "data.csv", index=False)
 
-        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path)) == [False]
+        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path)) == {}
 
     def test_an_event_file_with_one_value_is_false(self, tmp_path):
         pd.DataFrame({"timestamp": [0.1, 0.2, 0.3], "value": [1, 1, 1]}).to_csv(tmp_path / "stimuli.csv", index=False)
 
-        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path)) == [False]
+        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path)) == {"stimuli.csv": False}
 
     def test_an_event_file_with_several_values_is_true(self, tmp_path):
         pd.DataFrame({"timestamp": [0.1, 0.2, 0.3], "value": [1, 3, 1]}).to_csv(tmp_path / "stimuli.csv", index=False)
 
-        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path)) == [True]
+        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(tmp_path)) == {"stimuli.csv": True}
 
     def test_an_external_csv_event_file_is_left_out(self, tmp_path):
         # Mixed intra-session folder: the single-column CSV belongs to the CSV extractor.
@@ -529,7 +529,9 @@ class TestNpmRecordingExtractorHasMultipleEventTtls:
         shutil.copytree(STUBBED_TESTING_DATA / "npm" / "sampleData_NPM_1", session_folder)
         (session_folder / "csv_event.csv").write_text("timestamps\n20.0\n40.0\n")
 
-        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(session_folder)) == [False, True]
+        assert NpmRecordingExtractor.has_multiple_event_ttls(folder_path=str(session_folder)) == {
+            "bl72bl82_12feb2024_stimuli.csv": True
+        }
 
 
 class TestNpmRecordingExtractorGetTimestampColumnOptions:
@@ -736,7 +738,7 @@ class TestNpmRecordingExtractorSession4(NpmRecordingExtractorTestMixin):
     extractor_class = NpmRecordingExtractor
     folder_path = Path(STUBBED_TESTING_DATA) / "npm" / "sampleData_NPM_4"
     # Splitting the boolean event file yields eventTrue and eventFalse.
-    split_kwargs = {"npm_split_events": [False, True]}
+    split_kwargs = {"npm_split_events": {"PagCeAVgatFear_1442_ts0.csv": True}}
     extractor_instance = NpmRecordingExtractor(folder_path, num_ch=2, **split_kwargs)
     expected_events = [
         "PagCeAVgatFear_14421_415nm_Region0G",
