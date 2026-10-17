@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 TONIC_EPOCH_COLUMNS = ["label", "start", "end"]
 
+# Filename prefix of a recording site's per-epoch means, e.g. tonic_means_DMS.csv.
+TONIC_MEANS_PREFIX = "tonic_means_"
+
 
 def validate_tonic_epochs(epochs: pd.DataFrame, ts_min: float, ts_max: float) -> None:
     """Validate tonic epoch windows against a recording's timespan.

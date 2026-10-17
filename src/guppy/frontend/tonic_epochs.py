@@ -6,7 +6,7 @@ absolute-time windows. Because injection timing can differ per recording site
 per recording site. This page shows each site's z-score and dF/F traces with the
 current windows shaded, plus one editable ``(label, start, end)`` row per window.
 Saving averages the traces over the windows and writes both the definitions
-(``tonic_epochs_<site>.csv``) and the per-epoch means (``tonic_<site>.h5``).
+(``tonic_epochs_<site>.csv``) and the per-epoch means (``tonic_means_<site>.csv``).
 """
 
 import logging
@@ -22,11 +22,13 @@ from .artifact_removal import build_run_folder_page
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
 from ..analysis.standard_io import (
     read_tonic_epochs,
+    read_tonic_means,
     remove_tonic_results,
-    write_tonic_to_hdf5,
+    write_tonic_means,
 )
 from ..analysis.tonic import (
     TONIC_EPOCH_COLUMNS,
+    TONIC_MEANS_PREFIX,
     compute_tonic_means,
     validate_tonic_epochs,
 )
@@ -288,7 +290,7 @@ class TonicEpochConfig:
         for site, complete in to_write.items():
             complete.to_csv(Path(self.filepath) / ("tonic_epochs_" + site + ".csv"), index=False)
             trace = self.site_traces[site]
-            write_tonic_to_hdf5(
+            write_tonic_means(
                 self.filepath,
                 compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], complete),
                 site,
@@ -353,9 +355,8 @@ def build_tonic_epoch_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
 
 def _tonic_result_sites(filepath: str) -> list[str]:
     sites = []
-    for path in sorted(Path(filepath).glob("tonic_*.h5")):
-        basename = path.name
-        sites.append(basename[len("tonic_") : -len(".h5")])
+    for path in sorted(Path(filepath).glob(TONIC_MEANS_PREFIX + "*.csv")):
+        sites.append(path.name[len(TONIC_MEANS_PREFIX) : -len(".csv")])
     return sites
 
 
@@ -397,7 +398,7 @@ class TonicResultsView:
         )
 
     def _means(self, site: str) -> pd.DataFrame:
-        return pd.read_hdf(Path(self.filepath) / ("tonic_" + site + ".h5"), key="df")
+        return read_tonic_means(self.filepath, site)
 
     def _make_bars(self) -> hv.Layout:
         """Each epoch's change from the baseline epoch, as bars, one panel per signal.
@@ -479,7 +480,7 @@ class TonicResultsView:
 def build_tonic_results_view(filepath: str, *, label: str) -> pn.Column:
     """Build the Step-5 tonic results panel for a run folder.
 
-    Returns a short note when the folder holds no ``tonic_<site>.h5`` results so
+    Returns a short note when the folder holds no ``tonic_means_<site>.csv`` results so
     the tab can be shown unconditionally.
     """
     if not _tonic_result_sites(filepath):

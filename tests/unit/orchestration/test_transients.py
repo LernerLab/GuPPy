@@ -7,10 +7,10 @@ import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
-    read_binned_covariates_from_hdf5,
-    read_binned_metrics_from_hdf5,
-    read_covariate_correlations_from_hdf5,
-    write_binned_metrics_to_hdf5,
+    read_binned_covariates_from_csv,
+    read_binned_metrics_from_csv,
+    read_covariate_correlations_from_csv,
+    write_binned_metrics_to_csv,
 )
 from guppy.orchestration.transients import (
     executeFindFreqAndAmp,
@@ -83,6 +83,7 @@ class TestFindFreqAndAmp:
         # 2 transients over 10 s = 12 events/min; mean rise (5 + 2.5) / 2 = 3.75
         np.testing.assert_allclose(freq_and_amplitude["freq (events/min)"].to_numpy(), [12.0])
         np.testing.assert_allclose(freq_and_amplitude["amplitude"].to_numpy(), [3.75])
+        assert not (Path(run_folder) / "freqAndAmp_z_score_dms.h5").exists()
 
 
 class TestFindBinnedMetrics:
@@ -99,12 +100,12 @@ class TestFindBinnedMetrics:
         base_input_parameters["binnedMetricsWidth"] = 5
         findBinnedMetrics(run_folder, base_input_parameters, {"dms": {"z_score": np.array([1.0, 6.0, 7.0])}})
 
-        binned = read_binned_metrics_from_hdf5(run_folder, "dms")
+        binned = read_binned_metrics_from_csv(run_folder, "dms")
         # bin 0 = [0,5) -> 0..4 -> 2.0;  bin 1 = [5,10] -> 5..10 -> 7.5
         np.testing.assert_allclose(binned["mean_zscore"].to_numpy(), [2.0, 7.5])
         np.testing.assert_allclose(binned["mean_dff"].to_numpy(), [0.2, 0.75])
         np.testing.assert_array_equal(binned["transient_count_z_score"].to_numpy(), [1, 2])
-        assert (Path(run_folder) / "binned_metrics_dms.csv").exists()
+        assert not (Path(run_folder) / "binned_metrics_dms.h5").exists()
 
     def test_bins_span_the_uncompressed_time_axis(self, run_folder, base_input_parameters):
         # Regression guard: binning must use timestampNew, not the NaN-stripped
@@ -112,7 +113,7 @@ class TestFindBinnedMetrics:
         base_input_parameters["binnedMetricsWidth"] = 5
         findBinnedMetrics(run_folder, base_input_parameters, {"dms": {"z_score": np.array([])}})
 
-        binned = read_binned_metrics_from_hdf5(run_folder, "dms")
+        binned = read_binned_metrics_from_csv(run_folder, "dms")
         np.testing.assert_allclose(binned["bin_start"].iloc[0], 0.0)
         np.testing.assert_allclose(binned["bin_end"].iloc[-1], 10.0)
 
@@ -124,7 +125,7 @@ class TestFindBinnedMetrics:
             {"dms": {"z_score": np.array([1.0]), "dff": np.array([6.0, 7.0])}},
         )
 
-        binned = read_binned_metrics_from_hdf5(run_folder, "dms")
+        binned = read_binned_metrics_from_csv(run_folder, "dms")
         np.testing.assert_array_equal(binned["transient_count_z_score"].to_numpy(), [1, 0])
         np.testing.assert_array_equal(binned["transient_count_dff"].to_numpy(), [0, 2])
 
@@ -152,28 +153,28 @@ class TestFindCovariateCorrelations:
             },
             index=pd.RangeIndex(3, name="bin"),
         )
-        write_binned_metrics_to_hdf5(str(tmp_path), binned_metrics, "dms")
+        write_binned_metrics_to_csv(str(tmp_path), binned_metrics, "dms")
         return str(tmp_path)
 
     def test_writes_binned_covariates(self, run_folder, base_input_parameters):
         findCovariateCorrelations(run_folder, base_input_parameters, ["dms"])
 
-        binned = read_binned_covariates_from_hdf5(filepath=run_folder, recording_site="dms")
+        binned = read_binned_covariates_from_csv(filepath=run_folder, recording_site="dms")
         np.testing.assert_allclose(binned["akinesia"].to_numpy(), [2.0, 4.0, 10.0])
         np.testing.assert_array_equal(binned["n_samples_akinesia"].to_numpy(), [2, 1, 1])
 
     def test_bins_match_the_metrics_table_exactly(self, run_folder, base_input_parameters):
         findCovariateCorrelations(run_folder, base_input_parameters, ["dms"])
 
-        binned = read_binned_covariates_from_hdf5(filepath=run_folder, recording_site="dms")
-        metrics = read_binned_metrics_from_hdf5(run_folder, "dms")
+        binned = read_binned_covariates_from_csv(filepath=run_folder, recording_site="dms")
+        metrics = read_binned_metrics_from_csv(run_folder, "dms")
         np.testing.assert_allclose(binned["bin_start"].to_numpy(), metrics["bin_start"].to_numpy())
         np.testing.assert_allclose(binned["bin_end"].to_numpy(), metrics["bin_end"].to_numpy())
 
     def test_writes_correlations(self, run_folder, base_input_parameters):
         findCovariateCorrelations(run_folder, base_input_parameters, ["dms"])
 
-        correlations = read_covariate_correlations_from_hdf5(filepath=run_folder, recording_site="dms")
+        correlations = read_covariate_correlations_from_csv(filepath=run_folder, recording_site="dms")
         assert len(correlations) == 1
         row = correlations.iloc[0]
         assert row["metric"] == "mean_zscore"
@@ -181,11 +182,11 @@ class TestFindCovariateCorrelations:
         assert row["pearson_r"] == pytest.approx(0.9493907, abs=1e-6)
         assert row["n_bins"] == 3
 
-    def test_writes_csv_twins(self, run_folder, base_input_parameters):
+    def test_writes_no_hdf5_tables(self, run_folder, base_input_parameters):
         findCovariateCorrelations(run_folder, base_input_parameters, ["dms"])
 
-        assert (Path(run_folder) / "binned_covariates_dms.csv").exists()
-        assert (Path(run_folder) / "covariate_correlations_dms.csv").exists()
+        assert not (Path(run_folder) / "binned_covariates_dms.h5").exists()
+        assert not (Path(run_folder) / "covariate_correlations_dms.h5").exists()
 
     def test_no_covariate_store_writes_nothing(self, tmp_path, base_input_parameters):
         np.savetxt(
@@ -197,7 +198,7 @@ class TestFindCovariateCorrelations:
 
         findCovariateCorrelations(str(tmp_path), base_input_parameters, ["dms"])
 
-        assert not (Path(str(tmp_path)) / "covariate_correlations_dms.h5").exists()
+        assert not (Path(str(tmp_path)) / "covariate_correlations_dms.csv").exists()
 
     def test_concatenated_outputs_raise(self, run_folder, base_input_parameters):
         with (Path(run_folder) / "GuPPyParamtersUsed.json").open("w") as parameters_file:

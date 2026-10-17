@@ -124,7 +124,7 @@ def test_no_transient_event_train_when_the_toggle_is_off(run_pipeline):
     output_directory = run_pipeline("ttl_only")["output_directory"]
 
     assert not (Path(output_directory) / (f"{TRANSIENT_EVENT}.hdf5")).exists()
-    assert not (Path(output_directory) / (f"{TRANSIENT_EVENT}_{METRIC_BASENAME}.h5")).exists()
+    assert not (Path(output_directory) / (f"{TRANSIENT_EVENT}_{METRIC_BASENAME}.csv")).exists()
     # The external TTL event is unaffected.
     assert (Path(output_directory) / (f"ttl_{EXPECTED_RECORDING_SITE}.hdf5")).exists()
 
@@ -142,7 +142,7 @@ def test_both_metrics_produce_two_independent_event_trains(run_pipeline):
     assert from_z_score.size > 0
     assert from_dff.size > 0
     for event in (TRANSIENT_EVENT, f"transients_dff_{EXPECTED_RECORDING_SITE}"):
-        assert (Path(output_directory) / (f"{event}_{METRIC_BASENAME}.h5")).exists()
+        assert (Path(output_directory) / (f"{event}_{METRIC_BASENAME}.csv")).exists()
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")

@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import panel as pn
 
-from guppy.analysis.standard_io import write_tonic_to_hdf5
+from guppy.analysis.standard_io import write_tonic_means
 from guppy.analysis.tonic import compute_tonic_means
 from guppy.frontend.artifact_windows_page import ArtifactWindowSelector
 from guppy.frontend.covariate_correlation_view import build_covariate_correlation_view
@@ -343,7 +343,7 @@ def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
 
     epochs = pd.DataFrame(TONIC_EPOCHS, columns=["label", "start", "end"])
     epochs.to_csv(run_folder / f"tonic_epochs_{site}.csv", index=False)
-    write_tonic_to_hdf5(
+    write_tonic_means(
         str(run_folder),
         compute_tonic_means(trace["y_zscore"], trace["y_dff"], trace["x"], epochs),
         site,

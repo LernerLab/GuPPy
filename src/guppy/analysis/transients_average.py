@@ -3,11 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .standard_io import (
-    read_freq_and_amp_from_hdf5,
-    write_freq_and_amp_to_csv,
-    write_freq_and_amp_to_hdf5,
-)
+from .standard_io import read_freq_and_amp_from_csv, write_freq_and_amp_to_csv
 from ..utils.utils import output_label_under
 
 logger = logging.getLogger(__name__)
@@ -22,7 +18,7 @@ def average_transients_for_group(
     Parameters
     ----------
     member_run_folders : list of str
-        Output (run) directories holding the precomputed ``freqAndAmp_*.h5`` files.
+        Output (run) directories holding the precomputed ``freqAndAmp_*.csv`` files.
     group_folder : str
         Group output directory the combined results are written into.
     inputParameters : dict
@@ -75,21 +71,14 @@ def average_transients_for_group(
         fileName = []
         session_entries = new_path[i]
         for j in range(len(session_entries)):
-            if not (Path(session_entries[j][0]) / ("freqAndAmp_" + session_entries[j][1] + ".h5")).exists():
+            if not (Path(session_entries[j][0]) / ("freqAndAmp_" + session_entries[j][1] + ".csv")).exists():
                 continue
             else:
-                df = read_freq_and_amp_from_hdf5(session_entries[j][0], session_entries[j][1])
+                df = read_freq_and_amp_from_csv(session_entries[j][0], session_entries[j][1])
                 freq_and_amp_values.append(np.array([df["freq (events/min)"].iloc[0], df["amplitude"].iloc[0]]))
                 fileName.append(member_labels[str(session_entries[j][0])])
 
         freq_and_amp_values = np.asarray(freq_and_amp_values)
-        write_freq_and_amp_to_hdf5(
-            run_folder,
-            freq_and_amp_values,
-            session_entries[j][1],
-            index=fileName,
-            columns=["freq (events/min)", "amplitude"],
-        )
         write_freq_and_amp_to_csv(
             run_folder,
             freq_and_amp_values,

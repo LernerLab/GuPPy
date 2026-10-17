@@ -33,6 +33,13 @@ NPM_PARAM_KEYS = ("npm_split_events", "npm_time_unit", "npm_timestamp_column_nam
 # event file name, e.g. "transients_" + "z_score_DMS" -> transients_z_score_DMS.hdf5.
 TRANSIENT_EVENT_PREFIX = "transients_"
 
+# Filename prefix for the binned-trial companion of a PSTH or peak/AUC table, e.g.
+# "binned_" + "ttl_DMS_z_score_DMS" -> binned_ttl_DMS_z_score_DMS.csv.
+BINNED_PREFIX = "binned_"
+
+# Columns of a PSTH table that are not trials or bins.
+PSTH_SUMMARY_COLUMNS = ["timestamps", "mean", "err"]
+
 
 def write_npm_params(*, run_folder: str, npm_params: dict[str, object]) -> None:
     """Persist the NPM decomposition parameters for one output directory.
@@ -847,7 +854,7 @@ def event_labels_for_analysis(*, store_array: np.ndarray, inputParameters: dict[
 
 
 def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
-    """Read a PSTH HDF5 file and return it as a DataFrame.
+    """Read a PSTH table, together with its binned-trial companion when one exists.
 
     Parameters
     ----------
@@ -857,22 +864,25 @@ def read_Df(filepath: str, event: str, name: str) -> pd.DataFrame:
         Event name used in the filename.
     name : str
         z-score/dff basename; when non-empty the filename is
-        ``<event>_<name>.h5``, otherwise ``<event>.h5``.
+        ``<event>_<name>.csv``, otherwise ``<event>.csv``.
 
     Returns
     -------
     pandas.DataFrame
-        PSTH data loaded from the HDF5 file.
+        One column per trial, then the ``bin_*`` columns of the binned table, then
+        ``timestamps``, ``mean`` and ``err``.
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if name:
-        hdf5_path = Path(filepath) / (event + f"_{name}.h5")
-    else:
-        hdf5_path = Path(filepath) / (event + ".h5")
-    df = pd.read_hdf(hdf5_path, key="df", mode="r")
+    stem = event + f"_{name}" if name else event
+    psth = pd.read_csv(Path(filepath) / (stem + ".csv"), dtype="float32")
+    trial_columns = [column for column in psth.columns if column not in PSTH_SUMMARY_COLUMNS]
+    binned_path = Path(filepath) / (BINNED_PREFIX + stem + ".csv")
+    if not binned_path.exists():
+        return psth[trial_columns + PSTH_SUMMARY_COLUMNS]
+    binned = pd.read_csv(binned_path, dtype="float32").drop(columns="timestamps")
 
-    return df
+    return pd.concat([psth[trial_columns], binned, psth[PSTH_SUMMARY_COLUMNS]], axis=1)
 
 
 def resolve_run_folders(session_folders: list, inputParameters: dict) -> list[str]:

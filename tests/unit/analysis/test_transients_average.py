@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from guppy.analysis.standard_io import (
-    read_freq_and_amp_from_hdf5,
-    write_freq_and_amp_to_hdf5,
+    read_freq_and_amp_from_csv,
+    write_freq_and_amp_to_csv,
 )
 from guppy.analysis.transients_average import average_transients_for_group
 
@@ -27,19 +27,19 @@ def test_average_transients_for_group_stacks_the_members_freq_and_amp(tmp_path, 
     (session1 / "z_score_dms.hdf5").touch()
     (session2 / "z_score_dms.hdf5").touch()
 
-    # Write per-session freq/amp HDF5 files
+    # Write per-session freq/amp CSV files
     # session1: freq=2.0, amp=1.5; session2: freq=3.0, amp=2.5
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session1),
         np.array([[2.0, 1.5]]),
-        "z_score_dms",
+        "freqAndAmp_z_score_dms.csv",
         index=["session1"],
         columns=["freq (events/min)", "amplitude"],
     )
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session2),
         np.array([[3.0, 2.5]]),
-        "z_score_dms",
+        "freqAndAmp_z_score_dms.csv",
         index=["session2"],
         columns=["freq (events/min)", "amplitude"],
     )
@@ -51,12 +51,11 @@ def test_average_transients_for_group_stacks_the_members_freq_and_amp(tmp_path, 
         inputParameters=input_parameters,
     )
 
-    assert (group_folder / "freqAndAmp_z_score_dms.h5").exists()
-    assert (group_folder / "freqAndAmp_z_score_dms.csv").exists()
+    assert sorted(path.name for path in group_folder.iterdir()) == ["freqAndAmp_z_score_dms.csv"]
     # Nothing is written to an "average" directory beside the members any more.
     assert not (tmp_path / "average").exists()
 
-    df = read_freq_and_amp_from_hdf5(str(group_folder), "z_score_dms")
+    df = read_freq_and_amp_from_csv(str(group_folder), "z_score_dms")
     np.testing.assert_allclose(df["freq (events/min)"].values, np.array([2.0, 3.0]))
     np.testing.assert_allclose(df["amplitude"].values, np.array([1.5, 2.5]))
 
@@ -71,10 +70,10 @@ def test_average_transients_for_group_dff_mode_reads_the_dff_results(tmp_path, g
     for session, values in ((session1, [[2.0, 1.5]]), (session2, [[3.0, 2.5]])):
         (session / "z_score_dms.hdf5").touch()
         (session / "dff_dms.hdf5").touch()
-        write_freq_and_amp_to_hdf5(
+        write_freq_and_amp_to_csv(
             str(session),
             np.array(values),
-            "dff_dms",
+            "freqAndAmp_dff_dms.csv",
             index=[session.name],
             columns=["freq (events/min)", "amplitude"],
         )
@@ -85,8 +84,8 @@ def test_average_transients_for_group_dff_mode_reads_the_dff_results(tmp_path, g
         inputParameters={"selectForTransientsComputation": "dff", "output_root_folder": str(tmp_path)},
     )
 
-    assert not (group_folder / "freqAndAmp_z_score_dms.h5").exists()
-    df = read_freq_and_amp_from_hdf5(str(group_folder), "dff_dms")
+    assert not (group_folder / "freqAndAmp_z_score_dms.csv").exists()
+    df = read_freq_and_amp_from_csv(str(group_folder), "dff_dms")
     np.testing.assert_allclose(df["freq (events/min)"].values, np.array([2.0, 3.0]))
     np.testing.assert_allclose(df["amplitude"].values, np.array([1.5, 2.5]))
 
@@ -97,17 +96,17 @@ def test_average_transients_for_group_both_modes_reads_z_score_and_dff(tmp_path,
     (session / "z_score_dms.hdf5").touch()
     (session / "dff_dms.hdf5").touch()
 
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session),
         np.array([[2.0, 1.5]]),
-        "z_score_dms",
+        "freqAndAmp_z_score_dms.csv",
         index=["session1"],
         columns=["freq (events/min)", "amplitude"],
     )
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session),
         np.array([[8.0, 6.5]]),
-        "dff_dms",
+        "freqAndAmp_dff_dms.csv",
         index=["session1"],
         columns=["freq (events/min)", "amplitude"],
     )
@@ -118,8 +117,8 @@ def test_average_transients_for_group_both_modes_reads_z_score_and_dff(tmp_path,
         inputParameters={"selectForTransientsComputation": "both", "output_root_folder": str(tmp_path)},
     )
 
-    z_score_df = read_freq_and_amp_from_hdf5(str(group_folder), "z_score_dms")
-    dff_df = read_freq_and_amp_from_hdf5(str(group_folder), "dff_dms")
+    z_score_df = read_freq_and_amp_from_csv(str(group_folder), "z_score_dms")
+    dff_df = read_freq_and_amp_from_csv(str(group_folder), "dff_dms")
     np.testing.assert_allclose(z_score_df["freq (events/min)"].values, np.array([2.0]))
     np.testing.assert_allclose(dff_df["freq (events/min)"].values, np.array([8.0]))
 
@@ -135,10 +134,10 @@ def test_average_transients_for_group_skips_a_member_with_no_freq_and_amp_result
     (session2 / "z_score_dms.hdf5").touch()
 
     # Only session1 has freqAndAmp results; session2's were never written.
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session1),
         np.array([[2.0, 1.5]]),
-        "z_score_dms",
+        "freqAndAmp_z_score_dms.csv",
         index=["session1"],
         columns=["freq (events/min)", "amplitude"],
     )
@@ -149,7 +148,7 @@ def test_average_transients_for_group_skips_a_member_with_no_freq_and_amp_result
         inputParameters={"selectForTransientsComputation": "z_score", "output_root_folder": str(tmp_path)},
     )
 
-    df = read_freq_and_amp_from_hdf5(str(group_folder), "z_score_dms")
+    df = read_freq_and_amp_from_csv(str(group_folder), "z_score_dms")
     assert list(df.index) == ["session1/output_1"]
     np.testing.assert_allclose(df["freq (events/min)"].values, np.array([2.0]))
     np.testing.assert_allclose(df["amplitude"].values, np.array([1.5]))
@@ -168,17 +167,17 @@ def test_average_transients_for_group_handles_non_overlapping_stores_without_ind
     (session1 / "z_score_regionA.hdf5").touch()
     (session2 / "z_score_regionB.hdf5").touch()
 
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session1),
         np.array([[2.0, 1.5]]),
-        "z_score_regionA",
+        "freqAndAmp_z_score_regionA.csv",
         index=["session1"],
         columns=["freq (events/min)", "amplitude"],
     )
-    write_freq_and_amp_to_hdf5(
+    write_freq_and_amp_to_csv(
         str(session2),
         np.array([[3.0, 2.5]]),
-        "z_score_regionB",
+        "freqAndAmp_z_score_regionB.csv",
         index=["session2"],
         columns=["freq (events/min)", "amplitude"],
     )
@@ -190,5 +189,7 @@ def test_average_transients_for_group_handles_non_overlapping_stores_without_ind
         inputParameters={"selectForTransientsComputation": "z_score", "output_root_folder": str(tmp_path)},
     )
 
-    assert (group_folder / "freqAndAmp_z_score_regionA.h5").exists()
-    assert (group_folder / "freqAndAmp_z_score_regionB.h5").exists()
+    assert sorted(path.name for path in group_folder.iterdir()) == [
+        "freqAndAmp_z_score_regionA.csv",
+        "freqAndAmp_z_score_regionB.csv",
+    ]

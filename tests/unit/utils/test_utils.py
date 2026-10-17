@@ -116,51 +116,74 @@ def test_get_all_stores_for_combining_data_no_match_returns_empty():
 # ── read_Df ───────────────────────────────────────────────────────────────────
 
 
-def test_read_df_roundtrip_returns_same_dataframe(tmp_path):
-    dataframe = pd.DataFrame({"value": [1.0, 2.0, 3.0]})
-    dataframe.to_hdf(tmp_path / "my_event.h5", key="df", mode="w")
+PSTH_CSV_TEXT = "timestamps,1.5,4.5,mean,err\n0.0,1.0,3.0,2.0,1.0\n0.5,2.0,4.0,3.0,1.0\n"
+
+
+def test_read_df_returns_trials_then_summary_columns_as_float32(tmp_path):
+    (tmp_path / "my_event.csv").write_text(PSTH_CSV_TEXT)
 
     result = read_Df(str(tmp_path), "my_event", name=None)
 
-    pd.testing.assert_frame_equal(result, dataframe)
+    expected = pd.DataFrame(
+        {
+            "1.5": [1.0, 2.0],
+            "4.5": [3.0, 4.0],
+            "timestamps": [0.0, 0.5],
+            "mean": [2.0, 3.0],
+            "err": [1.0, 1.0],
+        },
+        dtype="float32",
+    )
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_read_df_recombines_binned_companion_between_trials_and_summary(tmp_path):
+    (tmp_path / "lever_z_score_dms.csv").write_text(PSTH_CSV_TEXT)
+    (tmp_path / "binned_lever_z_score_dms.csv").write_text(
+        "timestamps,bin_(0-2),bin_err_(0-2)\n0.0,2.0,1.0\n0.5,3.0,1.0\n"
+    )
+
+    result = read_Df(str(tmp_path), "lever", name="z_score_dms")
+
+    expected = pd.DataFrame(
+        {
+            "1.5": [1.0, 2.0],
+            "4.5": [3.0, 4.0],
+            "bin_(0-2)": [2.0, 3.0],
+            "bin_err_(0-2)": [1.0, 1.0],
+            "timestamps": [0.0, 0.5],
+            "mean": [2.0, 3.0],
+            "err": [1.0, 1.0],
+        },
+        dtype="float32",
+    )
+    pd.testing.assert_frame_equal(result, expected)
 
 
 def test_read_df_with_name_constructs_event_name_filename(tmp_path):
-    dataframe = pd.DataFrame({"signal": [4.0, 5.0]})
-    dataframe.to_hdf(tmp_path / "lever_press_timestamps.h5", key="df", mode="w")
+    (tmp_path / "lever_press_z_score_dms.csv").write_text(PSTH_CSV_TEXT)
 
-    result = read_Df(str(tmp_path), "lever_press", name="timestamps")
+    result = read_Df(str(tmp_path), "lever_press", name="z_score_dms")
 
-    pd.testing.assert_frame_equal(result, dataframe)
-
-
-def test_read_df_without_name_constructs_event_only_filename(tmp_path):
-    dataframe = pd.DataFrame({"x": [10.0]})
-    dataframe.to_hdf(tmp_path / "event_only.h5", key="df", mode="w")
-
-    result = read_Df(str(tmp_path), "event_only", name=None)
-
-    pd.testing.assert_frame_equal(result, dataframe)
+    np.testing.assert_array_equal(result["mean"].values, np.array([2.0, 3.0], dtype="float32"))
 
 
 def test_read_df_backslash_in_event_name_is_replaced_with_underscore(tmp_path):
-    # Event "a\\b" → filename "a_b.h5"
-    dataframe = pd.DataFrame({"y": [7.0, 8.0]})
-    dataframe.to_hdf(tmp_path / "a_b.h5", key="df", mode="w")
+    # Event "a\\b" → filename "a_b.csv"
+    (tmp_path / "a_b.csv").write_text(PSTH_CSV_TEXT)
 
     result = read_Df(str(tmp_path), "a\\b", name=None)
 
-    pd.testing.assert_frame_equal(result, dataframe)
+    np.testing.assert_array_equal(result["mean"].values, np.array([2.0, 3.0], dtype="float32"))
 
 
 def test_read_df_forward_slash_in_event_name_is_replaced_with_underscore(tmp_path):
-    # Event "a/b" → filename "a_b.h5"
-    dataframe = pd.DataFrame({"z": [9.0]})
-    dataframe.to_hdf(tmp_path / "a_b.h5", key="df", mode="w")
+    # Event "a/b" → filename "a_b.csv"
+    (tmp_path / "a_b.csv").write_text(PSTH_CSV_TEXT)
 
     result = read_Df(str(tmp_path), "a/b", name=None)
 
-    pd.testing.assert_frame_equal(result, dataframe)
+    np.testing.assert_array_equal(result["mean"].values, np.array([2.0, 3.0], dtype="float32"))
 
 
 # ── parse_run_name ────────────────────────────────────────────────────────────

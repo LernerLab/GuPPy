@@ -1,6 +1,6 @@
 """Step-5 dashboard tab for behavioral covariates correlated with binned metrics.
 
-Reads the ``covariate_correlations_<site>.h5`` and ``binned_covariates_<site>.h5``
+Reads the ``covariate_correlations_<site>.csv`` and ``binned_covariates_<site>.csv``
 tables Step 4 wrote and shows the selected covariate two ways: stacked with the
 photometry trace and bins it was correlated against, on one linked time axis, and
 scattered bin-by-bin against the selected metric. Sessions without a behavioral
@@ -19,9 +19,9 @@ import panel as pn
 from .binned_metrics_view import METRICS, TRACE_LABELS
 from ..analysis.io_utils import read_hdf5
 from ..analysis.standard_io import (
-    read_binned_covariates_from_hdf5,
-    read_binned_metrics_from_hdf5,
-    read_covariate_correlations_from_hdf5,
+    read_binned_covariates_from_csv,
+    read_binned_metrics_from_csv,
+    read_covariate_correlations_from_csv,
     read_covariate_series,
 )
 from ..visualization.binned_metrics import build_binned_metrics_panel
@@ -51,8 +51,8 @@ def covariate_correlation_sites(filepath: str) -> list[str]:
     list of str
         Recording site names, empty when the session has no covariate correlations.
     """
-    paths = Path(filepath).glob(_FILE_PREFIX + "*.h5")
-    return sorted(path.name[len(_FILE_PREFIX) : -len(".h5")] for path in paths)
+    paths = Path(filepath).glob(_FILE_PREFIX + "*.csv")
+    return sorted(path.name[len(_FILE_PREFIX) : -len(".csv")] for path in paths)
 
 
 class CovariateCorrelationView:
@@ -85,17 +85,17 @@ class CovariateCorrelationView:
 
     def _metric_options(self, site: str) -> dict[str, str]:
         """Menu label -> metric column, for the metrics this site actually has."""
-        metrics = read_covariate_correlations_from_hdf5(filepath=self.filepath, recording_site=site)["metric"]
+        metrics = read_covariate_correlations_from_csv(filepath=self.filepath, recording_site=site)["metric"]
         return {METRICS[metric][0]: metric for metric in METRICS if metric in set(metrics)}
 
     def _covariate_options(self, site: str) -> list[str]:
         """The covariate names this site was correlated against."""
-        correlations = read_covariate_correlations_from_hdf5(filepath=self.filepath, recording_site=site)
+        correlations = read_covariate_correlations_from_csv(filepath=self.filepath, recording_site=site)
         return sorted(set(correlations["covariate"]))
 
     def _correlations_table(self) -> pd.DataFrame:
         """Every (metric, covariate) pair for the selected site."""
-        return read_covariate_correlations_from_hdf5(filepath=self.filepath, recording_site=self.site_select.value)
+        return read_covariate_correlations_from_csv(filepath=self.filepath, recording_site=self.site_select.value)
 
     def _make_trace_layout(self) -> hv.Layout:
         """The photometry trace and metric bins above the covariate trace and its bins."""
@@ -104,8 +104,8 @@ class CovariateCorrelationView:
         covariate = self.covariate_select.value
         _, value_label, trace_name = METRICS[metric]
 
-        binned_metrics = read_binned_metrics_from_hdf5(self.filepath, site)
-        binned_covariates = read_binned_covariates_from_hdf5(filepath=self.filepath, recording_site=site)
+        binned_metrics = read_binned_metrics_from_csv(self.filepath, site)
+        binned_covariates = read_binned_covariates_from_csv(filepath=self.filepath, recording_site=site)
         bin_starts = binned_metrics["bin_start"].to_numpy()
         bin_ends = binned_metrics["bin_end"].to_numpy()
 
@@ -141,11 +141,11 @@ class CovariateCorrelationView:
         metric = self.metric_select.value
         covariate = self.covariate_select.value
 
-        correlations = read_covariate_correlations_from_hdf5(filepath=self.filepath, recording_site=site)
+        correlations = read_covariate_correlations_from_csv(filepath=self.filepath, recording_site=site)
         selected = correlations[(correlations["metric"] == metric) & (correlations["covariate"] == covariate)].iloc[0]
 
-        binned_metrics = read_binned_metrics_from_hdf5(self.filepath, site)
-        binned_covariates = read_binned_covariates_from_hdf5(filepath=self.filepath, recording_site=site)
+        binned_metrics = read_binned_metrics_from_csv(self.filepath, site)
+        binned_covariates = read_binned_covariates_from_csv(filepath=self.filepath, recording_site=site)
 
         return build_covariate_scatter(
             covariate_values=binned_covariates[covariate].to_numpy(),

@@ -7,18 +7,47 @@ import numpy as np
 import pandas as pd
 
 from .io_utils import recording_site_from_preprocessed_label
+from ..utils.utils import BINNED_PREFIX, PSTH_SUMMARY_COLUMNS
 
 logger = logging.getLogger(__name__)
 
 
+def write_psth_table(*, filepath: str | Path, stem: str, psth: pd.DataFrame) -> None:
+    """
+    Save a PSTH-shaped table as CSV, with its binned-trial columns in a companion file.
+
+    ``<stem>.csv`` holds ``timestamps``, one column per trial, ``mean`` and ``err``.
+    When ``psth`` has ``bin_*`` columns they go to ``binned_<stem>.csv`` alongside
+    ``timestamps``; otherwise any companion left by an earlier run is removed.
+
+    Parameters
+    ----------
+    filepath : str or Path
+        Output directory.
+    stem : str
+        Filename stem of the PSTH table.
+    psth : pd.DataFrame
+        Trial, ``bin_*``, ``timestamps``, ``mean`` and ``err`` columns.
+    """
+    bin_columns = [column for column in psth.columns if column.startswith(("bin_(", "bin_err_("))]
+    trial_columns = [column for column in psth.columns if column not in bin_columns + PSTH_SUMMARY_COLUMNS]
+    psth[["timestamps"] + trial_columns + ["mean", "err"]].to_csv(Path(filepath) / (stem + ".csv"), index=False)
+
+    binned_path = Path(filepath) / (BINNED_PREFIX + stem + ".csv")
+    if bin_columns:
+        psth[["timestamps"] + bin_columns].to_csv(binned_path, index=False)
+    else:
+        binned_path.unlink(missing_ok=True)
+
+
 def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, columns: list[object]) -> None:
     """
-    Build a PSTH DataFrame (with mean/error columns) and save it as an HDF5 file.
+    Build a PSTH DataFrame (with mean/error columns) and save it with :func:`write_psth_table`.
 
     Parameters
     ----------
     filepath : str
-        Output directory where the ``.h5`` file is written.
+        Output directory where the CSV files are written.
     event : str
         Event label; backslashes and forward-slashes are replaced with underscores.
     name : str
@@ -30,10 +59,7 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     """
     event = event.replace("\\", "_")
     event = event.replace("/", "_")
-    if name:
-        output_path = Path(filepath) / (event + f"_{name}.h5")
-    else:
-        output_path = Path(filepath) / (event + ".h5")
+    stem = event + f"_{name}" if name else event
 
     # removing psth binned trials
     columns = np.array(columns, dtype="str")
@@ -55,7 +81,7 @@ def create_Df_for_psth(filepath: str, event: str, name: str, psth: np.ndarray, c
     columns = np.append(columns, ["mean", "err"])
     df = pd.DataFrame(psth, index=None, columns=list(columns), dtype="float32")
 
-    df.to_hdf(output_path, key="df", mode="w")
+    write_psth_table(filepath=filepath, stem=stem, psth=df)
 
 
 def match_trials_by_timestamp(
@@ -77,7 +103,7 @@ def match_trials_by_timestamp(
     ----------
     labels_a, labels_b : list
         Trial-column labels for the two recording sites. Trial columns are event
-        timestamps (numeric, possibly as strings when read back from HDF5);
+        timestamps (numeric, possibly as strings when read back from CSV);
         other columns (binned aggregates) are matched by exact label.
 
     Returns
@@ -139,12 +165,12 @@ def create_Df_for_cross_correlation(
     filepath: str, event: str, name: str, psth: np.ndarray, columns: list[object]
 ) -> None:
     """
-    Build a cross-correlation DataFrame (with mean/error columns) and save it as an HDF5 file.
+    Build a cross-correlation DataFrame (with mean/error columns) and save it with :func:`write_psth_table`.
 
     Parameters
     ----------
     filepath : str
-        Output directory where the ``.h5`` file is written.
+        Output directory where the CSV files are written.
     event : str
         Event label used to build the filename.
     name : str
@@ -154,10 +180,7 @@ def create_Df_for_cross_correlation(
     columns : list, optional
         Column labels for the trials axis. Default is an empty list.
     """
-    if name:
-        output_path = Path(filepath) / (event + f"_{name}.h5")
-    else:
-        output_path = Path(filepath) / (event + ".h5")
+    stem = event + f"_{name}" if name else event
 
     # removing psth binned trials
     columns = list(np.array(columns, dtype="str"))
@@ -179,7 +202,7 @@ def create_Df_for_cross_correlation(
     columns = np.append(columns, ["mean", "err"])
     df = pd.DataFrame(psth, index=None, columns=columns, dtype="float32")
 
-    df.to_hdf(output_path, key="df", mode="w")
+    write_psth_table(filepath=filepath, stem=stem, psth=df)
 
 
 def getCorrCombinations(filepath: str, inputParameters: dict[str, object]) -> tuple[list[str], list[str]]:

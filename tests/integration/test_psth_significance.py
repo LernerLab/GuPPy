@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME
-from guppy.analysis.standard_io import read_psth_significance_from_hdf5
+from guppy.analysis.standard_io import read_psth_significance_from_csv
 from guppy.testing.api import group_analysis, label_groups, step1, step2, step3, step4
 from guppy.utils.utils import parse_run_name
 from guppy_test_data import STUBBED_TESTING_DATA
@@ -87,11 +87,8 @@ class TestSessionScopeSignificance:
 
         assert written == [
             "significance_port_entries_dms_z_score_dms.csv",
-            "significance_port_entries_dms_z_score_dms.h5",
             "significance_port_entries_vs_unrewarded_nose_pokes_dms_z_score_dms.csv",
-            "significance_port_entries_vs_unrewarded_nose_pokes_dms_z_score_dms.h5",
             "significance_unrewarded_nose_pokes_dms_z_score_dms.csv",
-            "significance_unrewarded_nose_pokes_dms_z_score_dms.h5",
         ]
 
     def test_an_event_with_too_few_trials_is_skipped(self, significance_output):
@@ -102,14 +99,14 @@ class TestSessionScopeSignificance:
         assert not any(name.startswith("significance_" + UNDERPOWERED_EVENT) for name in written)
 
     def test_one_sample_schema(self, significance_output):
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
         assert list(significance.columns) == EXPECTED_ONE_SAMPLE_COLUMNS
 
     def test_two_sample_schema(self, significance_output):
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output),
             name="port_entries_vs_unrewarded_nose_pokes_dms_z_score_dms",
         )
@@ -117,25 +114,25 @@ class TestSessionScopeSignificance:
         assert list(significance.columns) == EXPECTED_TWO_SAMPLE_COLUMNS
 
     def test_sample_counts_match_the_psth_trials(self, significance_output):
-        psth = pd.read_hdf(Path(significance_output) / "port_entries_dms_z_score_dms.h5", key="df", mode="r")
+        psth = pd.read_csv(Path(significance_output) / "port_entries_dms_z_score_dms.csv")
         num_trials = len([column for column in psth.columns if column not in ("timestamps", "mean", "err")])
 
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
         assert significance["n"].iloc[0] == num_trials
 
     def test_time_axis_matches_the_psth(self, significance_output):
-        psth = pd.read_hdf(Path(significance_output) / "port_entries_dms_z_score_dms.h5", key="df", mode="r")
-        significance = read_psth_significance_from_hdf5(
+        psth = pd.read_csv(Path(significance_output) / "port_entries_dms_z_score_dms.csv")
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
         np.testing.assert_allclose(significance["timestamps"].to_numpy(), psth["timestamps"].to_numpy(), rtol=1e-6)
 
     def test_estimate_lies_inside_its_confidence_interval(self, significance_output):
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
@@ -149,7 +146,7 @@ class TestSessionScopeSignificance:
     def test_an_uncomputable_timepoint_is_never_marked_significant(self, significance_output):
         # NaN padding at the window edges leaves some timepoints with too few overlapping
         # trials to bootstrap. They must fall out as not significant rather than either way.
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
@@ -158,7 +155,7 @@ class TestSessionScopeSignificance:
         assert not significance["significant"][uncomputable].any()
 
     def test_significance_is_only_marked_where_the_interval_excludes_zero(self, significance_output):
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
@@ -167,18 +164,8 @@ class TestSessionScopeSignificance:
         # The run-length filter only ever removes marks, so every mark implies exclusion.
         assert (excludes_zero[marked]).all()
 
-    def test_csv_matches_the_hdf5(self, significance_output):
-        significance = read_psth_significance_from_hdf5(
-            filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
-        )
-        from_csv = pd.read_csv(
-            Path(results_path(significance_output)) / "significance_port_entries_dms_z_score_dms.csv"
-        )
-
-        pd.testing.assert_frame_equal(significance.reset_index(drop=True), from_csv, check_dtype=False)
-
     def test_records_the_alpha_it_ran_at(self, significance_output):
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(significance_output), name="port_entries_dms_z_score_dms"
         )
 
@@ -262,14 +249,14 @@ class TestGroupScopeSignificance:
         folder, _ = group_folder
 
         assert Path(results_path(folder)).exists()
-        assert "significance_port_entries_dms_z_score_dms.h5" in [
+        assert "significance_port_entries_dms_z_score_dms.csv" in [
             entry.name for entry in Path(results_path(folder)).iterdir()
         ]
 
     def test_resamples_sessions_rather_than_trials(self, group_folder):
         folder, member_count = group_folder
 
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(folder), name="port_entries_dms_z_score_dms"
         )
 
@@ -280,7 +267,7 @@ class TestGroupScopeSignificance:
     def test_pairwise_comparison_records_both_member_counts(self, group_folder):
         folder, member_count = group_folder
 
-        significance = read_psth_significance_from_hdf5(
+        significance = read_psth_significance_from_csv(
             filepath=results_path(folder),
             name="port_entries_vs_unrewarded_nose_pokes_dms_z_score_dms",
         )

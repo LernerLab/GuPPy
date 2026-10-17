@@ -5,31 +5,36 @@ import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
-    read_binned_metrics_from_hdf5,
+    read_binned_covariates_from_csv,
+    read_binned_metrics_from_csv,
     read_control_and_signal,
     read_coords_pairwise,
     read_corrected_data,
     read_corrected_data_dict,
     read_corrected_timestamps_pairwise,
     read_corrected_ttl_timestamps,
+    read_covariate_correlations_from_csv,
     read_data_for_combining_data,
-    read_freq_and_amp_from_hdf5,
+    read_freq_and_amp_from_csv,
+    read_peak_and_area_from_csv,
+    read_psth_significance_from_csv,
     read_timestamps_for_combining_data,
     read_transients_from_hdf5,
     read_ttl,
     read_ttl_timestamps_for_combining_data,
     write_artifact_corrected_timestamps,
     write_artifact_removal,
+    write_binned_covariates_to_csv,
     write_binned_metrics_to_csv,
-    write_binned_metrics_to_hdf5,
     write_combined_data,
     write_corrected_data,
     write_corrected_timestamps,
     write_corrected_ttl_timestamps,
+    write_covariate_correlations_to_csv,
     write_freq_and_amp_to_csv,
-    write_freq_and_amp_to_hdf5,
+    write_group_table,
     write_peak_and_area_to_csv,
-    write_peak_and_area_to_hdf5,
+    write_psth_significance_to_csv,
     write_transients_to_hdf5,
     write_zscore,
 )
@@ -113,37 +118,100 @@ def test_write_combined_data_writes_all_three_dicts(tmp_path):
     np.testing.assert_array_equal(ttl, np.array([0.5, 1.5]))
 
 
-# ── write_peak_and_area_to_hdf5 / csv ────────────────────────────────────────
+# ── write_peak_and_area_to_csv / read_peak_and_area_from_csv ─────────────────
 
 
-def test_write_peak_and_area_to_hdf5_creates_file(tmp_path):
-    arr = np.array([[1.0, 2.0], [3.0, 4.0]])
-    write_peak_and_area_to_hdf5(str(tmp_path), arr, "event_lever_z_score_dms", index=["s1", "s2"])
-
-    assert (tmp_path / "peak_AUC_event_lever_z_score_dms.h5").exists()
-    df = pd.read_hdf(tmp_path / "peak_AUC_event_lever_z_score_dms.h5", key="df")
-    np.testing.assert_array_equal(df.values, arr)
-
-
-def test_write_peak_and_area_to_csv_creates_file(tmp_path):
-    arr = np.array([[5.0, 6.0]])
-    write_peak_and_area_to_csv(str(tmp_path), arr, "event_lever_z_score_dms", index=["s1"])
-
-    assert (tmp_path / "peak_AUC_event_lever_z_score_dms.csv").exists()
+@pytest.fixture
+def peak_and_area_trials():
+    return pd.DataFrame(
+        {
+            "session": ["s1", "s1", "s1"],
+            "trial": ["1.5", "4.5", "mean"],
+            "peak_pos_1": [2.0, 4.0, 3.0],
+            "peak_neg_1": [-1.0, -3.0, -2.0],
+            "area_1": [0.5, 1.5, 1.0],
+        }
+    )
 
 
-# ── write_freq_and_amp_to_hdf5 / csv and read_freq_and_amp_from_hdf5 ─────────
+@pytest.fixture
+def peak_and_area_bins():
+    return pd.DataFrame(
+        {
+            "session": ["s1"],
+            "bin": ["bin_(0-2)"],
+            "peak_pos_1": [3.0],
+            "peak_neg_1": [-2.0],
+            "area_1": [1.0],
+        }
+    )
+
+
+def test_write_and_read_peak_and_area_without_bins_roundtrip(tmp_path, peak_and_area_trials):
+    write_peak_and_area_to_csv(
+        filepath=tmp_path, trials=peak_and_area_trials, bins=None, name="event_lever_z_score_dms"
+    )
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["peak_AUC_event_lever_z_score_dms.csv"]
+    trials, bins = read_peak_and_area_from_csv(filepath=tmp_path, name="event_lever_z_score_dms")
+    pd.testing.assert_frame_equal(trials, peak_and_area_trials)
+    assert bins is None
+
+
+def test_write_and_read_peak_and_area_with_bins_roundtrip(tmp_path, peak_and_area_trials, peak_and_area_bins):
+    write_peak_and_area_to_csv(
+        filepath=tmp_path, trials=peak_and_area_trials, bins=peak_and_area_bins, name="event_lever_z_score_dms"
+    )
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "binned_peak_AUC_event_lever_z_score_dms.csv",
+        "peak_AUC_event_lever_z_score_dms.csv",
+    ]
+    trials, bins = read_peak_and_area_from_csv(filepath=tmp_path, name="event_lever_z_score_dms")
+    pd.testing.assert_frame_equal(trials, peak_and_area_trials)
+    pd.testing.assert_frame_equal(bins, peak_and_area_bins)
+
+
+def test_write_peak_and_area_without_bins_removes_stale_binned_file(tmp_path, peak_and_area_trials, peak_and_area_bins):
+    write_peak_and_area_to_csv(
+        filepath=tmp_path, trials=peak_and_area_trials, bins=peak_and_area_bins, name="event_lever_z_score_dms"
+    )
+    write_peak_and_area_to_csv(
+        filepath=tmp_path, trials=peak_and_area_trials, bins=None, name="event_lever_z_score_dms"
+    )
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["peak_AUC_event_lever_z_score_dms.csv"]
+
+
+def test_read_peak_and_area_keeps_numeric_session_names_as_strings(tmp_path):
+    trials_with_numeric_session = pd.DataFrame(
+        {"session": ["1", "1"], "trial": ["10", "mean"], "peak_pos_1": [2.0, 2.0]}
+    )
+    write_peak_and_area_to_csv(filepath=tmp_path, trials=trials_with_numeric_session, bins=None, name="lever")
+
+    trials, _ = read_peak_and_area_from_csv(filepath=tmp_path, name="lever")
+
+    assert list(trials["session"]) == ["1", "1"]
+    assert list(trials["trial"]) == ["10", "mean"]
+
+
+# ── write_freq_and_amp_to_csv / read_freq_and_amp_from_csv ───────────────────
 
 
 def test_write_and_read_freq_and_amp_roundtrip(tmp_path):
     arr = np.array([[2.5, 1.8]])
-    write_freq_and_amp_to_hdf5(
-        str(tmp_path), arr, "z_score_dms", index=["session1"], columns=["freq (events/min)", "amplitude"]
+    write_freq_and_amp_to_csv(
+        str(tmp_path),
+        arr,
+        "freqAndAmp_z_score_dms.csv",
+        index=["session1"],
+        columns=["freq (events/min)", "amplitude"],
     )
-    df = read_freq_and_amp_from_hdf5(str(tmp_path), "z_score_dms")
+    df = read_freq_and_amp_from_csv(str(tmp_path), "z_score_dms")
 
-    np.testing.assert_allclose(df["freq (events/min)"].iloc[0], 2.5)
-    np.testing.assert_allclose(df["amplitude"].iloc[0], 1.8)
+    assert list(df.index) == ["session1"]
+    np.testing.assert_allclose(df["freq (events/min)"].to_numpy(), [2.5])
+    np.testing.assert_allclose(df["amplitude"].to_numpy(), [1.8])
 
 
 def test_write_freq_and_amp_to_csv_creates_file(tmp_path):
@@ -508,7 +576,7 @@ def test_read_ttl_timestamps_for_combining_data_mismatched_recording_sites_raise
         read_ttl_timestamps_for_combining_data([str(session)], store_array)
 
 
-# ── write_binned_metrics_to_hdf5 / _to_csv / read_binned_metrics_from_hdf5 ────
+# ── write_binned_metrics_to_csv / read_binned_metrics_from_csv ───────────────
 
 
 @pytest.fixture
@@ -527,10 +595,10 @@ def binned_metrics():
 
 
 def test_write_and_read_binned_metrics_roundtrip(tmp_path, binned_metrics):
-    write_binned_metrics_to_hdf5(str(tmp_path), binned_metrics, "dms")
-    result = read_binned_metrics_from_hdf5(str(tmp_path), "dms")
+    write_binned_metrics_to_csv(str(tmp_path), binned_metrics, "dms")
+    result = read_binned_metrics_from_csv(str(tmp_path), "dms")
 
-    pd.testing.assert_frame_equal(result, binned_metrics)
+    pd.testing.assert_frame_equal(result, binned_metrics, check_index_type=False)
 
 
 def test_write_binned_metrics_to_csv_preserves_the_bin_index(tmp_path, binned_metrics):
@@ -540,3 +608,62 @@ def test_write_binned_metrics_to_csv_preserves_the_bin_index(tmp_path, binned_me
     np.testing.assert_allclose(result["mean_zscore"].to_numpy(), [2.0, 7.5])
     np.testing.assert_allclose(result["bin_end"].to_numpy(), [5.0, 10.0])
     np.testing.assert_array_equal(result["transient_count_z_score"].to_numpy(), [1, 3])
+
+
+# ── PSTH significance, binned covariates, covariate correlations ─────────────
+
+
+def test_write_and_read_psth_significance_roundtrip(tmp_path):
+    significance = pd.DataFrame(
+        {
+            "timestamps": [0.0, 0.5],
+            "estimate": [1.0, -0.5],
+            "ci_lower": [0.2, -1.0],
+            "ci_upper": [1.8, 0.1],
+            "significant": [1, 0],
+            "alpha": [0.05, 0.05],
+            "n": [4, 4],
+        }
+    )
+    write_psth_significance_to_csv(filepath=tmp_path, significance=significance, name="lever_vs_press")
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["significance_lever_vs_press.csv"]
+    result = read_psth_significance_from_csv(filepath=tmp_path, name="lever_vs_press")
+    pd.testing.assert_frame_equal(result, significance)
+
+
+def test_write_and_read_binned_covariates_roundtrip(tmp_path):
+    binned_covariates = pd.DataFrame(
+        {"bin_start": [0.0, 5.0], "bin_end": [5.0, 10.0], "speed": [1.5, 2.5], "n_samples_speed": [3, 4]},
+        index=pd.RangeIndex(2, name="bin"),
+    )
+    write_binned_covariates_to_csv(filepath=tmp_path, binned_covariates=binned_covariates, recording_site="dms")
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["binned_covariates_dms.csv"]
+    result = read_binned_covariates_from_csv(filepath=tmp_path, recording_site="dms")
+    pd.testing.assert_frame_equal(result, binned_covariates, check_index_type=False)
+
+
+def test_write_and_read_covariate_correlations_roundtrip(tmp_path):
+    correlations = pd.DataFrame(
+        {"metric": ["mean_zscore"], "covariate": ["speed"], "pearson_r": [0.5], "spearman_rho": [0.4], "n_bins": [6]},
+        index=pd.RangeIndex(1, name="pair"),
+    )
+    write_covariate_correlations_to_csv(filepath=tmp_path, correlations=correlations, recording_site="dms")
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["covariate_correlations_dms.csv"]
+    result = read_covariate_correlations_from_csv(filepath=tmp_path, recording_site="dms")
+    pd.testing.assert_frame_equal(result, correlations, check_index_type=False)
+
+
+# ── write_group_table ─────────────────────────────────────────────────────────
+
+
+def test_write_group_table_writes_only_a_csv(tmp_path):
+    table = pd.DataFrame({"mean_zscore": [1.0, 3.0]}, index=pd.Index(["run_a", "run_b"], name="run"))
+
+    write_group_table(filepath=tmp_path, table=table, name="tonic_means_dms")
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["tonic_means_dms.csv"]
+    result = pd.read_csv(tmp_path / "tonic_means_dms.csv", index_col="run")
+    pd.testing.assert_frame_equal(result, table)

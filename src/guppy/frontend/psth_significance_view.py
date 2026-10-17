@@ -1,6 +1,6 @@
 """Step-5 dashboard tab for PSTH significance comparisons.
 
-Reads the ``significance_<comparison>.h5`` tables written into
+Reads the ``significance_<comparison>.csv`` tables written into
 ``psth_significance_output/`` and plots the selected comparison. Output directories
 analyzed without the significance parameter hold no such tables, so the tab renders a
 short note instead and can be added to the dashboard unconditionally.
@@ -17,7 +17,7 @@ import holoviews as hv
 import panel as pn
 
 from ..analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME, PSTH_SIGNIFICANCE_PREFIX
-from ..analysis.standard_io import read_psth_significance_from_hdf5
+from ..analysis.standard_io import read_psth_significance_from_csv
 from ..visualization.psth_significance import build_significance_panel
 
 logger = logging.getLogger(__name__)
@@ -63,8 +63,8 @@ def significance_comparisons(filepath: str) -> list[str]:
         Comparison names, empty when the directory has no significance results.
     """
     results_folder = Path(filepath) / PSTH_SIGNIFICANCE_DIRNAME
-    paths = results_folder.glob(PSTH_SIGNIFICANCE_PREFIX + "*.h5")
-    return sorted(path.name[len(PSTH_SIGNIFICANCE_PREFIX) : -len(".h5")] for path in paths)
+    paths = results_folder.glob(PSTH_SIGNIFICANCE_PREFIX + "*.csv")
+    return sorted(path.name[len(PSTH_SIGNIFICANCE_PREFIX) : -len(".csv")] for path in paths)
 
 
 def describe_comparison(*, name: str, n: int, n_b: int | None) -> str:
@@ -115,7 +115,7 @@ class PsthSignificanceView:
         self.comparison_select.param.watch(self._on_comparison_change, "value")
 
     def _read(self) -> object:
-        return read_psth_significance_from_hdf5(filepath=self.results_path, name=self.comparison_select.value)
+        return read_psth_significance_from_csv(filepath=self.results_path, name=self.comparison_select.value)
 
     def _make_caption(self) -> str:
         significance = self._read()

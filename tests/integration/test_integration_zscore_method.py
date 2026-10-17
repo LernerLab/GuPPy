@@ -65,30 +65,25 @@ def test_zscore_method(tmp_path, zscore_method, step3_extra_kwargs):
     output_directory = locate_run_folder(session=str(session_copy))
 
     psth_file_path = Path(output_directory) / (
-        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
     baseline_uncorrected_file_path = Path(output_directory) / (
-        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_z_score_{EXPECTED_RECORDING_SITE}.h5"
-    )
-    peak_auc_h5_file_path = Path(output_directory) / (
-        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
     peak_auc_csv_file_path = Path(output_directory) / (
         f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
 
-    assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
+    assert Path(psth_file_path).exists(), f"Missing PSTH CSV: {psth_file_path}"
     assert Path(
         baseline_uncorrected_file_path
-    ).exists(), f"Missing baseline-uncorrected PSTH HDF5: {baseline_uncorrected_file_path}"
-    assert Path(peak_auc_h5_file_path).exists(), f"Missing peak/AUC HDF5: {peak_auc_h5_file_path}"
+    ).exists(), f"Missing baseline-uncorrected PSTH CSV: {baseline_uncorrected_file_path}"
     assert Path(peak_auc_csv_file_path).exists(), f"Missing peak/AUC CSV: {peak_auc_csv_file_path}"
 
-    psth_dataframe = pd.read_hdf(psth_file_path, key="df")
+    psth_dataframe = pd.read_csv(psth_file_path)
     assert "timestamps" in psth_dataframe.columns, f"'timestamps' column missing in {psth_file_path}"
     assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
 
-    frequency_and_amplitude_h5_file_path = Path(output_directory) / (f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5")
     frequency_and_amplitude_csv_file_path = Path(output_directory) / (
         f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
@@ -96,9 +91,6 @@ def test_zscore_method(tmp_path, zscore_method, step3_extra_kwargs):
         f"transientsOccurrences_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
 
-    assert Path(
-        frequency_and_amplitude_h5_file_path
-    ).exists(), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
     assert Path(
         frequency_and_amplitude_csv_file_path
     ).exists(), f"Missing freq/amp CSV: {frequency_and_amplitude_csv_file_path}"

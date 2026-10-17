@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.analysis.standard_io import write_tonic_to_hdf5
+from guppy.analysis.standard_io import read_tonic_means, write_tonic_means
 from guppy.frontend.tonic_epochs import (
     TonicEpochConfig,
     TonicResultsView,
@@ -62,7 +62,7 @@ class TestTonicEpochConfig:
 
         # DLS was left empty, so no file is written for it.
         assert not (run_folder / "tonic_epochs_DLS.csv").exists()
-        assert not (run_folder / "tonic_DLS.h5").exists()
+        assert not (run_folder / "tonic_means_DLS.csv").exists()
 
     def test_save_also_computes_the_per_epoch_means(self, config, run_folder):
         """Saving is the whole step — no later preprocessing pass produces the means."""
@@ -70,7 +70,7 @@ class TestTonicEpochConfig:
 
         config.save()
 
-        means = pd.read_hdf(run_folder / "tonic_DMS.h5", key="df")
+        means = read_tonic_means(run_folder, "DMS")
         # The DMS z-score trace is the timestamps themselves (0..10 by 1), and dF/F is
         # that over 10, so [0, 2] averages to 1.0 / 0.1 and [8, 10] to 9.0 / 0.9.
         assert list(means.index) == ["baseline", "post"]
@@ -93,13 +93,13 @@ class TestTonicEpochConfig:
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
         config.save()
         assert (run_folder / "tonic_epochs_DMS.csv").exists()
-        assert (run_folder / "tonic_DMS.h5").exists()
+        assert (run_folder / "tonic_means_DMS.csv").exists()
 
         config.set_epochs("DMS", [])
         config.save()
 
         assert not (run_folder / "tonic_epochs_DMS.csv").exists()
-        assert not (run_folder / "tonic_DMS.h5").exists()
+        assert not (run_folder / "tonic_means_DMS.csv").exists()
 
     def test_saving_a_site_that_never_had_windows_is_a_no_op(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
@@ -159,7 +159,7 @@ def _write_tonic_results(filepath, site):
     pd.DataFrame({"label": ["baseline", "post"], "start": [0.0, 8.0], "end": [2.0, 10.0]}).to_csv(
         filepath / f"tonic_epochs_{site}.csv", index=False
     )
-    write_tonic_to_hdf5(
+    write_tonic_means(
         str(filepath),
         pd.DataFrame(
             {"mean_zscore": [1.0, 9.0], "mean_dff": [0.1, 0.9]},

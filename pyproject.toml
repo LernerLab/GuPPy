@@ -55,13 +55,12 @@ dependencies = [
     "pynwb>=4",
     "scipy",
     "statsmodels",
-    "tables",
     "selenium",
     "dandi",
     "remfile",
     "requests",
     "pyyaml",
-    "neuroconv[guppy]>=0.10.2",
+    "neuroconv[guppy] @ git+https://github.com/catalystneuro/neuroconv.git@a5b2a3555a6591d9a0762c5dbf918d45d97be856",
     "ndx-guppy>=0.2.1",
     "tornado>=6.5.10",  # 6.5.9 breaks Bokeh's static-file handler, so Panel pages fail to load
     "zarr<3",  # zarr 3 breaks the hdmf-zarr/dandi stack; remove once supported
@@ -88,6 +87,8 @@ test = [
     # LabeledEvents, and importing it registers the hand-written class, so the extractor's
     # non-cached-spec read path gets exercised. 0.4 redefines the core EventsTable type.
     "ndx-events==0.2.2",
+    # The consistency tests' v1.3.0 reference outputs hold PyTables tables.
+    "tables",
 ]
 
 dev = [

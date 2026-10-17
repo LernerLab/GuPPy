@@ -31,10 +31,7 @@ from ..analysis.psth_significance import (
     minimum_consecutive_samples_for,
     significant_sample_mask,
 )
-from ..analysis.standard_io import (
-    write_psth_significance_to_csv,
-    write_psth_significance_to_hdf5,
-)
+from ..analysis.standard_io import write_psth_significance_to_csv
 from ..utils import progress
 from ..utils.process_pool import run_starmap
 from ..utils.stores_list import read_stores_list
@@ -103,7 +100,7 @@ def read_psth_samples(
         ``(num_samples, num_timepoints)``, or None when the directory holds no PSTH for
         this combination.
     """
-    psth_path = Path(filepath) / (f"{event}_{recording_site}_{basename}.h5")
+    psth_path = Path(filepath) / (f"{event}_{recording_site}_{basename}.csv")
     if not Path(psth_path).exists():
         return None
 
@@ -294,7 +291,6 @@ def execute_one_comparison(
         )
 
     output_path = make_dir_for_psth_significance(filepath)
-    write_psth_significance_to_hdf5(filepath=output_path, significance=significance, name=name)
     write_psth_significance_to_csv(filepath=output_path, significance=significance, name=name)
     logger.info("Significance for %s computed.", name)
 

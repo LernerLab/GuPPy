@@ -43,6 +43,7 @@ from .utils import (
     is_run_folder,
     session_is_under_input_root,
 )
+from ..analysis.tonic import TONIC_MEANS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -436,6 +437,77 @@ def validate_preprocessing_outputs_present(
             message = f"No preprocessing outputs found in '{run_folder}'. Run Step 3 (Preprocess) before {action}."
             logger.error(message)
             raise ValueError(message)
+
+
+# PSTH tables as GuPPy wrote them before results tables became CSV.
+_LEGACY_PSTH_TABLE_PATTERNS = ("*_z_score_*.h5", "*_dff_*.h5")
+
+
+def validate_no_legacy_psth_tables(*, output_directories: Sequence[str]) -> None:
+    """Validate that no output directory holds a PSTH table only as an ``.h5`` file.
+
+    Parameters
+    ----------
+    output_directories : sequence of str
+        Run folders and group folders to check.
+
+    Raises
+    ------
+    ValueError
+        If any directory holds a PSTH ``.h5`` table with no ``.csv`` table of the same name beside it.
+    """
+    legacy_directories = [
+        directory
+        for directory in output_directories
+        if any(
+            not path.with_suffix(".csv").exists()
+            for pattern in _LEGACY_PSTH_TABLE_PATTERNS
+            for path in Path(directory).glob(pattern)
+        )
+    ]
+    if legacy_directories:
+        directory_lines = "\n  - ".join(legacy_directories)
+        message = (
+            "These output directories hold PSTH results as .h5 files, a format this version of GuPPy no "
+            f"longer reads:\n  - {directory_lines}\n\n"
+            "Rerun Step 4 on each run, or the Group Analysis step on each '_group' directory, to rewrite "
+            "its results as CSV."
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+
+def validate_tonic_means_present(*, output_directories: Sequence[str]) -> None:
+    """Validate that every recording site with saved tonic epochs also has their means.
+
+    Parameters
+    ----------
+    output_directories : sequence of str
+        Run folders and group folders to check.
+
+    Raises
+    ------
+    ValueError
+        If any directory holds a ``tonic_epochs_<site>.csv`` with no ``tonic_means_<site>.csv`` beside it.
+    """
+    directories_missing_means = [
+        directory
+        for directory in output_directories
+        if any(
+            not (Path(directory) / (TONIC_MEANS_PREFIX + path.name[len("tonic_epochs_") :])).exists()
+            for path in Path(directory).glob("tonic_epochs_*.csv")
+        )
+    ]
+    if directories_missing_means:
+        directory_lines = "\n  - ".join(directories_missing_means)
+        message = (
+            f"These output directories hold tonic epochs with no {TONIC_MEANS_PREFIX}<site>.csv beside them:\n"
+            f"  - {directory_lines}\n\n"
+            "Earlier GuPPy versions saved tonic means as tonic_<site>.h5, which this version no longer reads. "
+            "Open Tonic Analysis on each run and save its epochs to rewrite the means."
+        )
+        logger.error(message)
+        raise ValueError(message)
 
 
 def validate_group_member_run_folders(*, member_run_folders: Sequence[str]) -> None:

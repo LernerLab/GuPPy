@@ -53,13 +53,13 @@ def make_parameters():
 class TestValidatePsthOutputsExist:
     def test_passes_when_z_score_psth_files_present(self, tmp_path, make_session, make_parameters):
         session_dir, run_folder = make_session(tmp_path)
-        (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+        (run_folder / "ttl_region_z_score_region.csv").write_bytes(b"")
 
         _validate_psth_outputs_exist(make_parameters(session_dir))
 
     def test_passes_when_dff_psth_files_present(self, tmp_path, make_session, make_parameters):
         session_dir, run_folder = make_session(tmp_path)
-        (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
+        (run_folder / "ttl_region_dff_region.csv").write_bytes(b"")
 
         _validate_psth_outputs_exist(make_parameters(session_dir))
 
@@ -93,7 +93,7 @@ class TestValidatePsthOutputsExist:
         """A directory without results is skipped downstream, not fatal here."""
         session1_dir, run_folder_1 = make_session(tmp_path, "session1")
         session2_dir, _ = make_session(tmp_path, "session2")
-        (run_folder_1 / "ttl_region_z_score_region.h5").write_bytes(b"")
+        (run_folder_1 / "ttl_region_z_score_region.csv").write_bytes(b"")
 
         _validate_psth_outputs_exist(
             {
@@ -122,7 +122,7 @@ class TestValidatePsthOutputsExist:
         session_dir, _ = make_session(tmp_path)
         group_folder = tmp_path / "saline_group"
         group_folder.mkdir()
-        (group_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+        (group_folder / "ttl_region_z_score_region.csv").write_bytes(b"")
 
         _validate_psth_outputs_exist(make_parameters(session_dir, selected_group_folders=[str(group_folder)]))
 
@@ -144,7 +144,7 @@ class TestVisualizeResultsSelectionSources:
         group_folder.mkdir()
         (group_folder / "group_members.json").write_text('{"member_run_folders": []}')
         (group_folder / "storesList.csv").write_text("LNRW\nport_entries\n")
-        (group_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+        (group_folder / "ttl_region_z_score_region.csv").write_bytes(b"")
         return group_folder
 
     @pytest.fixture
@@ -199,6 +199,31 @@ class TestVisualizeResultsSelectionSources:
 
         with pytest.raises(ValueError, match="Nothing is selected to visualize"):
             visualizeResults(parameters)
+
+
+class TestVisualizeResultsLegacyTables:
+    def test_raises_for_a_run_folder_holding_h5_psth_tables(
+        self, tmp_path, make_session, make_parameters, base_input_parameters
+    ):
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "storesList.csv").write_text("Dv1A,Dv2A,PrtN\ncontrol_region,signal_region,ttl\n")
+        (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
+        # Earlier versions also wrote the peak/AUC table as CSV, which matches the PSTH file patterns.
+        (run_folder / "peak_AUC_ttl_region_z_score_region.h5").write_bytes(b"")
+        (run_folder / "peak_AUC_ttl_region_z_score_region.csv").write_text("")
+
+        with pytest.raises(ValueError, match="Rerun Step 4"):
+            visualizeResults({**base_input_parameters, **make_parameters(session_dir)})
+
+    def test_raises_for_a_run_folder_holding_tonic_epochs_without_their_means(
+        self, tmp_path, make_session, make_parameters, base_input_parameters
+    ):
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "tonic_epochs_region.csv").write_text("label,start,end\nbaseline,0,10\n")
+        (run_folder / "tonic_region.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Open Tonic Analysis"):
+            visualizeResults({**base_input_parameters, **make_parameters(session_dir)})
 
 
 class TestHelperPlots:

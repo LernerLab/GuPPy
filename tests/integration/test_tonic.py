@@ -5,7 +5,7 @@ CSV session (``stubbed_testing_data/csv/sample_data_csv_injection_1``), whose 46
 holds three equal 60 s phases: a flat baseline, a sustained plateau from the injection at
 t=60 s, and a clearance to a 25% residual from t=120 s. Epoch windows are
 written by ``tonic_analysis`` (bypassing the interactive epoch page), which also
-averages the traces over them; the resulting ``tonic_region.h5`` is checked for correct
+averages the traces over them; the resulting ``tonic_means_region.csv`` is checked for correct
 per-epoch means and for the rise-then-recover ordering across the three epochs.
 """
 
@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.io_utils import read_hdf5
+from guppy.analysis.standard_io import read_tonic_means
 from guppy.testing.api import locate_run_folder, step1, step2, step3, tonic_analysis
 from guppy.utils.utils import parse_run_name
 
@@ -86,10 +87,9 @@ class TestTonicAnalysis:
         )
 
         output_directory = _output_directory(injection_session["session"])
-        tonic_path = Path(output_directory) / "tonic_region.h5"
-        assert Path(tonic_path).exists()
+        assert (Path(output_directory) / "tonic_means_region.csv").exists()
 
-        tonic = pd.read_hdf(tonic_path, key="df")
+        tonic = read_tonic_means(output_directory, "region")
         assert list(tonic.index) == ["baseline", "wash_in", "wash_out"]
         assert list(tonic.columns) == ["mean_zscore", "mean_dff"]
 
@@ -123,4 +123,4 @@ class TestTonicAnalysis:
             selected_runs=injection_session["selected_runs"],
         )
         output_directory = _output_directory(injection_session["session"])
-        assert not (Path(output_directory) / "tonic_region.h5").exists()
+        assert not (Path(output_directory) / "tonic_means_region.csv").exists()

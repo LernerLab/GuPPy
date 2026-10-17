@@ -212,9 +212,9 @@ The outputs land in the same `sample_data_csv_1/output_1/` directory you have be
 | File | Contents |
 |------|----------|
 | `RewardPort_A.hdf5` | The peri-event timestamps (the x-axis of the PSTH) |
-| `RewardPort_A_z_score_A.h5` | The PSTH dataframe: one column per trial, plus `mean` and `err` (standard error) columns and the `timestamps` column |
-| `RewardPort_A_baselineUncorrected_z_score_A.h5` | Same dataframe before baseline correction was applied (kept for inspection) |
-| `peak_AUC_RewardPort_A_z_score_A.csv` and matching `.h5` | Peak amplitude and area-under-curve for the trial-mean PSTH |
+| `RewardPort_A_z_score_A.csv` | The PSTH table: the `timestamps` column, one column per trial, then `mean` and `err` (standard error) columns |
+| `RewardPort_A_baselineUncorrected_z_score_A.csv` | Same table before baseline correction was applied (kept for inspection) |
+| `peak_AUC_RewardPort_A_z_score_A.csv` | Peak amplitude and area-under-curve for each trial and for the trial-mean PSTH |
 
 The visualization step in Step 5 reads these files; you do not need to inspect them by hand. If you do want to open them yourself, the [Output data model](../reference/outputs.md) reference gives the columns of each table and the datasets in each HDF5 file, and [Custom Plots from GuPPy Outputs](custom_plots.md) walks through loading them and plotting them yourself.
 

@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from guppy.analysis.psth_utils import write_psth_table
+from guppy.analysis.standard_io import read_peak_and_area_from_csv
 from guppy.orchestration.psth import (
     _validate_events_overlap_signal,
     _validate_psth_window_parameters,
@@ -86,7 +88,7 @@ def peak_and_area_output_dir(psth_output_dir):
             "timestamps": [0.0, 0.5, 1.0, 1.5],
         }
     )
-    psth.to_hdf(str(psth_output_dir / "lever_press_DMS_z_score_DMS.h5"), key="df", mode="w")
+    write_psth_table(filepath=psth_output_dir, stem="lever_press_DMS_z_score_DMS", psth=psth)
     return psth_output_dir
 
 
@@ -100,8 +102,42 @@ def test_execute_compute_psth_peak_and_area_honors_auc_units(
 
     execute_compute_psth_peak_and_area(str(peak_and_area_output_dir), "lever_press", base_input_parameters)
 
-    written = pd.read_csv(peak_and_area_output_dir / "peak_AUC_lever_press_DMS_z_score_DMS.csv", index_col=0)
-    np.testing.assert_allclose(written["area_1"].to_numpy(), np.full(2, expected_area), atol=1e-12)
+    trials, bins = read_peak_and_area_from_csv(filepath=peak_and_area_output_dir, name="lever_press_DMS_z_score_DMS")
+    assert trials["session"].tolist() == ["session1", "session1"]
+    assert trials["trial"].tolist() == ["12.5", "mean"]
+    np.testing.assert_allclose(trials["area_1"].to_numpy(), np.full(2, expected_area), atol=1e-12)
+    assert bins is None
+    assert not (peak_and_area_output_dir / "peak_AUC_lever_press_DMS_z_score_DMS.h5").exists()
+
+
+def test_execute_compute_psth_peak_and_area_writes_bins_to_their_own_table(
+    peak_and_area_output_dir, base_input_parameters
+):
+    # One bin of the single trial at half its amplitude: the (0.0, 1.5) window covers
+    # samples [0.0, 1.0, 1.0], whose one-sample-spacing trapezoid is 1.5.
+    psth = pd.DataFrame(
+        {
+            "12.5": [0.0, 2.0, 2.0, 0.0],
+            "bin_(0-1)": [0.0, 1.0, 1.0, 0.0],
+            "bin_err_(0-1)": [0.0, 0.0, 0.0, 0.0],
+            "mean": [0.0, 2.0, 2.0, 0.0],
+            "err": [0.0, 0.0, 0.0, 0.0],
+            "timestamps": [0.0, 0.5, 1.0, 1.5],
+        }
+    )
+    write_psth_table(filepath=peak_and_area_output_dir, stem="lever_press_DMS_z_score_DMS", psth=psth)
+    base_input_parameters["peak_startPoint"] = [0.0]
+    base_input_parameters["peak_endPoint"] = [1.5]
+    base_input_parameters["auc_units"] = "samples"
+
+    execute_compute_psth_peak_and_area(str(peak_and_area_output_dir), "lever_press", base_input_parameters)
+
+    trials, bins = read_peak_and_area_from_csv(filepath=peak_and_area_output_dir, name="lever_press_DMS_z_score_DMS")
+    assert trials["trial"].tolist() == ["12.5", "mean"]
+    np.testing.assert_allclose(trials["area_1"].to_numpy(), np.array([3.0, 3.0]), atol=1e-12)
+    assert bins["session"].tolist() == ["session1"]
+    assert bins["bin"].tolist() == ["bin_(0-1)"]
+    np.testing.assert_allclose(bins["area_1"].to_numpy(), np.array([1.5]), atol=1e-12)
 
 
 # ---------------------------------------------------------------------------

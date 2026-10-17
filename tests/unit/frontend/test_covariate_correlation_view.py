@@ -7,9 +7,9 @@ import pytest
 
 from guppy.analysis.io_utils import write_hdf5
 from guppy.analysis.standard_io import (
-    write_binned_covariates_to_hdf5,
-    write_binned_metrics_to_hdf5,
-    write_covariate_correlations_to_hdf5,
+    write_binned_covariates_to_csv,
+    write_binned_metrics_to_csv,
+    write_covariate_correlations_to_csv,
 )
 from guppy.frontend.covariate_correlation_view import (
     CovariateCorrelationView,
@@ -41,14 +41,14 @@ def write_site_outputs(filepath, site, metrics=("mean_zscore",), covariates=("ak
     binned_metrics = pd.DataFrame({**geometry, "n_samples": [4, 4, 2]}, index=pd.RangeIndex(3, name="bin"))
     for metric in metrics:
         binned_metrics[metric] = [1.5, 5.5, 9.0]
-    write_binned_metrics_to_hdf5(filepath, binned_metrics, site)
+    write_binned_metrics_to_csv(filepath, binned_metrics, site)
 
     binned_covariates = pd.DataFrame(geometry, index=pd.RangeIndex(3, name="bin"))
     for covariate in covariates:
         binned_covariates[covariate] = [2.0, 4.0, 10.0]
     for covariate in covariates:
         binned_covariates["n_samples_" + covariate] = [2, 1, 1]
-    write_binned_covariates_to_hdf5(filepath=filepath, binned_covariates=binned_covariates, recording_site=site)
+    write_binned_covariates_to_csv(filepath=filepath, binned_covariates=binned_covariates, recording_site=site)
 
     correlations = pd.DataFrame(
         [
@@ -64,7 +64,7 @@ def write_site_outputs(filepath, site, metrics=("mean_zscore",), covariates=("ak
         ],
         index=pd.RangeIndex(len(metrics) * len(covariates), name="pair"),
     )
-    write_covariate_correlations_to_hdf5(filepath=filepath, correlations=correlations, recording_site=site)
+    write_covariate_correlations_to_csv(filepath=filepath, correlations=correlations, recording_site=site)
 
 
 @pytest.fixture
