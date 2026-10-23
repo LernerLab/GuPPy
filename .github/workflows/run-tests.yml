@@ -105,9 +105,10 @@ jobs:
         with:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
-      # Temporary files go under the job's temp directory on the workspace disk. Since October 2026 the
-      # ubuntu runners fail the suite with "Disk quota exceeded" when pytest's temp tree sits in /tmp.
+      # On Linux, temporary files go under the job's temp directory on the workspace disk. Since October 2026
+      # the ubuntu runners fail the suite with "Disk quota exceeded" when pytest's temp tree sits in /tmp.
       - name: Point temporary files at the runner temp directory
+        if: ${{ runner.os == 'Linux' }}
         shell: bash
         run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
 
