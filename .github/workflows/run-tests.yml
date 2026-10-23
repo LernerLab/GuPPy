@@ -105,6 +105,20 @@ jobs:
         with:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
+      - name: Report disk usage (temporary diagnostic)
+        shell: bash
+        run: |
+          df -h /tmp "$RUNNER_TEMP" "$GITHUB_WORKSPACE" || true
+          findmnt -T /tmp || true
+          quota -s 2>&1 || true
+          du -sh testing_data || true
+
+      # Temporary files go under the job's temp directory on the workspace disk, which has room for the
+      # copies the integration and extractor tests make of the full datasets.
+      - name: Point temporary files at the runner temp directory
+        shell: bash
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - name: Run tests
         run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel and not ui and not dandi_live${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}"${{ env.COLLECT_COVERAGE == 'true' && ' --cov=guppy --cov-branch --cov-report=xml' || '' }}
       - name: Run parallel tests
