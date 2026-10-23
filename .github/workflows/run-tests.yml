@@ -105,6 +105,14 @@ jobs:
         with:
           rclone-config: ${{ secrets.RCLONE_CONFIG }}
 
+      # On Linux, temporary files go under the job's temp directory on the workspace disk. The ubuntu-26.04
+      # image mounts /tmp as a tmpfs with a per-user quota that the suite exceeds; this step can go once
+      # https://github.com/actions/runner-images/issues/14777 is deployed.
+      - name: Point temporary files at the runner temp directory
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - name: Run tests
         run: pytest tests -vv -rsx -n auto --dist worksteal -m "not parallel and not ui and not dandi_live${{ inputs.skip-full-data-tests && ' and not full_data' || '' }}"${{ env.COLLECT_COVERAGE == 'true' && ' --cov=guppy --cov-branch --cov-report=xml' || '' }}
       - name: Run parallel tests
