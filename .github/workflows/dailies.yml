@@ -30,10 +30,23 @@ jobs:
       # Dailies also run the full_data consistency suite, which PR tests skip.
       timeout-minutes: '60'
 
+  # The test jobs restore the stubbed data from the Actions cache, so they would not notice GitHub
+  # blocking Git LFS downloads until the data next changes. This job skips the cache and fetches
+  # one 104-byte file straight from Git LFS.
+  check-lfs-downloads:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download one stubbed file from Git LFS
+        run: |
+          git lfs pull -I stubbed_testing_data/csv/sample_data_csv_1/Sample_TTL.csv
+          head -n 1 stubbed_testing_data/csv/sample_data_csv_1/Sample_TTL.csv | grep -qv '^version https://git-lfs'
+
   notify-test-failure:
     runs-on: ubuntu-latest
-    needs: [run-daily-tests]
-    if: ${{ always() && needs.run-daily-tests.result == 'failure' }}
+    needs: [run-daily-tests, check-lfs-downloads]
+    if: ${{ always() && (needs.run-daily-tests.result == 'failure' || needs.check-lfs-downloads.result == 'failure') }}
     steps:
       - uses: dawidd6/action-send-mail@v3
         with:
