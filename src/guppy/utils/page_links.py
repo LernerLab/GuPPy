@@ -1,84 +1,65 @@
 """Channel through which pipeline steps offer the pages they produce.
 
 Modelled on :mod:`guppy.utils.progress`: deep pipeline code offers a page by calling
-:func:`offer_link` or :func:`offer_page`, with nothing threaded through its signature, and the
-homepage decides where the offered pages go. GuPPy never opens a browser tab itself; the homepage
-shows each offered page as a link the user clicks, and serves the finished pages one click
-produced together, as one page. Offering when nothing is collecting is a no-op, so the workers can
-be driven headlessly (``guppy.testing.api``) without side effects.
+:func:`offer_page` or :func:`offer_template`, with nothing threaded through its signature, and the
+homepage decides where the offered pages go. The homepage shows them inside its own browser tab.
+Offering when nothing is collecting is a no-op, so the workers can be driven headlessly
+(``guppy.testing.api``) without side effects.
 """
 
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import panel as pn
 
 
 @dataclass(frozen=True)
-class PageLink:
-    """A page a step produced, and where the browser finds it."""
-
-    title: str
-    href: str
-
-
-@dataclass(frozen=True)
 class Page:
-    """A finished page a step built, not yet served."""
+    """A page a step produced: its name and its content."""
 
     name: str
-    template: pn.template.BaseTemplate
+    content: pn.viewable.Viewable
 
 
-@dataclass
-class Offers:
-    """Everything offered while :func:`collect` was active."""
-
-    links: list[PageLink] = field(default_factory=list)
-    pages: list[Page] = field(default_factory=list)
+_current_pages: ContextVar[list[Page] | None] = ContextVar("guppy_page_offers", default=None)
 
 
-_current_offers: ContextVar[Offers | None] = ContextVar("guppy_page_offers", default=None)
-
-
-def offer_link(*, title: str, href: str) -> None:
-    """Offer a page that is already served, as a link.
+def offer_page(*, name: str, content: pn.viewable.Viewable) -> None:
+    """Offer a page to be shown along with the others from the same click.
 
     Parameters
     ----------
-    title : str
-        Name of the page, shown in the link.
-    href : str
-        Where the browser finds the page, either absolute or relative to the homepage.
+    name : str
+        What distinguishes this page from the others, such as its session; names its tab.
+    content : pn.viewable.Viewable
+        The page.
     """
-    offers = _current_offers.get()
-    if offers is not None:
-        offers.links.append(PageLink(title=title, href=href))
+    pages = _current_pages.get()
+    if pages is not None:
+        pages.append(Page(name=name, content=content))
 
 
-def offer_page(*, name: str, template: pn.template.BaseTemplate) -> None:
-    """Offer a finished page to be served along with the others from the same click.
+def offer_template(*, name: str, template: pn.template.BaseTemplate) -> None:
+    """Offer the main area of a page built as a template.
 
     Parameters
     ----------
     name : str
         What distinguishes this page from the others, such as its session; names its tab.
     template : pn.template.BaseTemplate
-        The page.
+        The page, whose ``main`` area is shown.
     """
-    offers = _current_offers.get()
-    if offers is not None:
-        offers.pages.append(Page(name=name, template=template))
+    offer_page(name=name, content=pn.Column(*template.main.objects, sizing_mode="stretch_width"))
 
 
 @contextmanager
-def collect() -> Iterator[Offers]:
-    """Collect everything offered inside the ``with`` block into the yielded :class:`Offers`."""
-    offers = Offers()
-    token = _current_offers.set(offers)
+def collect() -> Iterator[list[Page]]:
+    """Collect every page offered inside the ``with`` block into the yielded list."""
+    pages: list[Page] = []
+    token = _current_pages.set(pages)
     try:
-        yield offers
+        yield pages
     finally:
-        _current_offers.reset(token)
+        _current_pages.reset(token)

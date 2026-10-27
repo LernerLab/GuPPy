@@ -1,14 +1,8 @@
-"""Panel web application for GuPPy: the route map and server startup."""
+"""Panel web application for GuPPy: server startup."""
 
 import panel as pn
 
-from .orchestration.artifact_view import build_artifact_view
 from .orchestration.home import build_homepage
-from .orchestration.preprocess_view import build_preprocess_view
-from .orchestration.select_artifact_windows import build_select_artifact_windows_view
-from .orchestration.step_view import build_page_view
-from .orchestration.tonic_analysis import build_tonic_analysis_view
-from .orchestration.transients_view import build_transients_view
 
 
 def serve_app(
@@ -22,10 +16,8 @@ def serve_app(
 ) -> None:
     """Serve the GuPPy application using Panel.
 
-    Serves the homepage plus the step result-view routes and the shared ``page`` route on one
-    persistent server (each a per-session factory). Every page GuPPy opens lives on this
-    never-torn-down server, so the browser tab is never abruptly disconnected and the whole
-    application is reachable through a single port. Prints how to open and stop GuPPy, then the
+    Serves the homepage, built anew for each browser session, on one persistent server. Every page
+    a step produces is shown inside the homepage. Prints how to open and stop GuPPy, then the
     server's URL once it starts.
 
     Parameters
@@ -43,18 +35,13 @@ def serve_app(
     open_browser : bool, optional
         Whether to open the homepage in a browser on this machine once the server starts.
     """
-    routes = {
-        "/": lambda: build_homepage(
+
+    def build_page() -> pn.template.BootstrapTemplate:
+        return build_homepage(
             input_root_folder=input_root_folder,
             output_root_folder=output_root_folder,
             use_bundled_dandi_cache=use_bundled_dandi_cache,
-        ),
-        "/page": build_page_view,
-        "/preprocess-view": build_preprocess_view,
-        "/select-artifact-windows": build_select_artifact_windows_view,
-        "/artifact-view": build_artifact_view,
-        "/tonic-analysis": build_tonic_analysis_view,
-        "/transients-view": build_transients_view,
-    }
+        )
+
     print("GuPPy is starting. Open the address below in your browser, and press Ctrl+C here to stop GuPPy.")
-    pn.serve(routes, port=port, address=address, show=open_browser, verbose=True)
+    pn.serve(build_page, port=port, address=address, show=open_browser, verbose=True)

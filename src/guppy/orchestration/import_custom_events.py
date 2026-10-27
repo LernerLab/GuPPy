@@ -103,7 +103,7 @@ def build_custom_events_page(inputParameters: dict[str, object], folder_path: st
             logger.info("Custom event saved at %s", csv_path)
         return
 
-    page_links.offer_page(name=Path(folder_path).name, template=build_custom_events_template(folder_path))
+    page_links.offer_template(name=Path(folder_path).name, template=build_custom_events_template(folder_path))
 
 
 def orchestrate_custom_events_page(inputParameters: dict[str, object]) -> None:

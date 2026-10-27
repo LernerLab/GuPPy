@@ -1,23 +1,15 @@
-"""Step-3 (preprocessing) result view, served by the persistent main app.
+"""Step-3 (preprocessing) result view.
 
-The preprocessing compute job runs on a background thread of the main app process and writes
-its outputs to disk. When it finishes, ``home.py`` calls :func:`open_preprocess_view`, which opens a browser tab on the
-main app's ``/preprocess-view`` route (served by :data:`build_preprocess_view`). The page
-is composed from the on-disk outputs. See ``orchestration/step_view.py`` for the shared
-token/registry/serving plumbing.
+When the preprocessing compute job finishes, ``home.py`` enables the step's Show results button,
+whose click calls :func:`open_preprocess_view` to compose the page from the on-disk outputs.
 """
 
-from .step_view import StepView, resolve_run_folders
 from ..frontend.artifact_removal import build_preprocess_view_page
+from ..utils import page_links
+from ..utils.utils import resolve_run_folders
 
 
-def _build_page(session_folders: list, inputParameters: dict) -> "object":
+def open_preprocess_view(session_folders: list, inputParameters: dict) -> None:
+    """Offer the preprocessing results page for the selected runs."""
     run_folders = resolve_run_folders(session_folders, inputParameters)
-    return build_preprocess_view_page(run_folders=run_folders)
-
-
-_view = StepView(route="preprocess-view", title="GuPPy — Preprocessing", build_page=_build_page)
-
-# Route factory for main.py's route map, and completion hook for home.py.
-build_preprocess_view = _view.route_factory
-open_preprocess_view = _view.open
+    page_links.offer_page(name="Preprocessing", content=build_preprocess_view_page(run_folders=run_folders))
