@@ -6,29 +6,23 @@ from guppy import app
 
 @pytest.fixture
 def served(monkeypatch):
-    """Capture the route map instead of starting a real Bokeh server.
+    """Capture what would be served instead of starting a real Bokeh server.
 
     ``pn.serve`` binds a port and opens a browser tab, so it is stubbed here; everything
-    downstream of it (the route factories themselves) runs for real.
+    downstream of it (the homepage factory itself) runs for real.
     """
     captured = {}
-    monkeypatch.setattr(app.pn, "serve", lambda routes, **kwargs: captured.update(routes=routes, kwargs=kwargs))
+    monkeypatch.setattr(
+        app.pn, "serve", lambda build_page, **kwargs: captured.update(build_page=build_page, kwargs=kwargs)
+    )
     return captured
 
 
 class TestServeApp:
-    def test_serves_every_route_and_opens_the_homepage(self, served):
+    def test_serves_the_homepage_alone(self, served):
         app.serve_app()
 
-        assert sorted(served["routes"]) == [
-            "/",
-            "/artifact-view",
-            "/page",
-            "/preprocess-view",
-            "/select-artifact-windows",
-            "/tonic-analysis",
-            "/transients-view",
-        ]
+        assert callable(served["build_page"])
         assert served["kwargs"] == {"port": 0, "address": None, "show": True, "verbose": True}
 
     def test_prints_how_to_open_and_stop_guppy(self, served, capsys):
@@ -38,29 +32,22 @@ class TestServeApp:
             "GuPPy is starting. Open the address below in your browser, and press Ctrl+C here to stop GuPPy.\n"
         )
 
-    def test_view_routes_are_the_step_view_factories(self, served):
-        app.serve_app()
-
-        assert served["routes"]["/preprocess-view"] is app.build_preprocess_view
-        assert served["routes"]["/transients-view"] is app.build_transients_view
-        assert served["routes"]["/page"] is app.build_page_view
-
-    def test_homepage_route_opens_the_session_browser_in_the_input_root(self, served, panel_extension, tmp_path):
-        """The ``/`` route is a closure over the roots; invoking it must build a homepage
+    def test_homepage_opens_the_session_browser_in_the_input_root(self, served, panel_extension, tmp_path):
+        """The served page is a closure over the roots; invoking it must build a homepage
         whose session-folder browser opens inside the input root folder."""
         input_root_folder = tmp_path / "raw"
         input_root_folder.mkdir()
 
         app.serve_app(input_root_folder=str(input_root_folder))
-        template = served["routes"]["/"]()
+        template = served["build_page"]()
 
         assert isinstance(template, pn.template.BootstrapTemplate)
         assert template._widgets["files_1"].directory == str(input_root_folder)
 
-    def test_homepage_route_falls_back_to_the_default_root(self, served, panel_extension, tmp_path):
+    def test_homepage_falls_back_to_the_default_root(self, served, panel_extension, tmp_path):
         """With no input root the browser falls back to the default root rather than
         inheriting a stale directory."""
         app.serve_app()
-        template = served["routes"]["/"]()
+        template = served["build_page"]()
 
         assert template._widgets["files_1"].directory != str(tmp_path)

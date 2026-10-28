@@ -2,46 +2,51 @@ import panel as pn
 import pytest
 
 from guppy.utils import page_links
-from guppy.utils.page_links import Page, PageLink
+from guppy.utils.page_links import Page
 
 
 class TestPageLinks:
-    def test_collect_gathers_the_links_offered_inside_it(self):
-        with page_links.collect() as offers:
-            page_links.offer_link(title="GuPPy — Preprocessing", href="preprocess-view?token=a")
-            page_links.offer_link(title="GuPPy — Transient peaks", href="transients-view?token=b")
-
-        assert offers.links == [
-            PageLink(title="GuPPy — Preprocessing", href="preprocess-view?token=a"),
-            PageLink(title="GuPPy — Transient peaks", href="transients-view?token=b"),
-        ]
-        assert offers.pages == []
-
     def test_collect_gathers_the_pages_offered_inside_it(self, panel_extension):
-        mouse_01 = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_01")
-        mouse_02 = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_02")
+        preprocessing = pn.pane.Markdown("Preprocessing")
+        transients = pn.pane.Markdown("Transient peaks")
 
-        with page_links.collect() as offers:
-            page_links.offer_page(name="mouse_01", template=mouse_01)
-            page_links.offer_page(name="mouse_02", template=mouse_02)
+        with page_links.collect() as pages:
+            page_links.offer_page(name="Preprocessing", content=preprocessing)
+            page_links.offer_page(name="Transient peaks", content=transients)
 
-        assert offers.pages == [Page(name="mouse_01", template=mouse_01), Page(name="mouse_02", template=mouse_02)]
-        assert offers.links == []
+        assert pages == [
+            Page(name="Preprocessing", content=preprocessing),
+            Page(name="Transient peaks", content=transients),
+        ]
+
+    def test_offer_template_offers_the_templates_main_area(self, panel_extension):
+        heading = pn.pane.Markdown("Label Stores")
+        table = pn.pane.Markdown("Stores")
+        template = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_01")
+        template.main.extend([heading, table])
+
+        with page_links.collect() as pages:
+            page_links.offer_template(name="mouse_01", template=template)
+
+        (page,) = pages
+        assert page.name == "mouse_01"
+        assert isinstance(page.content, pn.Column)
+        assert list(page.content) == [heading, table]
 
     def test_offering_outside_collect_does_nothing(self, panel_extension):
-        page_links.offer_link(title="Page", href="page")
-        page_links.offer_page(name="mouse_01", template=pn.template.BootstrapTemplate(title="Page"))
+        page_links.offer_page(name="Preprocessing", content=pn.pane.Markdown("Preprocessing"))
+        page_links.offer_template(name="mouse_01", template=pn.template.BootstrapTemplate(title="Page"))
 
-        with page_links.collect() as offers:
+        with page_links.collect() as pages:
             pass
 
-        assert (offers.links, offers.pages) == ([], [])
+        assert pages == []
 
-    def test_collect_stops_gathering_after_a_failure_inside_it(self):
+    def test_collect_stops_gathering_after_a_failure_inside_it(self, panel_extension):
         with pytest.raises(ValueError):
-            with page_links.collect() as failed_offers:
+            with page_links.collect() as failed_pages:
                 raise ValueError("step failed")
 
-        page_links.offer_link(title="Page", href="page")
+        page_links.offer_page(name="Preprocessing", content=pn.pane.Markdown("Preprocessing"))
 
-        assert failed_offers.links == []
+        assert failed_pages == []

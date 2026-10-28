@@ -9,6 +9,7 @@ without a browser.
 from pathlib import Path
 
 import numpy as np
+import panel as pn
 import pytest
 
 from guppy.orchestration import metadata as metadata_module
@@ -319,12 +320,11 @@ class TestOrchestrateMetadataPage:
             "output_root_folder": str(tmp_path),
         }
 
-        with page_links.collect() as offers:
+        with page_links.collect() as pages:
             orchestrate_metadata_page(input_parameters)
 
-        assert [(page.name, page.template.title) for page in offers.pages] == [
-            ("Photo_session (run1)", "Metadata GUI - Photo_session (run1)")
-        ]
+        assert [page.name for page in pages] == ["Photo_session (run1)"]
+        assert isinstance(pages[0].content, pn.Column)
 
     def test_combined_run_is_refused_before_any_page_is_built(self, panel_extension, tmp_path):
         # Step 6 edits one metadata file per session output directory, which combining collapses,

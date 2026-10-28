@@ -1,31 +1,12 @@
-import html
 import logging
+from collections.abc import Callable
 
 import panel as pn
 
-from .tab_opener import open_placeholder_tab_on_click
-from ..utils.page_links import PageLink
-
 logger = logging.getLogger(__name__)
-
-# Buttons whose click opens a page in a new tab straight away.
-PAGE_OPENING_BUTTONS = (
-    "import_custom_events",
-    "open_label_stores",
-    "select_artifact_windows",
-    "tonic_analysis",
-    "label_groups",
-    "open_visualization",
-    "open_metadata",
-)
 
 # Buttons for long-running steps, whose results page opens from a Show results button beside them.
 RESULTS_BUTTONS = ("preprocess", "remove_artifacts", "psth_computation")
-
-_RESULTS_BUTTON_STYLE = (
-    "display: inline-block; box-sizing: border-box; width: 100%; padding: 5px 0; border: 1px solid; "
-    "border-radius: 4px; text-align: center; text-decoration: none; font-size: 13px; white-space: nowrap;"
-)
 
 
 class Sidebar:
@@ -43,8 +24,6 @@ class Sidebar:
         self.setup_buttons()
         self.setup_progress_bars()
         self.setup_results_buttons()
-        for button_name in PAGE_OPENING_BUTTONS:
-            open_placeholder_tab_on_click(button=getattr(self, button_name), key=button_name)
 
     def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
@@ -113,33 +92,29 @@ class Sidebar:
     def setup_results_buttons(self) -> None:
         """Create a Show results button, disabled until there are results, for each long-running step."""
         self.results_buttons = {
-            button_name: pn.pane.HTML(width=100, margin=(5, 10, 5, 0)) for button_name in RESULTS_BUTTONS
+            button_name: pn.widgets.Button(name="Show results", button_type="primary", width=100, align="end")
+            for button_name in RESULTS_BUTTONS
         }
+        self._open_results: dict[str, Callable[[], None] | None] = {}
         for button_name in RESULTS_BUTTONS:
             getattr(self, button_name).width = 190
-            self.show_results(button_name=button_name, link=None)
+            self.results_buttons[button_name].on_click(
+                lambda event, button_name=button_name: self._open_results[button_name]()
+            )
+            self.show_results(button_name=button_name, open_results=None)
 
-    def show_results(self, *, button_name: str, link: PageLink | None) -> None:
-        """Point a step's Show results button at its results page, or disable it.
+    def show_results(self, *, button_name: str, open_results: Callable[[], None] | None) -> None:
+        """Point a step's Show results button at what opens its results page, or disable it.
 
         Parameters
         ----------
         button_name : str
             The long-running step's button, e.g. ``"preprocess"``.
-        link : PageLink or None
-            The results page, which the button opens in a new tab; ``None`` disables the button.
+        open_results : callable or None
+            Called with no arguments when the button is clicked; ``None`` disables the button.
         """
-        if link is None:
-            self.results_buttons[button_name].object = (
-                f'<span title="Available once the step has run" style="{_RESULTS_BUTTON_STYLE} '
-                f'color: #adb5bd; border-color: #dee2e6;">Show results</span>'
-            )
-        else:
-            self.results_buttons[button_name].object = (
-                f'<a href="{html.escape(link.href)}" target="_blank" '
-                f'title="Opens {html.escape(link.title)} in a new tab" '
-                f'style="{_RESULTS_BUTTON_STYLE} color: #0072b5; border-color: #0072b5;">Show results</a>'
-            )
+        self._open_results[button_name] = open_results
+        self.results_buttons[button_name].disabled = open_results is None
 
     def add_to_template(self) -> None:
         """Append all sidebar widgets to the template's sidebar area in pipeline order."""

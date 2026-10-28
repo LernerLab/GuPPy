@@ -198,4 +198,4 @@ def orchestrate_metadata_page(inputParameters: dict[str, object]) -> None:
         cannot be resolved.
     """
     for session_label, template in build_metadata_templates(inputParameters=inputParameters).items():
-        page_links.offer_page(name=session_label, template=template)
+        page_links.offer_template(name=session_label, template=template)
