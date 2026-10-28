@@ -24,8 +24,8 @@ produced, so both optional steps need its outputs on disk.
 ## Marking the periods
 
 1. Select your session folder(s) and output run(s) on the homepage as usual.
-2. Click **Select Artifact Windows**. A page opens in a new browser tab showing one
-   trace of one recording site. The main GuPPy tab stays responsive.
+2. Click **Select Artifact Windows**. A Select Artifact Windows tab opens beside the
+   form, showing one trace of one recording site.
 
    ```{image} ../_static/images/select_artifact_windows_button.png
    :alt: The sidebar with the two optional artifact steps, Select Artifact Windows and Remove Artifacts, positioned between Step 3 Preprocess and Step 4 PSTH Computation

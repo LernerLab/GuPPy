@@ -32,7 +32,7 @@ point first:
 ## Defining the epochs
 
 1. Select your session folder(s) and output run(s) on the homepage as usual.
-2. Click **Tonic Analysis**. A page opens in a new browser tab showing the z-score
+2. Click **Tonic Analysis**. A Tonic Analysis tab opens beside the form, showing the z-score
    and ΔF/F traces for one recording site on a shared time axis.
 
    ```{image} ../_static/images/tonic_analysis_button.png

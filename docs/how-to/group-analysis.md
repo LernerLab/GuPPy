@@ -30,7 +30,7 @@ Groups follow the same pattern as individual runs. **Label Groups** defines one,
 Output Folder Selection** card picks which defined groups you are working with, once, for every
 step that touches them.
 
-1. Click **Label Groups** in the sidebar. A new browser tab opens with the Label Groups page.
+1. Click **Label Groups** in the sidebar. A Label Groups tab opens beside the form.
 2. Leave the mode at **create_new_group**.
 3. Under **1 · What goes into the group?**, pick the member runs. These are the
    run directories under the output root folder. They may live under different
