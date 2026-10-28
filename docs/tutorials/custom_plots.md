@@ -26,16 +26,16 @@ from pathlib import Path
 run_folder = Path("guppy_output/sample_data_csv_1/output_1")
 ```
 
-## The two HDF5 extensions
+## Time series and tables
 
-GuPPy writes two kinds of HDF5 file, and they are not interchangeable:
+GuPPy writes two kinds of file:
 
-| Extension | Written by | Read with | Holds |
-|-----------|------------|-----------|-------|
-| `.hdf5` | h5py | `h5py.File` | Named arrays — one file per store or per recording site |
-| `.h5` | `pandas.DataFrame.to_hdf` | `pandas.read_hdf(..., key="df")` | Exactly one table, always under the key `df` |
+| Extension | Read with | Holds |
+|-----------|-----------|-------|
+| `.hdf5` | `h5py.File` | Named arrays, one file per store or per recording site |
+| `.csv` | `pandas.read_csv` | One table with a header row |
 
-Signals and timestamps are `.hdf5`. Tables — the PSTH, peak/AUC, transients, cross-correlation — are `.h5`.
+Signals and timestamps are `.hdf5`. Tables, such as the PSTH, peak/AUC, transients and cross-correlation, are `.csv`, and open in a spreadsheet as well.
 
 An `.hdf5` file is a bag of named arrays. Ask it for the one you want:
 
@@ -53,28 +53,13 @@ with h5py.File(run_folder / "z_score_A.hdf5", "r") as z_score_file:
 
 The values live in datasets, not in HDF5 attributes — GuPPy never sets an attribute anywhere, so `sampling_rate` and friends are arrays you read like any other.
 
-A `.h5` file is one pandas table:
+A `.csv` file is one table:
 
 ```python
 import pandas as pd
 
-psth = pd.read_hdf(run_folder / "RewardPort_A_z_score_A.h5", key="df")
+psth = pd.read_csv(run_folder / "RewardPort_A_z_score_A.csv")
 ```
-
-Both extensions are HDF5; what differs is who wrote the file. GuPPy writes `.hdf5` with h5py, so every dataset sits under the name GuPPy gave it. It writes `.h5` with `DataFrame.to_hdf`, which stores the frame the way pandas holds it in memory — columns grouped by dtype into blocks, with the labels kept alongside as separate arrays. Open one with h5py and you see that decomposition:
-
-```python
-with h5py.File(run_folder / "RewardPort_A_z_score_A.h5", "r") as psth_file:
-    print(list(psth_file["df"].keys()))
-```
-
-```text
-['axis0', 'axis1', 'block0_items', 'block0_values']
-```
-
-`axis0` is the column labels, `axis1` the row index, and `block0_values` the numbers. The table is all there, just taken apart; `pandas.read_hdf` is what puts it back together, which is why it is the reader to use.
-
-If you do read a `.h5` without pandas, mind the blocks. A table whose columns are not all one dtype is split across `block0_values`, `block1_values` and so on, and that grouping does not follow the column order in `axis0`. Pairing the two up positionally silently mislabels columns — match `axis0` against each block's own `block<N>_items` instead.
 
 The [Output data model](../reference/outputs.md) reference lists which files are which.
 
@@ -137,35 +122,31 @@ Swap `z_score_A.hdf5` for `dff_A.hdf5` and you get the ΔF/F on the same axis; b
 
 ## Plot 2: the PSTH
 
-`RewardPort_A_z_score_A.h5` is the peri-event table. The name reads as *event `RewardPort`, recording site `A`, computed on the trace `z_score_A`* — the site appears twice because the metric name already ends in it.
+`RewardPort_A_z_score_A.csv` is the peri-event table. The name reads as *event `RewardPort`, recording site `A`, computed on the trace `z_score_A`* — the site appears twice because the metric name already ends in it.
 
 ```python
-psth = pd.read_hdf(run_folder / "RewardPort_A_z_score_A.h5", key="df")
+psth = pd.read_csv(run_folder / "RewardPort_A_z_score_A.csv")
 print(psth.shape)
 print(list(psth.columns))
 ```
 
 ```text
 (30519, 8)
-['139.238440990448', '190.68911623954773', '270.35009026527405', '330.88094210624695', '410.86189556121826', 'timestamps', 'mean', 'err']
+['timestamps', '139.238440990448', '190.68911623954773', '270.35009026527405', '330.88094210624695', '410.86189556121826', 'mean', 'err']
 ```
 
 One row per time point. The columns are:
 
 | Column | Meaning |
 |--------|---------|
-| One per trial | That trial's extracted window. The column label is the event's session timestamp, as a string |
-| `bin_(...)`, `bin_err_(...)` | Present only when trial binning is on: one pair per bin |
 | `timestamps` | Time relative to the event, from `nSecPrev` to `nSecPost`. Not session time |
-| `mean`, `err` | The average across the single-trial columns, and its standard error |
+| One per trial | That trial's extracted window. The column label is the event's session timestamp |
+| `mean`, `err` | The average across the trial columns, and its standard error |
 
-Select the trial columns by exclusion rather than by position, so binning or a different trial count does not break the code:
+When trial binning is on, the per-bin averages are in a separate file, `binned_RewardPort_A_z_score_A.csv`, so this table only ever holds trials and their summary. Select the trial columns by name, so a different trial count does not break the code:
 
 ```python
-summary_columns = {"timestamps", "mean", "err"}
-trial_columns = [
-    column for column in psth.columns if column not in summary_columns and not column.startswith("bin_")
-]
+trial_columns = [column for column in psth.columns if column not in {"timestamps", "mean", "err"}]
 ```
 
 Then the figure is ordinary matplotlib:
@@ -203,7 +184,7 @@ axes.legend(frameon=False, fontsize=9)
 
 The sample session has five TTL timestamps, so this average is over five trials and is correspondingly noisy. That is the minimal example dataset, not your data.
 
-`RewardPort_A_baselineUncorrected_z_score_A.h5` is the same table before the baseline correction was subtracted, with the same columns, if you want to see what the correction did.
+`RewardPort_A_baselineUncorrected_z_score_A.csv` is the same table before the baseline correction was subtracted, with the same columns, if you want to see what the correction did.
 
 ## Plot 3: the trial heat map
 
@@ -238,32 +219,31 @@ Trial 5 goes blank after time zero. Its event fires at 410.9 s in a recording th
 
 ## The numbers behind the plots
 
-Step 4 also writes the peak and area-under-curve measurements, as a CSV and as an identical `.h5`:
+Step 4 also writes the peak and area-under-curve measurements:
 
 ```python
-peak_and_area = pd.read_csv(run_folder / "peak_AUC_RewardPort_A_z_score_A.csv", index_col=0)
+peak_and_area = pd.read_csv(run_folder / "peak_AUC_RewardPort_A_z_score_A.csv")
 print(peak_and_area)
 ```
 
 ```text
-                                      peak_pos_1  peak_neg_1    area_1  peak_pos_2  peak_neg_2      area_2  peak_pos_3  peak_neg_3     area_3
-sample_data_csv_1_139.238440990448      1.878247   -1.776373  0.826477    3.439604   -1.079746   295.32306    1.579432   -2.068158 -1850.9402
-sample_data_csv_1_190.68911623954773    2.196041   -1.716294 -0.333130    3.600455   -1.119725   615.05420    0.646500   -2.136859 -4916.6577
-sample_data_csv_1_270.35009026527405    1.697248   -1.233404  0.821472    3.760017   -1.012888  2860.40200    6.448158   -1.488015   952.9874
-sample_data_csv_1_330.88094210624695    1.935269   -2.041042  1.784668    1.495362   -2.072306 -2953.94290    1.203289   -2.171657 -3106.9985
-sample_data_csv_1_410.86189556121826    1.680677   -1.634127  1.052612         NaN         NaN         NaN         NaN         NaN        NaN
-sample_data_csv_1_mean                  0.711019   -1.118595  0.830322    3.038777   -1.151094   187.74446    0.997421   -1.210162 -2230.4023
+             session               trial  peak_pos_1  peak_neg_1    area_1  peak_pos_2  peak_neg_2      area_2  peak_pos_3  peak_neg_3     area_3
+0  sample_data_csv_1    139.238440990448    1.878247   -1.776373  0.826477    3.439604   -1.079746   295.32306    1.579432   -2.068158 -1850.9402
+1  sample_data_csv_1  190.68911623954773    2.196041   -1.716294 -0.333130    3.600455   -1.119725   615.05420    0.646500   -2.136859 -4916.6577
+2  sample_data_csv_1  270.35009026527405    1.697248   -1.233404  0.821472    3.760017   -1.012888  2860.40200    6.448158   -1.488015   952.9874
+3  sample_data_csv_1  330.88094210624695    1.935269   -2.041042  1.784668    1.495362   -2.072306 -2953.94290    1.203289   -2.171657 -3106.9985
+4  sample_data_csv_1  410.86189556121826    1.680677   -1.634127  1.052612         NaN         NaN         NaN         NaN         NaN        NaN
+5  sample_data_csv_1                mean    0.711019   -1.118595  0.830322    3.038777   -1.151094   187.74446    0.997421   -1.210162 -2230.4023
 ```
 
-One row per trial plus a final `mean` row, matching the PSTH's columns, indexed by the session name joined to the trial label. `peak_pos_<N>`, `peak_neg_<N>` and `area_<N>` are the measurements for the Nth peak window you configured — three by default, `-5` to `0`, `0` to `3` and `5` to `10` seconds. Trial 5's later windows are NaN for the same reason its heat map row is blank.
+One row per trial plus a final row whose `trial` is `mean`, measured on the PSTH's `mean` column. `session` names the session the trial came from, which matters once a group concatenates several sessions' rows. `peak_pos_<N>`, `peak_neg_<N>` and `area_<N>` are the measurements for the Nth peak window you configured — three by default, `-5` to `0`, `0` to `3` and `5` to `10` seconds. Trial 5's later windows are NaN for the same reason its heat map row is blank.
 
 The areas look large next to the peaks because the default **AUC Units** setting integrates with one-sample spacing, so the number scales with the sampling rate. Set it to `seconds` for z-score × seconds.
 
 ## Gotchas
 
-- **`.hdf5` opens with h5py, `.h5` with `pandas.read_hdf`.** A `.h5` read with h5py does not raise — you get the table decomposed into pandas' storage blocks rather than its columns.
 - **Use the Step 3 files, not the Step 2 ones.** A run folder holds two sets: `Sample_Signal_Channel.hdf5`, named after the raw channel, holds the untrimmed data straight from the acquisition file, and on TDT recordings its `data` and `timestamps` are not even the same length. `signal_A.hdf5`, named after the label you assigned, holds the trimmed and filtered version that everything downstream is aligned to.
-- **`timestamps` means three different things.** Session time in an `.hdf5`, time relative to the event in a PSTH `.h5`, and lag in seconds in a cross-correlation `.h5`.
+- **`timestamps` means three different things.** Session time in an `.hdf5`, time relative to the event in a PSTH table, and lag in seconds in a cross-correlation table.
 - **The sampling rate lives in `timeCorrection_<site>.hdf5`.** It is not an HDF5 attribute and it is not in the tables.
 - **Trial column labels are strings.** `psth["139.238440990448"]` works; `psth[139.238440990448]` does not.
 - **Expect NaN.** Trials that run off the end of the recording, and any period you removed with the `replace with NaN` artifact method, are NaN. Use `numpy.nanmean` and friends.

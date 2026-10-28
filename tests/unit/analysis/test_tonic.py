@@ -2,7 +2,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.analysis.standard_io import read_tonic_epochs, write_tonic_to_hdf5
+from guppy.analysis.standard_io import (
+    read_tonic_epochs,
+    read_tonic_means,
+    remove_tonic_results,
+    write_tonic_means,
+)
 from guppy.analysis.tonic import compute_tonic_means
 
 
@@ -75,13 +80,28 @@ class TestTonicSerialization:
         assert loaded.empty
         assert list(loaded.columns) == ["label", "start", "end"]
 
-    def test_write_tonic_to_hdf5(self, tmp_path):
+    def test_write_and_read_tonic_means_round_trip(self, tmp_path):
         tonic_df = pd.DataFrame(
             {"mean_zscore": [1.0, 9.0], "mean_dff": [0.1, 0.9]},
             index=pd.Index(["baseline", "post"], name="epoch"),
         )
-        write_tonic_to_hdf5(str(tmp_path), tonic_df, "DMS")
-        output_path = tmp_path / "tonic_DMS.h5"
-        assert output_path.exists()
-        reloaded = pd.read_hdf(output_path, key="df")
+        write_tonic_means(str(tmp_path), tonic_df, "DMS")
+        assert sorted(path.name for path in tmp_path.iterdir()) == ["tonic_means_DMS.csv"]
+        reloaded = read_tonic_means(str(tmp_path), "DMS")
         pd.testing.assert_frame_equal(reloaded, tonic_df)
+
+    def test_read_tonic_means_keeps_numeric_epoch_labels_as_strings(self, tmp_path):
+        tonic_df = pd.DataFrame(
+            {"mean_zscore": [1.0, 9.0], "mean_dff": [0.1, 0.9]},
+            index=pd.Index(["1", "2"], name="epoch"),
+        )
+        write_tonic_means(str(tmp_path), tonic_df, "DMS")
+        reloaded = read_tonic_means(str(tmp_path), "DMS")
+        assert list(reloaded.index) == ["1", "2"]
+
+    def test_remove_tonic_results_deletes_epochs_and_means(self, tmp_path):
+        (tmp_path / "tonic_epochs_DMS.csv").write_text("label,start,end\n")
+        (tmp_path / "tonic_means_DMS.csv").write_text("epoch,mean_zscore,mean_dff\n")
+        (tmp_path / "tonic_means_NAc.csv").write_text("epoch,mean_zscore,mean_dff\n")
+        remove_tonic_results(str(tmp_path), "DMS")
+        assert sorted(path.name for path in tmp_path.iterdir()) == ["tonic_means_NAc.csv"]

@@ -77,34 +77,33 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
 
     for expected_ttl_name in expected_ttl_names:
         psth_file_path = Path(output_directory) / (
-            f"{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
+            f"{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.csv"
         )
         baseline_uncorrected_psth_file_path = Path(output_directory) / (
-            f"{expected_ttl_name}_{expected_recording_site}_baselineUncorrected_z_score_{expected_recording_site}.h5"
-        )
-        peak_auc_h5_file_path = Path(output_directory) / (
-            f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.h5"
+            f"{expected_ttl_name}_{expected_recording_site}_baselineUncorrected_z_score_{expected_recording_site}.csv"
         )
         peak_auc_csv_file_path = Path(output_directory) / (
             f"peak_AUC_{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}.csv"
         )
 
         # Assert file creation
-        assert Path(psth_file_path).exists(), f"Missing PSTH HDF5: {psth_file_path}"
+        assert Path(psth_file_path).exists(), f"Missing PSTH CSV: {psth_file_path}"
         assert Path(
             baseline_uncorrected_psth_file_path
-        ).exists(), f"Missing baseline-uncorrected PSTH HDF5: {baseline_uncorrected_psth_file_path}"
-        assert Path(peak_auc_h5_file_path).exists(), f"Missing PSTH Peak/AUC HDF5: {peak_auc_h5_file_path}"
+        ).exists(), f"Missing baseline-uncorrected PSTH CSV: {baseline_uncorrected_psth_file_path}"
         assert Path(peak_auc_csv_file_path).exists(), f"Missing PSTH Peak/AUC CSV: {peak_auc_csv_file_path}"
 
-        # Basic readability checks: PSTH HDF5 contains a DataFrame with expected columns
-        psth_dataframe = pd.read_hdf(psth_file_path, key="df")
-        assert "timestamps" in psth_dataframe.columns, f"'timestamps' column missing in {psth_file_path}"
-        # The DataFrame should include a 'mean' column per create_Df implementation
-        assert "mean" in psth_dataframe.columns, f"'mean' column missing in {psth_file_path}"
+        # Basic readability checks: the PSTH CSV leads with timestamps and ends with mean and err
+        psth_dataframe = pd.read_csv(psth_file_path)
+        assert psth_dataframe.columns[0] == "timestamps", f"'timestamps' is not the first column of {psth_file_path}"
+        assert list(psth_dataframe.columns[-2:]) == ["mean", "err"], f"'mean'/'err' missing in {psth_file_path}"
+
+        # Trial binning is off by default, so neither binned companion is written.
+        stem = f"{expected_ttl_name}_{expected_recording_site}_z_score_{expected_recording_site}"
+        assert not (Path(output_directory) / f"binned_{stem}.csv").exists()
+        assert not (Path(output_directory) / f"binned_peak_AUC_{stem}.csv").exists()
 
     # Additional artifacts from transients frequency/amplitude computation (Step 4 side-effect)
-    frequency_and_amplitude_h5_file_path = Path(output_directory) / (f"freqAndAmp_z_score_{expected_recording_site}.h5")
     frequency_and_amplitude_csv_file_path = Path(output_directory) / (
         f"freqAndAmp_z_score_{expected_recording_site}.csv"
     )
@@ -112,14 +111,14 @@ def test_step4(step3_fixture_name, expected_recording_site, expected_ttl, reques
         f"transientsOccurrences_z_score_{expected_recording_site}.csv"
     )
     assert Path(
-        frequency_and_amplitude_h5_file_path
-    ).exists(), f"Missing freq/amp HDF5: {frequency_and_amplitude_h5_file_path}"
-    assert Path(
         frequency_and_amplitude_csv_file_path
     ).exists(), f"Missing freq/amp CSV: {frequency_and_amplitude_csv_file_path}"
     assert Path(
         transients_occurrences_csv_file_path
     ).exists(), f"Missing transients occurrences CSV: {transients_occurrences_csv_file_path}"
+
+    # Tabular results are CSV only; the h5py .hdf5 time series are the only HDF5 Step 4 leaves behind.
+    assert list(Path(output_directory).glob("*.h5")) == []
 
     # Binned metrics are opt-in, so a default Step 4 must not produce them.
     binned_metrics_file_paths = list(Path(output_directory).glob("binned_metrics_*"))
@@ -168,7 +167,7 @@ def test_step4_rejects_events_that_share_no_timeline_with_the_signal(tmp_path):
         step4(base_dir=base_dir, selected_folders=selected_folders, selected_runs=selected_runs)
 
     output_directory = Path(locate_run_folder(session=str(session_copy)))
-    assert list(output_directory.glob("ttl_region_z_score_region.h5")) == []
+    assert list(output_directory.glob("ttl_region_z_score_region.csv")) == []
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")

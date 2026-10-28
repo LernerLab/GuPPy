@@ -2,15 +2,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from guppy.analysis.psth_average import (
-    average_psth_for_group,
-    psth_shape_check,
-    read_Df_area_peak,
-)
+from guppy.analysis.psth_average import average_psth_for_group, psth_shape_check
 from guppy.analysis.psth_utils import (
     create_Df_for_cross_correlation,
     create_Df_for_psth,
 )
+from guppy.analysis.standard_io import (
+    read_peak_and_area_from_csv,
+    write_peak_and_area_to_csv,
+)
+from guppy.utils.utils import read_Df
 
 
 def test_psth_shape_check_all_same_length_returns_unchanged():
@@ -73,22 +74,6 @@ def test_psth_shape_check_preserves_values_of_unchanged_arrays():
     np.testing.assert_array_equal(result[0], data)
 
 
-# ── read_Df_area_peak ─────────────────────────────────────────────────────────
-
-
-def test_read_df_area_peak_returns_dataframe_with_expected_values(tmp_path):
-    # Write a peak_AUC file and verify read_Df_area_peak returns it correctly
-    name = "event_lever_z_score_dms"
-    data = np.array([[1.0, 2.0], [3.0, 4.0]])
-    df_written = pd.DataFrame(data, index=["session1", "session2"], columns=["peak", "area"])
-    df_written.to_hdf(tmp_path / f"peak_AUC_{name}.h5", key="df", mode="w")
-
-    result = read_Df_area_peak(str(tmp_path), name)
-
-    np.testing.assert_allclose(result["peak"].values, np.array([1.0, 3.0]))
-    np.testing.assert_allclose(result["area"].values, np.array([2.0, 4.0]))
-
-
 # ── average_psth_for_group ────────────────────────────────────────────────────
 
 
@@ -105,7 +90,7 @@ def test_average_psth_for_group_averages_the_members_means(tmp_path, group_folde
     session1.mkdir(parents=True)
     session2.mkdir(parents=True)
 
-    # Stub HDF5 files so the recording-site glob finds them
+    # Stub preprocessed traces so the recording-site glob finds them
     (session1 / "z_score_dms.hdf5").touch()
     (session2 / "z_score_dms.hdf5").touch()
 
@@ -129,7 +114,7 @@ def test_average_psth_for_group_averages_the_members_means(tmp_path, group_folde
     )
 
     assert wrote_psth is True
-    result = pd.read_hdf(group_folder / "event_lever_dms_z_score_dms.h5", key="df", mode="r")
+    result = pd.read_csv(group_folder / "event_lever_dms_z_score_dms.csv")
     np.testing.assert_allclose(result["session1/output_1"].values, np.array([1.0, 2.0, 3.0]))
     np.testing.assert_allclose(result["session2/output_1"].values, np.array([3.0, 4.0, 5.0]))
     # Group mean is the across-session mean; err is the SEM over the 2 sessions:
@@ -158,7 +143,7 @@ def test_average_psth_for_group_writes_into_the_given_group_folder(tmp_path, gro
         inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
-    assert (group_folder / "event_lever_dms_z_score_dms.h5").exists()
+    assert sorted(path.name for path in group_folder.iterdir()) == ["event_lever_dms_z_score_dms.csv"]
     # Nothing is written to an "average" directory beside the members any more.
     assert not (tmp_path / "average").exists()
 
@@ -176,7 +161,7 @@ def test_average_psth_for_group_reports_false_when_no_member_has_the_event(tmp_p
     )
 
     assert wrote_psth is False
-    assert not (group_folder / "event_never_recorded_dms_z_score_dms.h5").exists()
+    assert list(group_folder.iterdir()) == []
 
 
 def test_average_psth_for_group_dff_mode_averages_the_dff_files(tmp_path, group_folder):
@@ -206,8 +191,8 @@ def test_average_psth_for_group_dff_mode_averages_the_dff_files(tmp_path, group_
     )
 
     assert wrote_psth is True
-    assert not (group_folder / "event_lever_dms_z_score_dms.h5").exists()
-    result = pd.read_hdf(group_folder / "event_lever_dms_dff_dms.h5", key="df", mode="r")
+    assert not (group_folder / "event_lever_dms_z_score_dms.csv").exists()
+    result = pd.read_csv(group_folder / "event_lever_dms_dff_dms.csv")
     np.testing.assert_allclose(result["mean"].values, np.array([2.0, 3.0, 4.0]), atol=1e-6)
 
 
@@ -233,8 +218,8 @@ def test_average_psth_for_group_both_modes_averages_z_score_and_dff(tmp_path, gr
     )
 
     assert wrote_psth is True
-    z_score_result = pd.read_hdf(group_folder / "event_lever_dms_z_score_dms.h5", key="df", mode="r")
-    dff_result = pd.read_hdf(group_folder / "event_lever_dms_dff_dms.h5", key="df", mode="r")
+    z_score_result = pd.read_csv(group_folder / "event_lever_dms_z_score_dms.csv")
+    dff_result = pd.read_csv(group_folder / "event_lever_dms_dff_dms.csv")
     np.testing.assert_allclose(z_score_result["mean"].values, np.array([1.0, 2.0, 3.0]), atol=1e-6)
     np.testing.assert_allclose(dff_result["mean"].values, np.array([7.0, 8.0, 9.0]), atol=1e-6)
 
@@ -266,9 +251,7 @@ def test_average_psth_for_group_averages_the_members_cross_correlations(tmp_path
         inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
-    averaged = pd.read_hdf(
-        group_folder / "cross_correlation_output" / "corr_event_lever_z_score_dms_nac.h5", key="df", mode="r"
-    )
+    averaged = pd.read_csv(group_folder / "cross_correlation_output" / "corr_event_lever_z_score_dms_nac.csv")
     np.testing.assert_allclose(averaged["session1/output_1"].values, np.array([1.0, 2.0, 3.0]), atol=1e-6)
     np.testing.assert_allclose(averaged["session2/output_1"].values, np.array([3.0, 4.0, 5.0]), atol=1e-6)
     # Across-member mean, and the SEM over the 2 members: std (ddof=0) = 1.0 -> 1.0 / sqrt(2)
@@ -306,5 +289,97 @@ def test_average_psth_for_group_handles_non_overlapping_stores_without_indexerro
         inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
     )
 
-    assert (group_folder / "event_lever_regionA_z_score_regionA.h5").exists()
-    assert (group_folder / "event_lever_regionB_z_score_regionB.h5").exists()
+    assert sorted(path.name for path in group_folder.iterdir()) == [
+        "event_lever_regionA_z_score_regionA.csv",
+        "event_lever_regionB_z_score_regionB.csv",
+    ]
+
+
+def test_average_psth_for_group_averages_the_members_binned_trials(tmp_path, group_folder):
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    session1.mkdir(parents=True)
+    session2.mkdir(parents=True)
+
+    # One trial, one bin and the timestamps row over 2 timepoints per member.
+    columns = ["1.5", "bin_(0-2)", "timestamps"]
+    for session, trial, bin_values in ((session1, [1.0, 2.0], [2.0, 3.0]), (session2, [3.0, 4.0], [4.0, 5.0])):
+        (session / "z_score_dms.hdf5").touch()
+        create_Df_for_psth(
+            str(session), "event_lever_dms", "z_score_dms", np.array([trial, bin_values, [0.0, 1.0]]), columns=columns
+        )
+
+    average_psth_for_group(
+        member_run_folders=[str(session1), str(session2)],
+        event="event_lever",
+        group_folder=str(group_folder),
+        inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
+    )
+
+    assert sorted(path.name for path in group_folder.iterdir()) == [
+        "binned_event_lever_dms_z_score_dms.csv",
+        "event_lever_dms_z_score_dms.csv",
+    ]
+    result = read_Df(str(group_folder), "event_lever_dms", "z_score_dms")
+    assert list(result.columns) == [
+        "session1/output_1",
+        "session2/output_1",
+        "bin_(0-2)",
+        "bin_err_(0-2)",
+        "timestamps",
+        "mean",
+        "err",
+    ]
+    # Bin mean over the members: [(2+4)/2, (3+5)/2]; err is std (ddof=1) sqrt(2) over sqrt(2 members) = 1.0
+    np.testing.assert_allclose(result["bin_(0-2)"].values, [3.0, 4.0], atol=1e-6)
+    np.testing.assert_allclose(result["bin_err_(0-2)"].values, [1.0, 1.0], atol=1e-6)
+    np.testing.assert_allclose(result["mean"].values, [2.0, 3.0], atol=1e-6)
+
+
+@pytest.fixture
+def members_with_peak_and_area(tmp_path):
+    session1 = tmp_path / "session1" / "output_1"
+    session2 = tmp_path / "session2" / "output_1"
+    for session_number, session in ((1, session1), (2, session2)):
+        session.mkdir(parents=True)
+        (session / "z_score_dms.hdf5").touch()
+        write_peak_and_area_to_csv(
+            filepath=session,
+            trials=pd.DataFrame(
+                {
+                    "session": [f"session{session_number}", f"session{session_number}"],
+                    "trial": ["1.5", "mean"],
+                    "peak_pos_1": [float(session_number), float(session_number)],
+                }
+            ),
+            bins=pd.DataFrame(
+                {"session": [f"session{session_number}"], "bin": ["bin_(0-2)"], "peak_pos_1": [10.0 * session_number]}
+            ),
+            name="event_lever_dms_z_score_dms",
+        )
+    return [str(session1), str(session2)]
+
+
+def test_average_psth_for_group_concatenates_the_members_peak_and_area_tables(
+    tmp_path, group_folder, members_with_peak_and_area
+):
+    average_psth_for_group(
+        member_run_folders=members_with_peak_and_area,
+        event="event_lever",
+        group_folder=str(group_folder),
+        inputParameters={"selectForComputePsth": "z_score", "output_root_folder": str(tmp_path)},
+    )
+
+    trials, bins = read_peak_and_area_from_csv(filepath=group_folder, name="event_lever_dms_z_score_dms")
+    expected_trials = pd.DataFrame(
+        {
+            "session": ["session1", "session1", "session2", "session2"],
+            "trial": ["1.5", "mean", "1.5", "mean"],
+            "peak_pos_1": [1.0, 1.0, 2.0, 2.0],
+        }
+    )
+    pd.testing.assert_frame_equal(trials, expected_trials)
+    expected_bins = pd.DataFrame(
+        {"session": ["session1", "session2"], "bin": ["bin_(0-2)", "bin_(0-2)"], "peak_pos_1": [10.0, 20.0]}
+    )
+    pd.testing.assert_frame_equal(bins, expected_bins)

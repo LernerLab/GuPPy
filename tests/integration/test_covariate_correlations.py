@@ -6,9 +6,9 @@ import pytest
 
 from guppy.analysis.io_utils import read_hdf5
 from guppy.analysis.standard_io import (
-    read_binned_covariates_from_hdf5,
-    read_binned_metrics_from_hdf5,
-    read_covariate_correlations_from_hdf5,
+    read_binned_covariates_from_csv,
+    read_binned_metrics_from_csv,
+    read_covariate_correlations_from_csv,
 )
 from guppy.testing.covariate_session import (
     BIN_WIDTH,
@@ -81,17 +81,16 @@ class TestCovariateIngestion:
 
 
 class TestCovariateOutputs:
-    def test_all_four_files_are_written(self, covariate_session):
+    def test_both_csv_files_are_written(self, covariate_session):
         for name in [
-            "binned_covariates_" + RECORDING_SITE + ".h5",
             "binned_covariates_" + RECORDING_SITE + ".csv",
-            "covariate_correlations_" + RECORDING_SITE + ".h5",
             "covariate_correlations_" + RECORDING_SITE + ".csv",
         ]:
             assert (Path(covariate_session) / name).exists(), name
+        assert list(Path(covariate_session).glob("*covariate*.h5")) == []
 
     def test_binned_covariates_schema(self, covariate_session):
-        binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
+        binned = read_binned_covariates_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
 
         assert list(binned.columns) == [
             "bin_start",
@@ -104,56 +103,48 @@ class TestCovariateOutputs:
         assert binned.index.name == "bin"
 
     def test_bins_cover_the_session_at_the_requested_width(self, covariate_session):
-        binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
+        binned = read_binned_covariates_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
 
         assert len(binned) == EXPECTED_BIN_COUNT
         np.testing.assert_allclose(binned["bin_start"].to_numpy()[1:5], [51.0, 101.0, 151.0, 201.0])
         np.testing.assert_allclose(np.diff(binned["bin_start"].to_numpy()), BIN_WIDTH)
 
     def test_bins_are_identical_to_the_metrics_table(self, covariate_session):
-        binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
-        metrics = read_binned_metrics_from_hdf5(covariate_session, RECORDING_SITE)
+        binned = read_binned_covariates_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
+        metrics = read_binned_metrics_from_csv(covariate_session, RECORDING_SITE)
 
         assert len(binned) == len(metrics)
         np.testing.assert_allclose(binned["bin_start"].to_numpy(), metrics["bin_start"].to_numpy())
         np.testing.assert_allclose(binned["bin_end"].to_numpy(), metrics["bin_end"].to_numpy())
 
     def test_correlations_schema_has_no_p_value(self, covariate_session):
-        correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
+        correlations = read_covariate_correlations_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
 
         assert list(correlations.columns) == ["metric", "covariate", "pearson_r", "spearman_rho", "n_bins"]
         assert correlations.index.name == "pair"
 
     def test_every_metric_is_correlated_against_every_covariate(self, covariate_session):
-        correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
-        metrics = read_binned_metrics_from_hdf5(covariate_session, RECORDING_SITE)
+        correlations = read_covariate_correlations_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
+        metrics = read_binned_metrics_from_csv(covariate_session, RECORDING_SITE)
         expected_metrics = [name for name in metrics.columns if name not in ("bin_start", "bin_end", "n_samples")]
 
         assert set(correlations["covariate"]) == set(COVARIATE_NAMES)
         assert sorted(correlations["metric"]) == sorted(name for name in expected_metrics for _ in COVARIATE_NAMES)
 
     def test_the_driving_covariate_correlates_and_the_null_one_does_not(self, covariate_session):
-        correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
+        correlations = read_covariate_correlations_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
         mean_zscore = correlations[correlations["metric"] == "mean_zscore"].set_index("covariate")
 
         assert mean_zscore.loc[DRIVING_COVARIATE, "pearson_r"] == pytest.approx(DRIVING_PEARSON_R, abs=0.02)
         assert mean_zscore.loc[NULL_COVARIATE, "pearson_r"] == pytest.approx(NULL_PEARSON_R, abs=0.02)
 
     def test_reported_bin_count_matches_the_tables_on_disk(self, covariate_session):
-        correlations = read_covariate_correlations_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
-        binned = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
-        metrics = read_binned_metrics_from_hdf5(covariate_session, RECORDING_SITE)
+        correlations = read_covariate_correlations_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
+        binned = read_binned_covariates_from_csv(filepath=covariate_session, recording_site=RECORDING_SITE)
+        metrics = read_binned_metrics_from_csv(covariate_session, RECORDING_SITE)
 
         for _, row in correlations.iterrows():
             both_finite = ~np.isnan(binned[row["covariate"]].to_numpy()) & ~np.isnan(
                 metrics[row["metric"]].to_numpy(dtype=float)
             )
             assert row["n_bins"] == int(np.count_nonzero(both_finite)), row["metric"]
-
-    def test_csv_matches_hdf5(self, covariate_session):
-        from_hdf5 = read_binned_covariates_from_hdf5(filepath=covariate_session, recording_site=RECORDING_SITE)
-        from_csv = pd.read_csv(
-            Path(covariate_session) / ("binned_covariates_" + RECORDING_SITE + ".csv"), index_col="bin"
-        )
-
-        pd.testing.assert_frame_equal(from_hdf5, from_csv, check_dtype=False)

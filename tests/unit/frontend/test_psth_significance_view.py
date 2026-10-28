@@ -6,6 +6,7 @@ import panel as pn
 import pytest
 
 from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME
+from guppy.analysis.standard_io import write_psth_significance_to_csv
 from guppy.frontend.psth_significance_view import (
     PsthSignificanceView,
     build_psth_significance_view,
@@ -39,7 +40,7 @@ def write_significance(filepath, name, *, significant_from=None, significant_to=
     if n_b is not None:
         table["n_b"] = n_b
 
-    table.to_hdf(Path(results_path) / ("significance_" + name + ".h5"), key="df", mode="w")
+    write_psth_significance_to_csv(filepath=results_path, significance=table, name=name)
 
 
 @pytest.fixture

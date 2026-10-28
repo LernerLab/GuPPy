@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pytest
 
@@ -6,12 +8,14 @@ from guppy.utils.validation import (
     validate_group_definitions,
     validate_group_folders_selected,
     validate_group_member_run_folders,
+    validate_no_legacy_psth_tables,
     validate_non_negative,
     validate_output_root_folder,
     validate_peak_windows,
     validate_positive,
     validate_required_folder_selection,
     validate_significance_level,
+    validate_tonic_means_present,
     validate_window_bounds,
 )
 
@@ -294,6 +298,64 @@ class TestValidateGroupFoldersSelected:
         folder.mkdir()
         with pytest.raises(ValueError, match="hold no group_members.json"):
             validate_group_folders_selected(group_folders=[str(folder)])
+
+
+class TestValidateNoLegacyPsthTables:
+    def test_passes_for_csv_psth_tables(self, member_run_folder):
+        (member_run_folder / "ttl_dms_z_score_dms.csv").write_text("")
+
+        validate_no_legacy_psth_tables(output_directories=[str(member_run_folder)])
+
+    def test_passes_when_each_h5_psth_table_has_its_csv_beside_it(self, member_run_folder):
+        # Rerunning Step 4 writes the CSV tables and leaves the earlier .h5 files in place.
+        for name in ("ttl_dms_z_score_dms", "peak_AUC_ttl_dms_z_score_dms"):
+            (member_run_folder / f"{name}.h5").write_bytes(b"")
+            (member_run_folder / f"{name}.csv").write_text("")
+
+        validate_no_legacy_psth_tables(output_directories=[str(member_run_folder)])
+
+    @pytest.mark.parametrize("metric", ["z_score", "dff"])
+    def test_raises_for_an_h5_psth_table_without_its_csv(self, member_run_folder, metric):
+        (member_run_folder / f"ttl_dms_{metric}_dms.h5").write_bytes(b"")
+        # Earlier versions wrote the peak/AUC table as both .h5 and .csv.
+        (member_run_folder / f"peak_AUC_ttl_dms_{metric}_dms.h5").write_bytes(b"")
+        (member_run_folder / f"peak_AUC_ttl_dms_{metric}_dms.csv").write_text("")
+
+        with pytest.raises(ValueError, match=re.escape(str(member_run_folder))):
+            validate_no_legacy_psth_tables(output_directories=[str(member_run_folder)])
+
+    def test_names_only_the_directories_holding_h5_psth_tables(self, member_run_folder, tmp_path):
+        current_run_folder = tmp_path / "sessionB" / "sessionB_output_1"
+        current_run_folder.mkdir(parents=True)
+        (current_run_folder / "ttl_dms_z_score_dms.csv").write_text("")
+        (member_run_folder / "ttl_dms_z_score_dms.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError) as error:
+            validate_no_legacy_psth_tables(output_directories=[str(current_run_folder), str(member_run_folder)])
+
+        assert f"  - {member_run_folder}\n" in str(error.value)
+        assert str(current_run_folder) not in str(error.value)
+
+
+class TestValidateTonicMeansPresent:
+    def test_passes_when_each_site_with_epochs_has_its_means(self, member_run_folder):
+        (member_run_folder / "tonic_epochs_dms.csv").write_text("label,start,end\n")
+        (member_run_folder / "tonic_means_dms.csv").write_text("")
+
+        validate_tonic_means_present(output_directories=[str(member_run_folder)])
+
+    def test_passes_for_the_leftover_h5_of_a_cleared_site(self, member_run_folder):
+        # Clearing a site's epochs and saving removes its CSVs, but not an earlier version's .h5.
+        (member_run_folder / "tonic_dms.h5").write_bytes(b"")
+
+        validate_tonic_means_present(output_directories=[str(member_run_folder)])
+
+    def test_raises_for_epochs_whose_means_are_only_an_h5(self, member_run_folder):
+        (member_run_folder / "tonic_epochs_dms.csv").write_text("label,start,end\n")
+        (member_run_folder / "tonic_dms.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match=re.escape(str(member_run_folder))):
+            validate_tonic_means_present(output_directories=[str(member_run_folder)])
 
 
 class TestValidateOutputRootFolder:

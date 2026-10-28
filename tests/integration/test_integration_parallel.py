@@ -133,39 +133,35 @@ def test_parallel_step5(tmp_path):
     out_dir = locate_run_folder(session=str(session_copy))
 
     # PSTH and peak/AUC outputs
-    psth_h5 = Path(out_dir) / (f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5")
-    psth_baseline_uncorr_h5 = Path(out_dir) / (
-        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_z_score_{EXPECTED_RECORDING_SITE}.h5"
-    )
-    peak_auc_h5 = Path(out_dir) / (
-        f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+    psth_csv = Path(out_dir) / (f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv")
+    psth_baseline_uncorrected_csv = Path(out_dir) / (
+        f"{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_baselineUncorrected_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
     peak_auc_csv = Path(out_dir) / (
         f"peak_AUC_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
 
-    assert Path(psth_h5).exists(), f"Missing PSTH HDF5: {psth_h5}"
-    assert Path(psth_baseline_uncorr_h5).exists(), f"Missing baseline-uncorrected PSTH HDF5: {psth_baseline_uncorr_h5}"
-    assert Path(peak_auc_h5).exists(), f"Missing Peak/AUC HDF5: {peak_auc_h5}"
+    assert Path(psth_csv).exists(), f"Missing PSTH CSV: {psth_csv}"
+    assert Path(
+        psth_baseline_uncorrected_csv
+    ).exists(), f"Missing baseline-uncorrected PSTH CSV: {psth_baseline_uncorrected_csv}"
     assert Path(peak_auc_csv).exists(), f"Missing Peak/AUC CSV: {peak_auc_csv}"
 
-    # PSTH HDF5 content check
-    dataframe = pd.read_hdf(psth_h5, key="df")
-    assert "timestamps" in dataframe.columns, f"'timestamps' column missing in {psth_h5}"
-    assert "mean" in dataframe.columns, f"'mean' column missing in {psth_h5}"
+    # PSTH CSV content check
+    dataframe = pd.read_csv(psth_csv)
+    assert "timestamps" in dataframe.columns, f"'timestamps' column missing in {psth_csv}"
+    assert "mean" in dataframe.columns, f"'mean' column missing in {psth_csv}"
 
     # Transients outputs
-    freq_amp_h5 = Path(out_dir) / (f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.h5")
     freq_amp_csv = Path(out_dir) / (f"freqAndAmp_z_score_{EXPECTED_RECORDING_SITE}.csv")
     trans_occ_csv = Path(out_dir) / (f"transientsOccurrences_z_score_{EXPECTED_RECORDING_SITE}.csv")
-    assert Path(freq_amp_h5).exists(), f"Missing freq/amp HDF5: {freq_amp_h5}"
     assert Path(freq_amp_csv).exists(), f"Missing freq/amp CSV: {freq_amp_csv}"
     assert Path(trans_occ_csv).exists(), f"Missing transients occurrences CSV: {trans_occ_csv}"
 
     # PSTH significance outputs
-    significance_h5 = (
+    significance_csv = (
         Path(out_dir)
         / PSTH_SIGNIFICANCE_DIRNAME
-        / f"significance_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.h5"
+        / f"significance_{EXPECTED_TTL}_{EXPECTED_RECORDING_SITE}_z_score_{EXPECTED_RECORDING_SITE}.csv"
     )
-    assert Path(significance_h5).exists(), f"Missing PSTH significance HDF5: {significance_h5}"
+    assert Path(significance_csv).exists(), f"Missing PSTH significance CSV: {significance_csv}"

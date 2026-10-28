@@ -91,14 +91,14 @@ In the `<name>_group/` directory:
 | `group_members.json` | The run folders this group averaged, in averaging order |
 | `GuPPyParamtersUsed.json` | The parameters the averaging ran under |
 | `storesList.csv` | The store mapping, listing the events the group actually holds |
-| `<event>_<site>_<metric>.h5` | Group PSTH: one column per member run |
-| `peak_AUC_<event>_<site>_<metric>.h5` / `.csv` | Every member's peak/AUC rows concatenated |
-| `freqAndAmp_<metric>.h5` / `.csv` | One row per member run |
-| `cross_correlation_output/corr_*.h5` | One column per member run |
-| `group_tonic_<site>.h5` / `.csv` | Every member's tonic epoch means, one row per member and epoch |
-| `group_tonic_summary_<site>.h5` / `.csv` | Each epoch's mean, standard error and member count across members |
-| `group_covariate_correlations_<site>.h5` / `.csv` | Every member's covariate correlations, one row per member, metric and covariate |
-| `group_covariate_correlations_summary_<site>.h5` / `.csv` | Each metric and covariate pair's mean, standard error and member count across members |
+| `<event>_<site>_<metric>.csv` | Group PSTH: one column per member run |
+| `peak_AUC_<event>_<site>_<metric>.csv` | Every member's peak/AUC rows concatenated |
+| `freqAndAmp_<metric>.csv` | One row per member run |
+| `cross_correlation_output/corr_*.csv` | One column per member run |
+| `group_tonic_<site>.csv` | Every member's tonic epoch means, one row per member and epoch |
+| `group_tonic_summary_<site>.csv` | Each epoch's mean, standard error and member count across members |
+| `group_covariate_correlations_<site>.csv` | Every member's covariate correlations, one row per member, metric and covariate |
+| `group_covariate_correlations_summary_<site>.csv` | Each metric and covariate pair's mean, standard error and member count across members |
 
 Group PSTH columns are named after the member run folder, and their order matches
 `group_members.json`, so column *n* is member *n*.

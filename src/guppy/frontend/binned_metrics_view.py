@@ -1,6 +1,6 @@
 """Step-5 dashboard tab for whole-session time-binned metrics.
 
-Reads the ``binned_metrics_<site>.h5`` tables Step 4 wrote and plots the selected
+Reads the ``binned_metrics_<site>.csv`` tables Step 4 wrote and plots the selected
 metric as bars under the trace it was reduced from. Sessions analysed without the
 binned metrics parameter have no such tables, so the tab renders a short note
 instead and can be added to the dashboard unconditionally.
@@ -14,7 +14,7 @@ import numpy as np
 import panel as pn
 
 from ..analysis.io_utils import read_hdf5
-from ..analysis.standard_io import read_binned_metrics_from_hdf5
+from ..analysis.standard_io import read_binned_metrics_from_csv
 from ..visualization.binned_metrics import build_binned_metrics_panel
 
 logger = logging.getLogger(__name__)
@@ -45,8 +45,8 @@ def binned_metrics_sites(filepath: str) -> list[str]:
     list of str
         Recording site names, empty when the session has no binned metrics.
     """
-    paths = Path(filepath).glob(_FILE_PREFIX + "*.h5")
-    return sorted(path.name[len(_FILE_PREFIX) : -len(".h5")] for path in paths)
+    paths = Path(filepath).glob(_FILE_PREFIX + "*.csv")
+    return sorted(path.name[len(_FILE_PREFIX) : -len(".csv")] for path in paths)
 
 
 class BinnedMetricsView:
@@ -55,7 +55,7 @@ class BinnedMetricsView:
     Parameters
     ----------
     filepath : str
-        Session output directory holding the ``binned_metrics_<site>.h5`` tables.
+        Session output directory holding the ``binned_metrics_<site>.csv`` tables.
     """
 
     def __init__(self, filepath: str) -> None:
@@ -71,7 +71,7 @@ class BinnedMetricsView:
 
     def _metric_options(self, site: str) -> dict[str, str]:
         """Menu label -> column, for the metric columns this site actually has."""
-        columns = read_binned_metrics_from_hdf5(self.filepath, site).columns
+        columns = read_binned_metrics_from_csv(self.filepath, site).columns
         return {METRICS[column][0]: column for column in METRICS if column in columns}
 
     def _make_plot(self) -> hv.Layout:
@@ -79,7 +79,7 @@ class BinnedMetricsView:
         column = self.metric_select.value
         _, value_label, trace_name = METRICS[column]
 
-        binned_metrics = read_binned_metrics_from_hdf5(self.filepath, site)
+        binned_metrics = read_binned_metrics_from_csv(self.filepath, site)
         timestamps = np.asarray(read_hdf5("timeCorrection_" + site, self.filepath, "timestampNew")).ravel()
         trace = np.asarray(read_hdf5(trace_name + "_" + site, self.filepath, "data")).ravel()
 

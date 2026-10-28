@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME
+from guppy.analysis.psth_utils import write_psth_table
 from guppy.orchestration.psth_significance import (
     comparison_name,
     compute_comparison,
@@ -39,7 +40,7 @@ def write_psth(run_folder, event, recording_site, basename, *, num_trials=5, num
     data += [np.linspace(-1, 1, num_timepoints), np.zeros(num_timepoints), np.zeros(num_timepoints)]
 
     frame = pd.DataFrame(np.asarray(data).T, columns=columns, dtype="float32")
-    frame.to_hdf(Path(run_folder) / (f"{event}_{recording_site}_{basename}.h5"), key="df", mode="w")
+    write_psth_table(filepath=run_folder, stem=f"{event}_{recording_site}_{basename}", psth=frame)
 
 
 @pytest.fixture

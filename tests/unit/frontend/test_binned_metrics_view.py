@@ -4,7 +4,7 @@ import panel as pn
 import pytest
 
 from guppy.analysis.io_utils import write_hdf5
-from guppy.analysis.standard_io import write_binned_metrics_to_hdf5
+from guppy.analysis.standard_io import write_binned_metrics_to_csv
 from guppy.frontend.binned_metrics_view import (
     BinnedMetricsView,
     binned_metrics_sites,
@@ -31,7 +31,7 @@ def write_site_outputs(filepath, site, count_columns=("transient_count_z_score",
     )
     for column in count_columns:
         binned_metrics[column] = [1, 3]
-    write_binned_metrics_to_hdf5(filepath, binned_metrics, site)
+    write_binned_metrics_to_csv(filepath, binned_metrics, site)
 
 
 @pytest.fixture
@@ -119,7 +119,7 @@ class TestBinnedMetricsView:
             },
             index=pd.RangeIndex(2, name="bin"),
         )
-        write_binned_metrics_to_hdf5(session, binned_metrics, "nac")
+        write_binned_metrics_to_csv(session, binned_metrics, "nac")
 
         view.metric_select.value = "mean_zscore"
         view.site_select.value = "nac"

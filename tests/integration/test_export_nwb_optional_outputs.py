@@ -27,10 +27,11 @@ from pynwb import NWBHDF5IO
 
 from guppy.analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME, read_hdf5
 from guppy.analysis.standard_io import (
-    read_binned_covariates_from_hdf5,
-    read_binned_metrics_from_hdf5,
-    read_covariate_correlations_from_hdf5,
-    read_psth_significance_from_hdf5,
+    read_binned_covariates_from_csv,
+    read_binned_metrics_from_csv,
+    read_covariate_correlations_from_csv,
+    read_psth_significance_from_csv,
+    read_tonic_means,
 )
 from guppy.orchestration.metadata import METADATA_FILENAME
 from guppy.testing.api import (
@@ -175,8 +176,8 @@ class TestCovariateAndWholeSessionOutputs:
             np.testing.assert_allclose(series.data[:], scored["data"].to_numpy())
             np.testing.assert_allclose(series.timestamps[:], scored["timestamps"].to_numpy())
 
-    def test_binned_metrics_match_the_hdf5(self, guppy_module, exported):
-        binned = read_binned_metrics_from_hdf5(
+    def test_binned_metrics_match_the_csv(self, guppy_module, exported):
+        binned = read_binned_metrics_from_csv(
             filepath=exported["output_directory"], recording_site=RECORDING_SITE
         ).reset_index(drop=True)
         table = guppy_module["binned_metrics"].to_dataframe()
@@ -198,8 +199,8 @@ class TestCovariateAndWholeSessionOutputs:
         np.testing.assert_allclose(z_score_rows["transient_count"], binned["transient_count_z_score"])
         assert table[table["trace_type"] == "dff"]["transient_count"].isna().all()
 
-    def test_binned_covariates_match_the_hdf5(self, guppy_module, exported):
-        binned = read_binned_covariates_from_hdf5(
+    def test_binned_covariates_match_the_csv(self, guppy_module, exported):
+        binned = read_binned_covariates_from_csv(
             filepath=exported["output_directory"], recording_site=RECORDING_SITE
         ).reset_index(drop=True)
         table = guppy_module["binned_covariates"].to_dataframe()
@@ -215,7 +216,7 @@ class TestCovariateAndWholeSessionOutputs:
             np.testing.assert_allclose(rows["mean"], binned[covariate_name])
 
     def test_covariate_correlations_carry_the_coefficients(self, guppy_module, exported):
-        correlations = read_covariate_correlations_from_hdf5(
+        correlations = read_covariate_correlations_from_csv(
             filepath=exported["output_directory"], recording_site=RECORDING_SITE
         )
         table = guppy_module["covariate_correlations"].to_dataframe()
@@ -244,8 +245,8 @@ class TestCovariateAndWholeSessionOutputs:
             key = (row.covariate, *GUPPY_METRIC_TO_TRACE_TYPE_AND_METRIC[row.metric])
             assert exported_coefficients[key] == pytest.approx((row.pearson_r, row.spearman_rho))
 
-    def test_tonic_epochs_match_the_hdf5(self, guppy_module, exported):
-        means = pd.read_hdf(Path(exported["output_directory"]) / (f"tonic_{RECORDING_SITE}.h5"), key="df")
+    def test_tonic_epochs_match_the_csv(self, guppy_module, exported):
+        means = read_tonic_means(exported["output_directory"], RECORDING_SITE)
         table = guppy_module["tonic_epochs"].to_dataframe()
 
         assert len(table) == len(TONIC_EPOCHS) * len(TRACE_TYPES)
@@ -361,7 +362,7 @@ class TestPSTHSignificanceOutputs:
         assert significance.trace_type == "z_score"
 
         for index, event in enumerate(SIGNIFICANCE_ONE_SAMPLE_EVENTS):
-            on_disk = read_psth_significance_from_hdf5(
+            on_disk = read_psth_significance_from_csv(
                 filepath=Path(exported["output_directory"]) / PSTH_SIGNIFICANCE_DIRNAME,
                 name=f"{event}_{SIGNIFICANCE_RECORDING_SITE}_z_score_{SIGNIFICANCE_RECORDING_SITE}",
             )
@@ -382,7 +383,7 @@ class TestPSTHSignificanceOutputs:
         assert list(significance.event.table["event_name"][significance.event.data]) == [event_a]
         assert list(significance.event_b.table["event_name"][significance.event_b.data]) == [event_b]
 
-        on_disk = read_psth_significance_from_hdf5(
+        on_disk = read_psth_significance_from_csv(
             filepath=Path(exported["output_directory"]) / PSTH_SIGNIFICANCE_DIRNAME,
             name=(f"{event_a}_vs_{event_b}_{SIGNIFICANCE_RECORDING_SITE}" f"_z_score_{SIGNIFICANCE_RECORDING_SITE}"),
         )

@@ -6,9 +6,10 @@ import pandas as pd
 import pytest
 
 from guppy.analysis.standard_io import (
-    write_covariate_correlations_to_hdf5,
-    write_tonic_to_hdf5,
+    write_covariate_correlations_to_csv,
+    write_tonic_means,
 )
+from guppy.analysis.tonic import TONIC_MEANS_PREFIX
 from guppy.orchestration.group_analysis import (
     _clear_group_results,
     _filter_stores_list_to_averaged_events,
@@ -18,6 +19,7 @@ from guppy.orchestration.group_analysis import (
     _validate_covariate_correlations_consistent_for_group,
     _validate_fiber_recording_sites_consistent_for_group,
     _validate_tonic_epochs_consistent_for_group,
+    average_one_group,
 )
 from guppy.utils.utils import GROUP_MEMBERS_FILENAME
 
@@ -144,11 +146,11 @@ class TestClearGroupResults:
         group_folder = tmp_path / "saline_group"
         group_folder.mkdir()
         (group_folder / GROUP_MEMBERS_FILENAME).write_text('{"member_run_folders": []}')
-        (group_folder / "dropped_member_leftover.h5").touch()
+        (group_folder / "dropped_member_leftover.csv").touch()
         (group_folder / "storesList.csv").touch()
         nested = group_folder / "cross_correlation_output"
         nested.mkdir()
-        (nested / "corr_event_z_score_a_b.h5").touch()
+        (nested / "corr_event_z_score_a_b.csv").touch()
 
         _clear_group_results(group_folder=str(group_folder))
 
@@ -201,7 +203,7 @@ def write_tonic(run_folder, site, epochs):
         {"mean_zscore": np.zeros(len(epochs)), "mean_dff": np.zeros(len(epochs))},
         index=pd.Index(epochs, name="epoch"),
     )
-    write_tonic_to_hdf5(run_folder, tonic, site)
+    write_tonic_means(run_folder, tonic, site)
 
 
 def write_covariate_correlations(run_folder, site, covariates, bin_width):
@@ -212,42 +214,43 @@ def write_covariate_correlations(run_folder, site, covariates, bin_width):
             "pearson_r": np.zeros(len(covariates)),
             "spearman_rho": np.zeros(len(covariates)),
             "n_bins": np.full(len(covariates), 10),
-        }
+        },
+        index=pd.RangeIndex(len(covariates), name="pair"),
     )
-    write_covariate_correlations_to_hdf5(filepath=run_folder, correlations=correlations, recording_site=site)
+    write_covariate_correlations_to_csv(filepath=run_folder, correlations=correlations, recording_site=site)
     (Path(run_folder) / "GuPPyParamtersUsed.json").write_text(json.dumps({"binnedMetricsWidth": bin_width}))
 
 
 class TestRecordingSitesWithResults:
     def test_no_member_holds_the_result(self, member_run_folders):
-        assert _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_") == []
+        assert _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX) == []
 
     def test_every_member_holds_the_result(self, member_run_folders):
         for run_folder in member_run_folders:
             write_tonic(run_folder, "DMS", ["baseline"])
             write_tonic(run_folder, "NAc", ["baseline"])
 
-        sites = _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_")
+        sites = _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX)
 
         assert sites == ["DMS", "NAc"]
 
     def test_raises_when_only_some_members_hold_the_result(self, member_run_folders):
         write_tonic(member_run_folders[0], "DMS", ["baseline"])
 
-        with pytest.raises(ValueError, match=r"tonic_DMS.h5 in some member runs but not in:\n  - session2"):
-            _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_")
+        with pytest.raises(ValueError, match=r"tonic_means_DMS.csv in some member runs but not in:\n  - session2"):
+            _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX)
 
     def test_raises_when_members_hold_different_sites(self, member_run_folders):
         write_tonic(member_run_folders[0], "DMS", ["baseline"])
         write_tonic(member_run_folders[1], "NAc", ["baseline"])
 
-        with pytest.raises(ValueError, match="tonic_DMS.h5 in some member runs"):
-            _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_")
+        with pytest.raises(ValueError, match="tonic_means_DMS.csv in some member runs"):
+            _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX)
 
     def test_tonic_epoch_definitions_are_not_results(self, member_run_folders):
         (Path(member_run_folders[0]) / "tonic_epochs_DMS.csv").write_text("label,start,end\n")
 
-        assert _recording_sites_with_results(member_run_folders=member_run_folders, prefix="tonic_") == []
+        assert _recording_sites_with_results(member_run_folders=member_run_folders, prefix=TONIC_MEANS_PREFIX) == []
 
 
 class TestValidateTonicEpochsConsistentForGroup:
@@ -285,3 +288,40 @@ class TestValidateCovariateCorrelationsConsistentForGroup:
 
         with pytest.raises(ValueError, match="covariates akinesia, grooming"):
             _validate_covariate_correlations_consistent_for_group(member_run_folders=member_run_folders, sites=["DMS"])
+
+
+class TestAverageOneGroup:
+    @pytest.fixture
+    def member_run_folder(self, tmp_path, write_stores_list):
+        run_folder = Path(
+            write_stores_list(tmp_path / "session1" / "session1_output_1", ["control_dms", "signal_dms", "ttl"])
+        )
+        (run_folder / "GuPPyParamtersUsed.json").write_text(json.dumps({"binnedMetricsWidth": 50}))
+        return run_folder
+
+    @pytest.fixture
+    def group_folder(self, tmp_path, member_run_folder):
+        """A group of the one member, holding a result from an earlier averaging."""
+        folder = tmp_path / "saline_group"
+        folder.mkdir()
+        (folder / GROUP_MEMBERS_FILENAME).write_text(json.dumps({"member_run_folders": [str(member_run_folder)]}))
+        (folder / "ttl_dms_z_score_dms.csv").write_text("")
+        return folder
+
+    def test_rejects_a_member_holding_h5_psth_tables(self, member_run_folder, group_folder, base_input_parameters):
+        (member_run_folder / "ttl_dms_z_score_dms.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Rerun Step 4"):
+            average_one_group(group_folder=str(group_folder), inputParameters=base_input_parameters)
+
+        # The member is rejected before the group's earlier results are cleared.
+        assert (group_folder / "ttl_dms_z_score_dms.csv").exists()
+
+    def test_rejects_a_member_holding_tonic_epochs_without_their_means(
+        self, member_run_folder, group_folder, base_input_parameters
+    ):
+        (member_run_folder / "tonic_epochs_dms.csv").write_text("label,start,end\nbaseline,0,10\n")
+        (member_run_folder / "tonic_dms.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Open Tonic Analysis"):
+            average_one_group(group_folder=str(group_folder), inputParameters=base_input_parameters)
