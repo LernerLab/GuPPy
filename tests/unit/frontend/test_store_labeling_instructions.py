@@ -70,12 +70,12 @@ class TestStoreLabelingInstructionsNPMConfigForm:
 
     @pytest.fixture
     def config_form(self, tmp_path, panel_extension):
-        # File 0 encodes multiple event TTLs and so needs a split-events checkbox; file 1 does
-        # not. The session's files offer two timestamp columns, so a column selector is built.
+        # ttls.csv encodes multiple event TTLs and so needs a split-events checkbox; stimuli.csv
+        # does not. The session's files offer two timestamp columns, so a column selector is built.
         return StoreLabelingInstructionsNPM(
             folder_path=str(tmp_path / "npm_session"),
             channel_previews={},
-            multiple_event_ttls=[True, False],
+            multiple_event_ttls={"ttls.csv": True, "stimuli.csv": False},
             timestamp_column_options=["Timestamp", "ComputerTimestamp"],
         )
 
@@ -85,7 +85,7 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         return StoreLabelingInstructionsNPM(
             folder_path=str(tmp_path / "npm_session"),
             channel_previews={},
-            multiple_event_ttls=[False, False],
+            multiple_event_ttls={"ttls.csv": False},
             timestamp_column_options=["Timestamp"],
         )
 
@@ -93,7 +93,11 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         assert config_form.confirm_button is not None
 
     def test_split_event_checkbox_only_created_for_files_that_need_it(self, config_form):
-        assert set(config_form.split_event_checkboxes.keys()) == {0}
+        assert set(config_form.split_event_checkboxes.keys()) == {"ttls.csv"}
+
+    def test_split_event_checkbox_names_its_file(self, config_form):
+        checkbox = config_form.split_event_checkboxes["ttls.csv"]
+        assert checkbox.name == "ttls.csv: create multiple files for each behavior type?"
 
     def test_column_select_offers_the_session_columns(self, config_form):
         assert config_form.timestamp_column_select.options == ["Timestamp", "ComputerTimestamp"]
@@ -109,12 +113,12 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         assert single_column_config_form.time_unit_select is not None
 
     def test_get_npm_split_events_defaults_false_for_non_multiple(self, config_form):
-        # File 0 checkbox unchecked -> False; file 1 has no checkbox -> False.
-        assert config_form.get_npm_split_events() == [False, False]
+        # ttls.csv's checkbox is unchecked -> False; stimuli.csv has no checkbox -> False.
+        assert config_form.get_npm_split_events() == {"ttls.csv": False, "stimuli.csv": False}
 
     def test_get_npm_split_events_reflects_checkbox(self, config_form):
-        config_form.split_event_checkboxes[0].value = True
-        assert config_form.get_npm_split_events() == [True, False]
+        config_form.split_event_checkboxes["ttls.csv"].value = True
+        assert config_form.get_npm_split_events() == {"ttls.csv": True, "stimuli.csv": False}
 
     def test_get_timestamp_configuration_uses_defaults(self, config_form):
         npm_time_unit, npm_timestamp_column_name = config_form.get_timestamp_configuration()

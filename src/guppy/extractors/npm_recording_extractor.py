@@ -133,9 +133,9 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
     npm_time_unit : str, optional
         Unit of the session's timestamps (``"seconds"``, ``"milliseconds"``, or
         ``"microseconds"``).
-    npm_split_events : list of bool, optional
-        One entry per raw source file, in processing order: whether that file's events are split
-        into one event stream per unique value.
+    npm_split_events : dict of str to bool, optional
+        Maps each event file's name to whether its events are split into one event stream
+        per unique value.
     """
 
     def __init__(
@@ -145,7 +145,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         num_ch: int = DEFAULT_NUM_CHANNELS,
         npm_timestamp_column_name: str | None = None,
         npm_time_unit: str | None = None,
-        npm_split_events: list[bool] | None = None,
+        npm_split_events: dict[str, bool] | None = None,
     ) -> None:
         self.folder_path = folder_path
         self.num_ch = num_ch
@@ -170,7 +170,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
             Number of interleaved channels in a file with no state column.
         inputParameters : dict, optional
             Input parameters carrying the NPM configuration: ``npm_timestamp_column_name``, and
-            ``npm_split_events``, one entry per raw source file saying whether it is split by value.
+            ``npm_split_events`` mapping each event file's name to whether it is split by value.
 
         Returns
         -------
@@ -197,9 +197,9 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         return store_ids, flags
 
     @classmethod
-    def has_multiple_event_ttls(cls, folder_path: str) -> list[bool]:
+    def has_multiple_event_ttls(cls, folder_path: str) -> dict[str, bool]:
         """
-        Check which of the session's raw files are event files holding more than one TTL value.
+        Check which of the session's event files hold more than one TTL value.
 
         Parameters
         ----------
@@ -208,18 +208,17 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
 
         Returns
         -------
-        list of bool
-            One entry per raw source file, in processing order: whether it is an event file whose
-            value column holds more than one distinct value.
+        dict of str to bool
+            Maps each event file's name to whether its value column holds more than one
+            distinct value.
         """
-        multiple_event_ttls = []
-        for df in cls._read_source_files(folder_path).values():
+        multiple_event_ttls = {}
+        for file_name, df in cls._read_source_files(folder_path).items():
             if not cls._is_event_file(df):
-                multiple_event_ttls.append(False)
                 continue
             event_values = df.iloc[:, 1]
             unique_event_values = np.unique(event_values)
-            multiple_event_ttls.append(len(unique_event_values) > 1)
+            multiple_event_ttls[file_name] = len(unique_event_values) > 1
         return multiple_event_ttls
 
     @classmethod
@@ -706,7 +705,7 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         *,
         num_ch: int,
         npm_timestamp_column_name: str | None,
-        npm_split_events: list[bool] | None,
+        npm_split_events: dict[str, bool] | None,
     ) -> dict[str, EventStore | ChannelStore]:
         """
         Work out every store the session yields and where each one comes from.
@@ -723,9 +722,8 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
         npm_timestamp_column_name : str or None
             Timestamp column to read in files that offer more than one; ``None`` reads the
             first.
-        npm_split_events : list of bool or None
-            One entry per raw source file, in processing order: whether it is split by value;
-            ``None`` splits none.
+        npm_split_events : dict of str to bool or None
+            Maps each event file's name to whether it is split by value; ``None`` splits none.
 
         Returns
         -------
@@ -739,12 +737,12 @@ class NpmRecordingExtractor(BaseRecordingExtractor):
             no region column, or if its timestamp column cannot be resolved.
         """
         if npm_split_events is None:
-            npm_split_events = [False] * len(dataframes)
+            npm_split_events = {}
 
         store_records = {}
-        for file_index, (file_name, df) in enumerate(dataframes.items()):
+        for file_name, df in dataframes.items():
             if cls._is_event_file(df):
-                split_events = npm_split_events[file_index]
+                split_events = npm_split_events.get(file_name, False)
                 store_records.update(cls._event_store_records(file_name, df, split_events=split_events))
                 continue
 
