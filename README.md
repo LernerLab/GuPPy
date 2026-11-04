@@ -4,6 +4,8 @@
 
 Guided Photometry Analysis in Python, a free and open-source fiber photometry data analysis tool.
 
+GuPPy reads recordings from TDT, Doric, Neurophotometrics (NPM), and pyPhotometry systems, from NWB files (local or streamed from the DANDI Archive), and from a generic CSV layout.
+
 > **GuPPy 2.0 is in beta.** `pip install guppy-neuro` installs a pre-release. If you need a stable version, see [Older versions](#older-versions).
 
 ## Quick start

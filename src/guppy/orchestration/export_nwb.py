@@ -262,8 +262,8 @@ def export_session_to_nwb(
 
     metadata = _overlay_metadata_yaml(metadata=converter.get_metadata(), metadata_yaml_path=metadata_yaml_path)
 
-    # Only a TDT tank's header always records one, so for every other format the metadata form is the
-    # only source. Checked here because pynwb's own failure names neither the session nor the step
+    # Only a TDT tank's header and a pyPhotometry .ppd header always record one, so for every other
+    # format the metadata form is the only source. Checked here because pynwb's own failure names neither the session nor the step
     # that would fix it.
     if not metadata["NWBFile"].get("session_start_time"):
         raise ValueError(

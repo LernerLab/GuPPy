@@ -2,7 +2,7 @@
 
 GuPPy currently reads TDT, Doric, Neurophotometrics (NPM), pyPhotometry, CSV, NWB, and
 DANDI-streamed NWB. Adding
-a new one means implementing the extractor contract and wiring it into five call sites that each own
+a new one means implementing the extractor contract and wiring it into six call sites that each own
 a different concern. This page is the full recipe; [Architecture](architecture.md) only points here.
 
 ## The extractor contract
@@ -19,7 +19,7 @@ and implements five `@abstractmethod`s:
 
 `discover_events_and_flags` is declared on the base class with no parameters beyond `cls` — an
 inline comment there explains this is intentional, because different formats need different
-discovery inputs. TDT, CSV, Doric, and NWB widen it to take only `folder_path`. NPM widens it
+discovery inputs. TDT, CSV, Doric, pyPhotometry, and NWB widen it to take only `folder_path`. NPM widens it
 further, to `discover_events_and_flags(cls, folder_path, num_ch, inputParameters)`, since
 demultiplexing its interleaved channels needs the channel count and, optionally, the NPM decomposition
 settings chosen in the Label Stores GUI.
@@ -55,12 +55,12 @@ copy from.
 4. **Add a routing branch** in `_build_event_to_extractor()` in
    `src/guppy/orchestration/read_raw_data.py`. This function's `if`/`elif` chain instantiates the
    right extractor for each detected format; its `else` branch raises
-   `ValueError(f"Format not recognized: '{acquisition_format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")` —
+   `ValueError(f"Format not recognized: '{acquisition_format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm', 'pyphotometry'.")` —
    add the new format name to that list too.
 5. **Add the matching branch in `read_header()`, in `src/guppy/orchestration/store_labeling.py`.**
    This is a second copy of the same `if`/`elif` chain, driving step-1 event discovery instead of
    step-2 reading, with its own separate hardcoded
-   `ValueError(f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm'.")`.
+   `ValueError(f"Format not recognized: '{format}'. Expected one of 'nwb', 'tdt', 'csv', 'doric', 'npm', 'pyphotometry'.")`.
    It is easy to update `read_raw_data.py` and forget this one, since step 1 will keep working for
    every *other* format and the omission only surfaces when a session of the new format reaches Label
    Stores. Update both files' branches and both `ValueError` messages together.
@@ -75,13 +75,18 @@ copy from.
    get the wrong timebase under the `"csv"` branch and would need a third branch here. Nothing else in
    the codebase flags this, so check whether the new format's `read()` output is block-structured
    before assuming the `"csv"` branch is correct for it.
-7. **Frontend component, only if needed.** A dedicated store-labeling instructions widget is only
+7. **Enable NWB export.** Add the format to `SUPPORTED_ACQUISITION_FORMATS` in
+   `src/guppy/utils/acquisition_format.py`, and to `_FORMATS_RECORDING_SESSION_START_TIME` beside it if
+   every file of the format records its session start time. Steps 6 and 7 refuse a format missing from
+   `SUPPORTED_ACQUISITION_FORMATS`, and adding it only works once NeuroConv's `GuppyConverter` accepts
+   the format as an `acquisition_format`, since that converter is what reads the raw folder.
+8. **Frontend component, only if needed.** A dedicated store-labeling instructions widget is only
    necessary when the format requires user input *before* its events can even be enumerated. NPM is
    the precedent: `StoreLabelingInstructionsNPM` in `src/guppy/frontend/store_labeling_instructions.py`
    asks for the timestamp column and unit and whether to split multi-value TTLs, because
    `discover_events_and_flags` cannot name NPM's derived streams without those answers. Most new
    formats can enumerate their events from the files alone and need no such component.
-8. **Stubbed sample session.** Add a truncated sample session under `stubbed_testing_data/<format>/`,
+9. **Stubbed sample session.** Add a truncated sample session under `stubbed_testing_data/<format>/`,
    and a README section for it in `stubbed_testing_data/README.md` matching the shape of the existing
    per-session entries there (a heading naming the session path, a short description of what it is
    used to test, and a **Stores** list naming each store and what it holds). If the format can be
@@ -101,7 +106,7 @@ class attributes:
 - `folder_path` — folder passed to `discover_events_and_flags` and the constructor.
 - `expected_events` — at least one event name known to be discoverable there.
 - `discover_kwargs` — extra keyword arguments for `discover_events_and_flags()` beyond `folder_path`
-  (`{}` for TDT/Doric/CSV; NPM needs `{"num_ch": N}`).
+  (`{}` for TDT/Doric/CSV/pyPhotometry; NPM needs `{"num_ch": N}`).
 - `extractor_instance` — an initialized instance of the extractor under test.
 - `stub_extractor_kwargs` — extra constructor keyword arguments used when re-instantiating from a
   stubbed folder (`{}` unless the constructor needs more than `folder_path`, e.g. Doric's

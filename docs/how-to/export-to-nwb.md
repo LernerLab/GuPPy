@@ -64,9 +64,9 @@ each selected session, named `<session> (<run>)`. The main GuPPy tab stays respo
    fields. Required fields are marked with a red asterisk, and the `?` beside a
    field explains what it expects.
 
-   **Session start time** is required for every acquisition format except TDT
-   and NWB, whose files record it themselves. Give it in ISO 8601, e.g.
-   `2018-10-30T10:33:32-05:00`.
+   **Session start time** is required for every acquisition format except TDT,
+   pyPhotometry and NWB, whose files record it themselves. Give it in ISO 8601,
+   e.g. `2018-10-30T10:33:32-05:00`.
 
    ```{image} ../_static/images/input_metadata.png
    :alt: The top of the NWB metadata page: the page header, the strip for reusing metadata from another session, and the Core NWB metadata card with its Session, Experimenter and Subject fields filled in, above the collapsed Optical hardware and Biological reagents groups
