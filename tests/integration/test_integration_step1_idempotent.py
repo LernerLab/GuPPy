@@ -17,8 +17,8 @@ def test_step1_npm_idempotent(tmp_path):
     """
     session_subdir = "npm/sampleData_NPM_4"
     store_id_to_store_label = {
-        "file0_chev1": "control_region1",
-        "file0_chod1": "signal_region1",
+        "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+        "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
         "eventTrue": "ttl_true_region1",
     }
 

@@ -20,8 +20,8 @@ SESSIONS = {
         # sampleData_NPM_4 splits its event file into one event per state.
         "session_subdir": "npm/sampleData_NPM_4",
         "store_id_to_store_label": {
-            "file0_chev1": "control_region1",
-            "file0_chod1": "signal_region1",
+            "PagCeAVgatFear_14421_415nm_Region0G": "control_region1",
+            "PagCeAVgatFear_14421_470nm_Region0G": "signal_region1",
             "eventTrue": "ttl_true_region1",
         },
         "expected_recording_site": "region1",
@@ -111,13 +111,22 @@ def test_mixed_modality(tmp_path):
     selected_folders = [str(session_copy) for session_copy in session_copies.values()]
     selected_runs = {folder: ["1"] for folder in selected_folders}
     step2(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
     step3(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
     step4(
-        base_dir=base_dir, selected_folders=selected_folders, npm_split_events=[True, True], selected_runs=selected_runs
+        base_dir=base_dir,
+        selected_folders=selected_folders,
+        npm_split_events=[False, True],
+        selected_runs=selected_runs,
     )
 
     for acquisition_format, session in SESSIONS.items():
