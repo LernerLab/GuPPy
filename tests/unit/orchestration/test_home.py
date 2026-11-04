@@ -1,3 +1,4 @@
+import re
 import threading
 import time
 from importlib.metadata import version
@@ -373,8 +374,9 @@ def test_poll_reports_progress_without_completing_while_worker_runs(
     capture_periodic["poll"]()
 
     # The bar shows the work as complete, but the step is not.
-    read_progress = homepage._widgets["read_progress"]
+    read_progress = homepage._widgets["statuses"]["read_rawData"].progress
     assert (read_progress.value, read_progress.max) == (2, 2)
+    assert status_text(homepage, "read_rawData") == "Running…"
     assert capture_periodic["callback"].stopped is False
     assert notifications == []
 
@@ -408,6 +410,10 @@ def page_area(homepage):
     return homepage._widgets["page_area"]
 
 
+def status_text(homepage, step_name):
+    return re.sub(r"<[^>]+>", "", homepage._widgets["statuses"][step_name].message.object)
+
+
 def test_main_area_holds_only_the_page_area(homepage, page_area):
     assert list(homepage.main) == [page_area.tabs]
     assert page_area.tabs._names == ["Input Parameters"]
@@ -431,7 +437,7 @@ RESULTS_HANDLERS = [
     RESULTS_HANDLERS,
     ids=[button_name for _, _, button_name, _, _ in RESULTS_HANDLERS],
 )
-def test_step_success_enables_show_results_which_shows_the_results_page(
+def test_step_success_opens_the_results_page_and_enables_show_results(
     homepage,
     page_area,
     selected_session,
@@ -454,19 +460,44 @@ def test_step_success_enables_show_results_which_shows_the_results_page(
         lambda session_folders, params: page_links.offer_page(name=page_name, content=results_page),
     )
     results_button = homepage._widgets["results_buttons"][button_name]
-    assert results_button.disabled is True
+    assert results_button.visible is False
 
     homepage._hooks[hook_name]()
     poll_until_stopped(capture_periodic)
-    assert results_button.disabled is False
-    results_button.clicks += 1
 
     assert page_area.tabs._names == ["Input Parameters", page_name]
     assert page_area.tabs.active == 1
     assert page_area.tabs[1][0] is results_page
+    assert results_button.visible is True
 
 
-def test_show_results_clicked_again_replaces_its_tab(
+def test_show_results_reopens_a_closed_results_tab(
+    homepage, page_area, selected_session, monkeypatch, capture_periodic
+):
+    def worker(params):
+        progress.start(1)
+        progress.advance(1)
+
+    shown = iter([pn.pane.Markdown("first"), pn.pane.Markdown("second")])
+    monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", worker)
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_preprocess_view",
+        lambda session_folders, params: page_links.offer_page(name="Preprocessing", content=next(shown)),
+    )
+    results_button = homepage._widgets["results_buttons"]["preprocess"]
+
+    homepage._hooks["onclickpreprocess"]()
+    poll_until_stopped(capture_periodic)
+    # Closing a tab in the browser removes it from the Tabs' objects.
+    page_area.tabs.pop(1)
+    results_button.clicks += 1
+
+    assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
+    assert page_area.tabs.active == 1
+    assert page_area.tabs[1][0].object == "second"
+
+
+def test_show_results_clicked_while_open_replaces_its_tab(
     homepage, page_area, selected_session, monkeypatch, capture_periodic
 ):
     def worker(params):
@@ -484,15 +515,14 @@ def test_show_results_clicked_again_replaces_its_tab(
     homepage._hooks["onclickpreprocess"]()
     poll_until_stopped(capture_periodic)
     results_button.clicks += 1
-    results_button.clicks += 1
 
     assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
     assert page_area.tabs[1][0].object == "second"
 
 
-def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkeypatch, capture_periodic):
+def test_a_failed_rerun_hides_view_results(homepage, selected_session, monkeypatch, capture_periodic):
     results_button = homepage._widgets["results_buttons"]["preprocess"]
-    results_button.disabled = False
+    results_button.visible = True
 
     def failing_worker(params):
         progress.fail("Preprocessing failed")
@@ -503,7 +533,7 @@ def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkey
     homepage._hooks["onclickpreprocess"]()
     poll_until_stopped(capture_periodic)
 
-    assert results_button.disabled is True
+    assert results_button.visible is False
 
 
 def offer_label_stores_pages(*, sessions):
@@ -567,11 +597,12 @@ def test_a_click_that_fails_adds_no_tab(homepage, page_area, selected_session, m
     assert page_area.tabs._names == ["Input Parameters"]
 
 
-def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
-    homepage, selected_session, monkeypatch, capture_periodic
-):
-    """A step that finishes having reported fewer units than it declared must still leave the
-    bar full, rather than stranded partway."""
+def test_a_step_starts_as_not_run_yet(homepage):
+    assert status_text(homepage, "read_rawData") == "Not run yet"
+
+
+def test_success_marks_the_step_done_and_hides_its_bar(homepage, selected_session, monkeypatch, capture_periodic):
+    """A step that finishes having reported fewer units than it declared is still done."""
 
     def worker(params):
         progress.start(10)
@@ -582,8 +613,22 @@ def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
     homepage._hooks["onclickreaddata"]()
     poll_until_stopped(capture_periodic)
 
-    read_progress = homepage._widgets["read_progress"]
-    assert (read_progress.value, read_progress.max) == (10, 10)
+    assert re.fullmatch(r"✓ Done at \d\d:\d\d", status_text(homepage, "read_rawData"))
+    assert homepage._widgets["statuses"]["read_rawData"].progress.visible is False
+
+
+def test_failure_marks_the_step_failed_and_hides_its_bar(homepage, selected_session, monkeypatch, capture_periodic):
+    def worker(params):
+        progress.fail("Reading failed")
+
+    monkeypatch.setattr("guppy.orchestration.home.run_read_raw_data_step", worker)
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
+
+    homepage._hooks["onclickreaddata"]()
+    poll_until_stopped(capture_periodic)
+
+    assert re.fullmatch(r"✗ Failed at \d\d:\d\d", status_text(homepage, "read_rawData"))
+    assert homepage._widgets["statuses"]["read_rawData"].progress.visible is False
 
 
 class TestSelectArtifactWindowsHandler:
@@ -623,20 +668,27 @@ class TestSelectArtifactWindowsHandler:
 
 
 PAGE_OPENING_HANDLERS = [
-    ("onclickImportCustomEvents", "orchestrate_custom_events_page", "Import Custom Events — Page"),
-    ("onclickVisualization", "visualizeResults", "Visualization — Page"),
-    ("onclickSelectArtifactWindows", "orchestrate_select_artifact_windows", "Page"),
-    ("onclickTonicAnalysis", "orchestrate_tonic_analysis", "Page"),
-    ("onclickLabelGroups", "orchestrate_group_labeling_page", "Page"),
-    ("onclickMetadata", "orchestrate_metadata_page", "Input Metadata — Page"),
+    (
+        "onclickImportCustomEvents",
+        "orchestrate_custom_events_page",
+        "Import Custom Events — Page",
+        "import_custom_events",
+    ),
+    ("onclickVisualization", "visualizeResults", "Visualization — Page", "open_visualization"),
+    ("onclickSelectArtifactWindows", "orchestrate_select_artifact_windows", "Page", "select_artifact_windows"),
+    ("onclickTonicAnalysis", "orchestrate_tonic_analysis", "Page", "tonic_analysis"),
+    ("onclickLabelGroups", "orchestrate_group_labeling_page", "Page", "label_groups"),
+    ("onclickMetadata", "orchestrate_metadata_page", "Input Metadata — Page", "open_metadata"),
 ]
 
 
 @pytest.mark.parametrize(
-    "hook_name, orchestrator, tab_name", PAGE_OPENING_HANDLERS, ids=[name for name, _, _ in PAGE_OPENING_HANDLERS]
+    "hook_name, orchestrator, tab_name, step_name",
+    PAGE_OPENING_HANDLERS,
+    ids=[name for name, _, _, _ in PAGE_OPENING_HANDLERS],
 )
-def test_a_page_opening_click_shows_its_page_in_a_new_tab(
-    homepage, page_area, selected_session, monkeypatch, hook_name, orchestrator, tab_name
+def test_a_page_opening_click_shows_its_page_in_a_new_tab_and_marks_it_opened(
+    homepage, page_area, selected_session, monkeypatch, hook_name, orchestrator, tab_name, step_name
 ):
     page = pn.pane.Markdown("Page")
     monkeypatch.setattr(
@@ -648,6 +700,7 @@ def test_a_page_opening_click_shows_its_page_in_a_new_tab(
     assert page_area.tabs._names == ["Input Parameters", tab_name]
     assert page_area.tabs.active == 1
     assert page_area.tabs[1][0] is page
+    assert re.fullmatch(r"✓ Opened at \d\d:\d\d", status_text(homepage, step_name))
 
 
 # Import Custom Events builds its pages without validating anything, so it has nothing to refuse.
@@ -655,10 +708,12 @@ REFUSING_HANDLERS = PAGE_OPENING_HANDLERS[1:]
 
 
 @pytest.mark.parametrize(
-    "hook_name, orchestrator, tab_name", REFUSING_HANDLERS, ids=[name for name, _, _ in REFUSING_HANDLERS]
+    "hook_name, orchestrator, tab_name, step_name",
+    REFUSING_HANDLERS,
+    ids=[name for name, _, _, _ in REFUSING_HANDLERS],
 )
 def test_a_refused_page_opening_click_notifies_and_adds_no_tab(
-    homepage, page_area, selected_session, monkeypatch, hook_name, orchestrator, tab_name
+    homepage, page_area, selected_session, monkeypatch, hook_name, orchestrator, tab_name, step_name
 ):
     def refuse(params):
         raise ValueError("Run Step 3 first.")
@@ -671,3 +726,4 @@ def test_a_refused_page_opening_click_notifies_and_adds_no_tab(
 
     assert notifications == ["Run Step 3 first."]
     assert page_area.tabs._names == ["Input Parameters"]
+    assert status_text(homepage, step_name) == "Not run yet"

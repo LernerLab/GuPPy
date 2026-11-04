@@ -3,14 +3,36 @@ from collections.abc import Callable
 
 import panel as pn
 
+from .step_status import StepStatus
+
 logger = logging.getLogger(__name__)
 
-# Buttons for long-running steps, whose results page opens from a Show results button beside them.
-RESULTS_BUTTONS = ("preprocess", "remove_artifacts", "psth_computation")
+# Every step's button, in pipeline order.
+STEP_NAMES = (
+    "import_custom_events",
+    "open_label_stores",
+    "read_rawData",
+    "preprocess",
+    "select_artifact_windows",
+    "remove_artifacts",
+    "tonic_analysis",
+    "psth_computation",
+    "label_groups",
+    "group_analysis",
+    "open_visualization",
+    "open_metadata",
+    "export_nwb",
+)
+
+# Steps that run in the background behind a progress bar.
+PROGRESS_STEPS = ("read_rawData", "preprocess", "remove_artifacts", "psth_computation", "group_analysis", "export_nwb")
+
+# Long-running steps with a results page, opened from a View results button once they are done.
+RESULTS_STEPS = ("preprocess", "remove_artifacts", "psth_computation")
 
 
 class Sidebar:
-    """Panel sidebar component containing step labels, action buttons, and progress bars.
+    """Panel sidebar component containing step labels, action buttons, and each step's status.
 
     Parameters
     ----------
@@ -22,8 +44,7 @@ class Sidebar:
         self.template = template
         self.setup_markdown()
         self.setup_buttons()
-        self.setup_progress_bars()
-        self.setup_results_buttons()
+        self.setup_statuses()
 
     def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
@@ -80,73 +101,46 @@ class Sidebar:
             button = getattr(self, button_name)
             button.on_click(onclick_fn)
 
-    def setup_progress_bars(self) -> None:
-        """Create ``Progress`` indicator widgets for the read, extract, and PSTH steps."""
-        self.read_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        self.extract_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        self.psth_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        self.remove_artifacts_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        self.export_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-        self.group_progress = pn.indicators.Progress(name="Progress", value=100, max=100, width=300)
-
-    def setup_results_buttons(self) -> None:
-        """Create a Show results button, disabled until there are results, for each long-running step."""
-        self.results_buttons = {
-            button_name: pn.widgets.Button(name="Show results", button_type="primary", width=100, align="end")
-            for button_name in RESULTS_BUTTONS
+    def setup_statuses(self) -> None:
+        """Create the status line shown under every step's button."""
+        self.statuses = {
+            step_name: StepStatus(has_progress=step_name in PROGRESS_STEPS, has_results=step_name in RESULTS_STEPS)
+            for step_name in STEP_NAMES
         }
+        self.results_buttons = {step_name: self.statuses[step_name].results_button for step_name in RESULTS_STEPS}
         self._open_results: dict[str, Callable[[], None] | None] = {}
-        for button_name in RESULTS_BUTTONS:
-            getattr(self, button_name).width = 190
-            self.results_buttons[button_name].on_click(
-                lambda event, button_name=button_name: self._open_results[button_name]()
-            )
-            self.show_results(button_name=button_name, open_results=None)
+        for step_name in RESULTS_STEPS:
+            self.results_buttons[step_name].on_click(lambda event, step_name=step_name: self._open_results[step_name]())
 
     def show_results(self, *, button_name: str, open_results: Callable[[], None] | None) -> None:
-        """Point a step's Show results button at what opens its results page, or disable it.
+        """Point a step's View results button at what opens its results page, or hide it.
 
         Parameters
         ----------
         button_name : str
             The long-running step's button, e.g. ``"preprocess"``.
         open_results : callable or None
-            Called with no arguments when the button is clicked; ``None`` disables the button.
+            Called with no arguments when the button is clicked; ``None`` hides the button.
         """
         self._open_results[button_name] = open_results
-        self.results_buttons[button_name].disabled = open_results is None
+        self.results_buttons[button_name].visible = open_results is not None
 
     def add_to_template(self) -> None:
-        """Append all sidebar widgets to the template's sidebar area in pipeline order."""
-        self.template.sidebar.append(self.mark_down_import_events)
-        self.template.sidebar.append(self.import_custom_events)
-        self.template.sidebar.append(self.mark_down_label_stores)
-        self.template.sidebar.append(self.open_label_stores)
-        self.template.sidebar.append(self.mark_down_read)
-        self.template.sidebar.append(self.read_rawData)
-        self.template.sidebar.append(self.read_progress)
-        self.template.sidebar.append(self.mark_down_preprocess)
-        self.template.sidebar.append(pn.Row(self.preprocess, self.results_buttons["preprocess"]))
-        self.template.sidebar.append(self.extract_progress)
-        self.template.sidebar.append(self.mark_down_select_windows)
-        self.template.sidebar.append(self.select_artifact_windows)
-        self.template.sidebar.append(self.mark_down_remove_artifacts)
-        self.template.sidebar.append(pn.Row(self.remove_artifacts, self.results_buttons["remove_artifacts"]))
-        self.template.sidebar.append(self.remove_artifacts_progress)
-        self.template.sidebar.append(self.mark_down_tonic_analysis)
-        self.template.sidebar.append(self.tonic_analysis)
-        self.template.sidebar.append(self.mark_down_psth)
-        self.template.sidebar.append(pn.Row(self.psth_computation, self.results_buttons["psth_computation"]))
-        self.template.sidebar.append(self.psth_progress)
-        self.template.sidebar.append(self.mark_down_label_groups)
-        self.template.sidebar.append(self.label_groups)
-        self.template.sidebar.append(self.mark_down_group_analysis)
-        self.template.sidebar.append(self.group_analysis)
-        self.template.sidebar.append(self.group_progress)
-        self.template.sidebar.append(self.mark_down_visualization)
-        self.template.sidebar.append(self.open_visualization)
-        self.template.sidebar.append(self.mark_down_metadata)
-        self.template.sidebar.append(self.open_metadata)
-        self.template.sidebar.append(self.mark_down_export_nwb)
-        self.template.sidebar.append(self.export_nwb)
-        self.template.sidebar.append(self.export_progress)
+        """Append every step's label, button, and status to the template's sidebar in pipeline order."""
+        labels = (
+            self.mark_down_import_events,
+            self.mark_down_label_stores,
+            self.mark_down_read,
+            self.mark_down_preprocess,
+            self.mark_down_select_windows,
+            self.mark_down_remove_artifacts,
+            self.mark_down_tonic_analysis,
+            self.mark_down_psth,
+            self.mark_down_label_groups,
+            self.mark_down_group_analysis,
+            self.mark_down_visualization,
+            self.mark_down_metadata,
+            self.mark_down_export_nwb,
+        )
+        for label, step_name in zip(labels, STEP_NAMES, strict=True):
+            self.template.sidebar.extend([label, getattr(self, step_name), self.statuses[step_name].layout])

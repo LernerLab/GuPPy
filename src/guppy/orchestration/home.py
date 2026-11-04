@@ -123,21 +123,23 @@ def build_homepage(
     def _opens_page(button_name: str, open_page: Callable[[], page_links.Page | None]) -> Callable[[object], None]:
         # A click handler that shows the page open_page returns, if any, on the homepage.
         def onclick(event: object = None) -> None:
-            _show(button_name, open_page())
+            page = open_page()
+            _show(button_name, page)
+            if page is not None:
+                sidebar.statuses[button_name].set_opened()
 
         return onclick
 
     def _run_worker_with_progress(
         worker: Callable[[dict[str, object]], None],
-        progress_widget: pn.indicators.Progress,
+        button_name: str,
         *,
         add_curr_dir: bool = False,
         require_selected_outputs: bool = True,
         on_success: Callable[[dict[str, object]], None] | None = None,
-        results_button: str | None = None,
     ) -> None:
         # Shared launch pattern for the pipeline steps that run a worker in a background
-        # thread while a progress bar reports what the worker has emitted.
+        # thread while the step's progress bar reports what the worker has emitted.
         if step_running["active"]:
             pn.state.notifications.error("A pipeline step is already running; wait for it to finish.", duration=0)
             return
@@ -147,11 +149,11 @@ def build_homepage(
         if add_curr_dir:
             inputParameters["curr_dir"] = current_dir
 
-        progress_widget.value = 0
-        progress_widget.bar_color = "success"
-        if results_button is not None:
+        status = sidebar.statuses[button_name]
+        status.set_running()
+        if button_name in sidebar.results_buttons:
             # The previous run's results are being overwritten.
-            sidebar.show_results(button_name=results_button, open_results=None)
+            sidebar.show_results(button_name=button_name, open_results=None)
 
         # Bind the step's progress sink for the worker only. Running the setter inside the
         # copied context confines the binding to the thread that context carries, leaving
@@ -171,10 +173,8 @@ def build_homepage(
         poller: dict[str, object] = {}
 
         def poll() -> None:
-            progress_widget.max = max(step.total, 1)
-            progress_widget.value = min(step.value, progress_widget.max)
-            if step.error_message:
-                progress_widget.bar_color = "danger"
+            status.progress.max = max(step.total, 1)
+            status.progress.value = min(step.value, status.progress.max)
             # Completion is the worker thread finishing, never the counter reaching its
             # total: a step whose declared total undercounts its real work would otherwise
             # report success partway through and open its result view against half-written
@@ -185,9 +185,10 @@ def build_homepage(
                 for warning in step.warnings:
                     pn.state.notifications.warning(warning, duration=0)
                 if step.error_message:
+                    status.set_failed()
                     pn.state.notifications.error(step.error_message, duration=0)
                 else:
-                    progress_widget.value = progress_widget.max
+                    status.set_done()
                     if on_success is not None:
                         # e.g. offer the step's result view once compute succeeded.
                         on_success(inputParameters)
@@ -289,56 +290,46 @@ def build_homepage(
     onclickLabelGroups = _opens_page("label_groups", _open_label_groups)
     onclickMetadata = _opens_page("open_metadata", _open_metadata)
 
+    def _open_results(
+        *, button_name: str, open_view: Callable[[list, dict[str, object]], None]
+    ) -> Callable[[dict[str, object]], None]:
+        # A step's on_success that opens its results tab as soon as it finishes, and points its
+        # Show results button at the same tab so a closed one can be brought back.
+        def on_success(inputParameters: dict[str, object]) -> None:
+            def open_results() -> None:
+                _show(
+                    button_name,
+                    _collect_page(lambda: open_view(inputParameters["session_folders"], inputParameters)),
+                )
+
+            sidebar.show_results(button_name=button_name, open_results=open_results)
+            open_results()
+
+        return on_success
+
     def onclickreaddata(event: object = None) -> None:
-        _run_worker_with_progress(run_read_raw_data_step, sidebar.read_progress)
+        _run_worker_with_progress(run_read_raw_data_step, "read_rawData")
 
     def onclickpreprocess(event: object = None) -> None:
-        def _show_results(inputParameters: dict[str, object]) -> None:
-            sidebar.show_results(
-                button_name="preprocess",
-                open_results=lambda: _show(
-                    "preprocess",
-                    _collect_page(lambda: open_preprocess_view(inputParameters["session_folders"], inputParameters)),
-                ),
-            )
-
         _run_worker_with_progress(
-            run_preprocess_step, sidebar.extract_progress, on_success=_show_results, results_button="preprocess"
+            run_preprocess_step,
+            "preprocess",
+            on_success=_open_results(button_name="preprocess", open_view=open_preprocess_view),
         )
 
     def onclickRemoveArtifacts(event: object = None) -> None:
-        def _show_results(inputParameters: dict[str, object]) -> None:
-            sidebar.show_results(
-                button_name="remove_artifacts",
-                open_results=lambda: _show(
-                    "remove_artifacts",
-                    _collect_page(lambda: open_artifact_view(inputParameters["session_folders"], inputParameters)),
-                ),
-            )
-
         _run_worker_with_progress(
             run_remove_artifacts_step,
-            sidebar.remove_artifacts_progress,
-            on_success=_show_results,
-            results_button="remove_artifacts",
+            "remove_artifacts",
+            on_success=_open_results(button_name="remove_artifacts", open_view=open_artifact_view),
         )
 
     def onclickpsth(event: object = None) -> None:
-        def _show_results(inputParameters: dict[str, object]) -> None:
-            sidebar.show_results(
-                button_name="psth_computation",
-                open_results=lambda: _show(
-                    "psth_computation",
-                    _collect_page(lambda: open_transients_view(inputParameters["session_folders"], inputParameters)),
-                ),
-            )
-
         _run_worker_with_progress(
             run_psth_step,
-            sidebar.psth_progress,
+            "psth_computation",
             add_curr_dir=True,
-            on_success=_show_results,
-            results_button="psth_computation",
+            on_success=_open_results(button_name="psth_computation", open_view=open_transients_view),
         )
 
     def onclickGroupAnalysis(event: object = None) -> None:
@@ -351,7 +342,7 @@ def build_homepage(
         # The group step reads the group selectors, not files_1's selected runs.
         _run_worker_with_progress(
             run_group_analysis_step,
-            sidebar.group_progress,
+            "group_analysis",
             require_selected_outputs=False,
             on_success=_list_new_group,
         )
@@ -363,7 +354,7 @@ def build_homepage(
             # takes the error branch instead, so this only fires when every session succeeded.
             pn.state.notifications.success("Export to NWB complete.")
 
-        _run_worker_with_progress(run_export_nwb_step, sidebar.export_progress, on_success=_notify_exported)
+        _run_worker_with_progress(run_export_nwb_step, "export_nwb", on_success=_notify_exported)
 
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -406,15 +397,11 @@ def build_homepage(
         "files_1": parameter_form.files_1,
         "source_mode": parameter_form.source_mode,
         "dandi_file_panel": parameter_form.dandi_file_panel,
-        "read_progress": sidebar.read_progress,
-        "extract_progress": sidebar.extract_progress,
-        "psth_progress": sidebar.psth_progress,
-        "group_progress": sidebar.group_progress,
         "group_folders_selector": parameter_form.group_folders_selector,
         "same_root_checkbox": parameter_form.same_root_checkbox,
         "output_root_selector": parameter_form.output_root_selector,
         "input_root_selector": parameter_form.input_root_selector,
-        "remove_artifacts_progress": sidebar.remove_artifacts_progress,
+        "statuses": sidebar.statuses,
         "results_buttons": sidebar.results_buttons,
         "page_area": page_area,
     }

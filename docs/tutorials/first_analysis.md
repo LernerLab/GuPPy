@@ -51,7 +51,7 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a progress bar directly under each step that performs background work. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Root Folder Selection*, *Input Folder Selection*, *Output Folder Selection* and *Parameter Selection*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a status line under each step that says whether it has run. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Root Folder Selection*, *Input Folder Selection*, *Output Folder Selection* and *Parameter Selection*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
 Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
@@ -152,11 +152,11 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 :align: center
 ```
 
-The other bars on the sidebar (under *Preprocess*, *Remove Artifacts*, and *PSTH Computation*) appear pre-filled at 100% as a styling default; they reset to 0 and fill while their own step is running. So a fully-green bar does not mean that step is done, it just means it has not been touched yet.
+Every step has a status line under its button. It reads *Not run yet* until you run the step, shows the progress bar and *Running…* while it runs, and then reads *✓ Done at* the time it finished, or *✗ Failed at* if it stopped with an error.
 
 GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1/output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
-When the progress bar reaches 100% the step is complete. Confirmation messages are also logged to the terminal where you launched `guppy`.
+When the step finishes, its status line changes to *✓ Done at* the time it finished. Confirmation messages are also logged to the terminal where you launched `guppy`.
 
 ## Step 3: Preprocess the signal
 
@@ -185,9 +185,9 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 
 Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
-When preprocessing finishes, the **Show results** button beside **Preprocess** becomes clickable, and it opens the preprocessing results in a Preprocessing tab beside the form. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Input Parameters tab and keep working, and the results tab stays open.
+When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View results →** button in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Input Parameters tab and keep working, and the results tab stays open.
 
-<!-- TODO: add a screenshot of the preprocessing results tab that Show results opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a separate browser tab served by GuPPy, so the screenshot script will need to capture that route. -->
+<!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a tab inside the homepage, so the screenshot script will need to run Preprocess to capture it. -->
 
 ### Optional: remove artifacts
 
