@@ -10,13 +10,15 @@ from guppy.utils import dandi_filter
 
 @pytest.fixture
 def served(monkeypatch):
-    """Capture the route map instead of starting a real Bokeh server.
+    """Capture the served homepage factory instead of starting a real Bokeh server.
 
     Stubbing ``pn.serve`` (rather than ``serve_app``) lets ``main`` dispatch through the
     real application wiring, so the deferred ``from .app import serve_app`` is exercised.
     """
     captured = {}
-    monkeypatch.setattr(app.pn, "serve", lambda routes, **kwargs: captured.update(routes=routes, kwargs=kwargs))
+    monkeypatch.setattr(
+        app.pn, "serve", lambda build_page, **kwargs: captured.update(build_page=build_page, kwargs=kwargs)
+    )
     return captured
 
 
@@ -40,15 +42,7 @@ class TestMain:
     def test_no_arguments_serves_the_app(self, served, exported):
         main(argv=[])
 
-        assert sorted(served["routes"]) == [
-            "/",
-            "/artifact-view",
-            "/page",
-            "/preprocess-view",
-            "/select-artifact-windows",
-            "/tonic-analysis",
-            "/transients-view",
-        ]
+        assert callable(served["build_page"])
         assert exported == []
 
     def test_the_roots_reach_the_homepage_route(self, served, exported, panel_extension, tmp_path):
@@ -58,7 +52,7 @@ class TestMain:
         output_directory.mkdir()
 
         main(argv=["--input-root", str(input_root_folder), "--output-root", str(output_directory)])
-        template = served["routes"]["/"]()
+        template = served["build_page"]()
 
         # The visible "Selected files" pane, not just the parameter: assigning value alone
         # leaves the browser showing nothing until it re-lists its directory.
@@ -88,7 +82,7 @@ class TestMain:
         monkeypatch.chdir(tmp_path)
 
         main(argv=["--input-root", "data"])
-        template = served["routes"]["/"]()
+        template = served["build_page"]()
 
         assert template._widgets["input_root_selector"].value == [str(tmp_path.resolve() / "data")]
 
@@ -99,7 +93,7 @@ class TestMain:
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
         main(argv=["--output-root", "~/derivatives"])
-        template = served["routes"]["/"]()
+        template = served["build_page"]()
 
         assert template._widgets["output_root_selector"].value == [str(tmp_path.resolve() / "derivatives")]
 
@@ -136,7 +130,7 @@ class TestMain:
         self, served, exported, panel_extension, verdict_cache_path, argv, bundled_path
     ):
         main(argv=argv)
-        template = served["routes"]["/"]()
+        template = served["build_page"]()
 
         assert template._widgets["dandi_file_panel"].search_panel.verdict_cache.bundled_path == bundled_path
 

@@ -126,16 +126,15 @@ defeat the comparison.
 ## Compare the two runs
 
 Select **both** runs under **Existing runs (steps 2–5)**, then click **Open Visualization
-GUI**. GuPPy opens one dashboard per selected run, each in its own browser tab, so you can
-flip between them with the same event and view selected.
+GUI**. GuPPy opens one Visualization tab with a dashboard per selected run, each in its own
+inner tab, so you can flip between them with the same event and view selected.
 
 Selecting two runs whose saved parameters differ shows the notification "Selected output
 runs have different saved parameters; the form was left unchanged." That is expected here:
 each run's parameters are already saved in its outputs, and Step 5 only reads them.
 
-Every dashboard's browser tab is titled `Visualization GUI`, so the tabs look identical.
-The run folder name is the heading at the top of each page — that is how you tell which is
-which. Put the two tabs on the same z-score PSTH and the trade-off is there to see: the
+Each inner tab is named after its run folder, which is also the heading at the top of its
+dashboard. Put the two tabs on the same z-score PSTH and the trade-off is there to see: the
 wider window gives a smoother curve, at the cost of a lower peak amplitude and coarser
 timing.
 

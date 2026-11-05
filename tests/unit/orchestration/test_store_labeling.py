@@ -1168,9 +1168,10 @@ def test_orchestrate_store_labeling_page_offers_one_page_per_session(panel_exten
         "noChannels": 2,
     }
 
-    with page_links.collect() as offers:
+    with page_links.collect() as pages:
         orchestrate_store_labeling_page(input_parameters)
 
-    assert [(page.name, page.template.title) for page in offers.pages] == [
-        ("sample_data_csv_1", "Label Stores GUI - sample_data_csv_1")
-    ]
+    (page,) = pages
+    assert page.name == "sample_data_csv_1"
+    (row,) = page.content
+    assert isinstance(row, pn.Row)

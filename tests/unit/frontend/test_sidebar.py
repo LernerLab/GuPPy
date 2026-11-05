@@ -1,9 +1,8 @@
 import panel as pn
 import pytest
-from panel.links import Callback
 
-from guppy.frontend.sidebar import Sidebar
-from guppy.utils.page_links import PageLink
+from guppy.frontend.sidebar import STEP_NAMES, Sidebar
+from guppy.frontend.step_status import StepStatus
 
 
 def sidebar_position(objects, widget):
@@ -22,50 +21,50 @@ def sidebar(panel_extension):
 
 
 class TestSidebar:
-    # The long-running steps share their row with a Show results button, so they are narrower.
     @pytest.mark.parametrize(
-        "name, width",
+        "name",
         [
-            ("open_label_stores", 300),
-            ("read_rawData", 300),
-            ("preprocess", 190),
-            ("psth_computation", 190),
-            ("open_visualization", 300),
-            ("open_metadata", 300),
-            ("export_nwb", 300),
+            "open_label_stores",
+            "read_rawData",
+            "preprocess",
+            "psth_computation",
+            "open_visualization",
+            "open_metadata",
+            "export_nwb",
         ],
     )
-    def test_numbered_step_buttons_are_primary(self, sidebar, name, width):
+    def test_numbered_step_buttons_are_primary(self, sidebar, name):
         button = getattr(sidebar, name)
         assert isinstance(button, pn.widgets.Button), f"{name} is not a Button"
         assert button.button_type == "primary", f"{name} does not have primary type"
-        assert button.width == width, f"{name} does not have width {width}"
+        assert button.width == 300, f"{name} does not have width 300"
 
-    @pytest.mark.parametrize(
-        "name, width", [("import_custom_events", 300), ("select_artifact_windows", 300), ("remove_artifacts", 190)]
-    )
-    def test_optional_step_buttons_are_default(self, sidebar, name, width):
+    @pytest.mark.parametrize("name", ["import_custom_events", "select_artifact_windows", "remove_artifacts"])
+    def test_optional_step_buttons_are_default(self, sidebar, name):
         """ "default" is this sidebar's vocabulary for an optional, unnumbered step."""
         button = getattr(sidebar, name)
         assert isinstance(button, pn.widgets.Button), f"{name} is not a Button"
         assert button.button_type == "default", f"{name} does not have default type"
-        assert button.width == width, f"{name} does not have width {width}"
+        assert button.width == 300, f"{name} does not have width 300"
 
     def test_preprocess_step_no_longer_claims_to_remove_artifacts(self, sidebar):
         assert sidebar.preprocess.name == "Preprocess"
         assert sidebar.mark_down_preprocess.object == "**Step 3 : Preprocess**"
 
-    def test_progress_bars_initial_values(self, sidebar):
-        for bar_name in (
-            "read_progress",
-            "extract_progress",
-            "psth_progress",
-            "remove_artifacts_progress",
-            "export_progress",
-        ):
-            bar = getattr(sidebar, bar_name)
-            assert bar.value == 100, f"{bar_name} does not start at 100"
-            assert bar.max == 100, f"{bar_name} max is not 100"
+    def test_every_step_has_a_status(self, sidebar):
+        assert list(sidebar.statuses) == list(STEP_NAMES)
+        assert all(isinstance(status, StepStatus) for status in sidebar.statuses.values())
+
+    def test_only_background_steps_have_a_progress_bar(self, sidebar):
+        with_progress = [name for name, status in sidebar.statuses.items() if status.progress is not None]
+        assert with_progress == [
+            "read_rawData",
+            "preprocess",
+            "remove_artifacts",
+            "psth_computation",
+            "group_analysis",
+            "export_nwb",
+        ]
 
     def test_attach_callbacks_triggers_function(self, sidebar):
         calls = []
@@ -84,17 +83,11 @@ class TestSidebar:
         sidebar.add_to_template()
 
         objects = template.sidebar.objects
-        assert len(objects) > 0
-        assert sidebar.open_label_stores in objects
-        assert sidebar.read_progress in objects
-        assert sidebar.extract_progress in objects
-        assert sidebar.psth_progress in objects
-        assert sidebar.select_artifact_windows in objects
-        assert sidebar_position(objects, sidebar.remove_artifacts) is not None
-        assert sidebar.remove_artifacts_progress in objects
-        assert sidebar.open_metadata in objects
-        assert sidebar.export_nwb in objects
-        assert sidebar.export_progress in objects
+        assert len(objects) == 3 * len(STEP_NAMES)
+        for name in STEP_NAMES:
+            # Each step is its label, then its button, then its status.
+            index = objects.index(getattr(sidebar, name))
+            assert objects[index + 1] is sidebar.statuses[name].layout
 
     def test_nwb_export_steps_follow_visualization(self, panel_extension):
         """Steps 6 and 7 close the pipeline: Step 5 -> Input Metadata -> Export to NWB."""
@@ -129,57 +122,33 @@ class TestSidebar:
 
 class TestShowResults:
     @pytest.mark.parametrize("name", ["preprocess", "remove_artifacts", "psth_computation"])
-    def test_starts_disabled(self, sidebar, name):
-        assert sidebar.results_buttons[name].object == (
-            '<span title="Available once the step has run" style="display: inline-block; box-sizing: border-box; '
-            "width: 100%; padding: 5px 0; border: 1px solid; border-radius: 4px; text-align: center; "
-            'text-decoration: none; font-size: 13px; white-space: nowrap; color: #adb5bd; border-color: #dee2e6;">'
-            "Show results</span>"
-        )
+    def test_starts_hidden(self, sidebar, name):
+        button = sidebar.results_buttons[name]
+        assert button is sidebar.statuses[name].results_button
+        assert button.name == "View results →"
+        assert button.visible is False
 
-    def test_opens_the_results_page_in_a_new_tab(self, sidebar):
-        sidebar.show_results(
-            button_name="preprocess", link=PageLink(title="GuPPy — Preprocessing", href="preprocess-view?token=a&b")
-        )
+    def test_a_click_calls_what_opens_the_results(self, sidebar):
+        calls = []
+        sidebar.show_results(button_name="preprocess", open_results=lambda: calls.append("preprocess"))
 
-        html = sidebar.results_buttons["preprocess"].object
-        assert html.startswith('<a href="preprocess-view?token=a&amp;b" target="_blank" ')
-        assert 'title="Opens GuPPy — Preprocessing in a new tab"' in html
-        assert html.endswith(">Show results</a>")
+        sidebar.results_buttons["preprocess"].clicks += 1
 
-    def test_disables_again_without_a_link(self, sidebar):
-        sidebar.show_results(button_name="preprocess", link=PageLink(title="Results", href="results"))
+        assert sidebar.results_buttons["preprocess"].visible is True
+        assert calls == ["preprocess"]
 
-        sidebar.show_results(button_name="preprocess", link=None)
+    def test_a_click_calls_the_latest_opener(self, sidebar):
+        calls = []
+        sidebar.show_results(button_name="preprocess", open_results=lambda: calls.append("first run"))
+        sidebar.show_results(button_name="preprocess", open_results=lambda: calls.append("second run"))
 
-        assert sidebar.results_buttons["preprocess"].object.startswith("<span ")
+        sidebar.results_buttons["preprocess"].clicks += 1
 
-    @pytest.mark.parametrize("name", ["preprocess", "remove_artifacts", "psth_computation"])
-    def test_sits_beside_its_step_button(self, sidebar, name):
-        sidebar.add_to_template()
+        assert calls == ["second run"]
 
-        (row,) = [
-            item for item in sidebar.template.sidebar if isinstance(item, pn.Row) and getattr(sidebar, name) in item
-        ]
-        assert list(row) == [getattr(sidebar, name), sidebar.results_buttons[name]]
+    def test_hides_again_without_an_opener(self, sidebar):
+        sidebar.show_results(button_name="preprocess", open_results=lambda: None)
 
+        sidebar.show_results(button_name="preprocess", open_results=None)
 
-class TestPageOpeningButtons:
-    @pytest.mark.parametrize(
-        "name",
-        [
-            "import_custom_events",
-            "open_label_stores",
-            "select_artifact_windows",
-            "tonic_analysis",
-            "label_groups",
-            "open_visualization",
-            "open_metadata",
-        ],
-    )
-    def test_a_click_opens_a_placeholder_tab_under_the_buttons_name(self, sidebar, name):
-        (callback,) = Callback.registry[getattr(sidebar, name)]
-        code = callback.code["event:button_click"]
-
-        assert code.startswith(f"const key = '{name}';\n")
-        assert 'window.open("", "_blank")' in code
+        assert sidebar.results_buttons["preprocess"].visible is False

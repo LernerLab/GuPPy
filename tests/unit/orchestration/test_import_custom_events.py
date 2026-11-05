@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.orchestration.import_custom_events import (
@@ -91,10 +92,8 @@ class TestOrchestrateCustomEventsPage:
         for session in sessions:
             session.mkdir()
 
-        with page_links.collect() as offers:
+        with page_links.collect() as pages:
             orchestrate_custom_events_page({"session_folders": [str(session) for session in sessions]})
 
-        assert [(page.name, page.template.title) for page in offers.pages] == [
-            ("mouse_01", "Import Custom Events - mouse_01"),
-            ("mouse_02", "Import Custom Events - mouse_02"),
-        ]
+        assert [page.name for page in pages] == ["mouse_01", "mouse_02"]
+        assert all(isinstance(page.content, pn.Column) for page in pages)

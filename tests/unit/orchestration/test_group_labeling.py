@@ -1,9 +1,11 @@
+import panel as pn
+
 from guppy.frontend.group_labeling import GroupLabelingPage
-from guppy.orchestration import group_labeling
 from guppy.orchestration.group_labeling import (
     build_group_labeling_page,
     orchestrate_group_labeling_page,
 )
+from guppy.utils import page_links
 
 
 class TestBuildGroupLabelingPage:
@@ -14,10 +16,11 @@ class TestBuildGroupLabelingPage:
 
 
 class TestOrchestrateGroupLabelingPage:
-    def test_serves_the_page(self, panel_extension, monkeypatch, tmp_path):
-        served_titles = []
-        monkeypatch.setattr(group_labeling, "serve_page", lambda *, template, title: served_titles.append(title))
+    def test_offers_the_page(self, panel_extension, tmp_path):
+        with page_links.collect() as pages:
+            orchestrate_group_labeling_page({"abspath": str(tmp_path), "selected_group_folders": []})
 
-        orchestrate_group_labeling_page({"abspath": str(tmp_path), "selected_group_folders": []})
-
-        assert served_titles == ["Label Groups"]
+        (page,) = pages
+        assert page.name == "Label Groups"
+        (row,) = page.content
+        assert isinstance(row, pn.Row)

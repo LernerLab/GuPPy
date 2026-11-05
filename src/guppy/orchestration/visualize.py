@@ -66,7 +66,7 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
         metric=metric,
         available_metrics=available_metrics,
     )
-    page_links.offer_page(name=label, template=dashboard.build_template())
+    page_links.offer_template(name=label, template=dashboard.build_template())
 
 
 def createPlots(filepath: str, event: list[str], inputParameters: dict[str, object], *, label: str) -> None:

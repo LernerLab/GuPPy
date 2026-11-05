@@ -664,5 +664,5 @@ def orchestrate_store_labeling_page(
             npm_interactive=npm_interactive,
             on_saved=on_saved,
         )
-        page_links.offer_page(name=Path(folder_path).name, template=template)
+        page_links.offer_template(name=Path(folder_path).name, template=template)
     logger.info("#" * 400)

@@ -1,3 +1,4 @@
+import re
 import threading
 import time
 from importlib.metadata import version
@@ -5,7 +6,6 @@ from importlib.metadata import version
 import panel as pn
 import pytest
 
-from guppy.orchestration import step_view
 from guppy.orchestration.home import build_homepage
 from guppy.utils import page_links, progress
 
@@ -374,8 +374,9 @@ def test_poll_reports_progress_without_completing_while_worker_runs(
     capture_periodic["poll"]()
 
     # The bar shows the work as complete, but the step is not.
-    read_progress = homepage._widgets["read_progress"]
+    read_progress = homepage._widgets["statuses"]["read_rawData"].progress
     assert (read_progress.value, read_progress.max) == (2, 2)
+    assert status_text(homepage, "read_rawData") == "Running…"
     assert capture_periodic["callback"].stopped is False
     assert notifications == []
 
@@ -404,43 +405,124 @@ def test_second_step_launch_is_refused_while_one_is_running(homepage, selected_s
     assert any("already running" in message for message in notifications)
 
 
-def results_html(homepage, button_name):
-    return homepage._widgets["results_buttons"][button_name].object
-
-
 @pytest.fixture
-def tab_messages(homepage, monkeypatch):
-    """Record what the homepage tells the browser about its placeholder tabs."""
-    messages = []
-    monkeypatch.setattr(homepage._widgets["tab_opener"], "_send_msg", messages.append)
-    return messages
+def page_area(homepage):
+    return homepage._widgets["page_area"]
+
+
+def status_text(homepage, step_name):
+    return re.sub(r"<[^>]+>", "", homepage._widgets["statuses"][step_name].message.object)
+
+
+def test_main_area_holds_only_the_page_area(homepage, page_area):
+    assert list(homepage.main) == [page_area.tabs]
+    assert page_area.tabs._names == ["Input Parameters"]
+
+
+RESULTS_HANDLERS = [
+    ("onclickpreprocess", "run_preprocess_step", "preprocess", "open_preprocess_view", "Preprocessing"),
+    (
+        "onclickRemoveArtifacts",
+        "run_remove_artifacts_step",
+        "remove_artifacts",
+        "open_artifact_view",
+        "Artifact Removal",
+    ),
+    ("onclickpsth", "run_psth_step", "psth_computation", "open_transients_view", "Transient peaks"),
+]
 
 
 @pytest.mark.parametrize(
-    "hook_name, worker_attr, button_name, route",
-    [
-        ("onclickpreprocess", "run_preprocess_step", "preprocess", "preprocess-view"),
-        ("onclickpsth", "run_psth_step", "psth_computation", "transients-view"),
-    ],
-    ids=["preprocess", "psth"],
+    "hook_name, worker_attr, button_name, view_attr, page_name",
+    RESULTS_HANDLERS,
+    ids=[button_name for _, _, button_name, _, _ in RESULTS_HANDLERS],
 )
-def test_step_success_enables_show_results(
-    homepage, selected_session, monkeypatch, capture_periodic, hook_name, worker_attr, button_name, route
+def test_step_success_opens_the_results_page_and_enables_show_results(
+    homepage,
+    page_area,
+    selected_session,
+    monkeypatch,
+    capture_periodic,
+    hook_name,
+    worker_attr,
+    button_name,
+    view_attr,
+    page_name,
 ):
     def worker(params):
         progress.start(3)
         progress.advance(3)
 
+    results_page = pn.pane.Markdown(page_name)
     monkeypatch.setattr(f"guppy.orchestration.home.{worker_attr}", worker)
+    monkeypatch.setattr(
+        f"guppy.orchestration.home.{view_attr}",
+        lambda session_folders, params: page_links.offer_page(name=page_name, content=results_page),
+    )
+    results_button = homepage._widgets["results_buttons"][button_name]
+    assert results_button.visible is False
 
     homepage._hooks[hook_name]()
     poll_until_stopped(capture_periodic)
 
-    assert results_html(homepage, button_name).startswith(f'<a href="{route}?token=')
+    assert page_area.tabs._names == ["Input Parameters", page_name]
+    assert page_area.tabs.active == 1
+    assert page_area.tabs[1][0] is results_page
+    assert results_button.visible is True
 
 
-def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkeypatch, capture_periodic):
-    homepage._widgets["results_buttons"]["preprocess"].object = '<a href="old">Show results</a>'
+def test_show_results_reopens_a_closed_results_tab(
+    homepage, page_area, selected_session, monkeypatch, capture_periodic
+):
+    def worker(params):
+        progress.start(1)
+        progress.advance(1)
+
+    shown = iter([pn.pane.Markdown("first"), pn.pane.Markdown("second")])
+    monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", worker)
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_preprocess_view",
+        lambda session_folders, params: page_links.offer_page(name="Preprocessing", content=next(shown)),
+    )
+    results_button = homepage._widgets["results_buttons"]["preprocess"]
+
+    homepage._hooks["onclickpreprocess"]()
+    poll_until_stopped(capture_periodic)
+    # Closing a tab in the browser removes it from the Tabs' objects.
+    page_area.tabs.pop(1)
+    results_button.clicks += 1
+
+    assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
+    assert page_area.tabs.active == 1
+    assert page_area.tabs[1][0].object == "second"
+
+
+def test_show_results_clicked_while_open_replaces_its_tab(
+    homepage, page_area, selected_session, monkeypatch, capture_periodic
+):
+    def worker(params):
+        progress.start(1)
+        progress.advance(1)
+
+    shown = iter([pn.pane.Markdown("first"), pn.pane.Markdown("second")])
+    monkeypatch.setattr("guppy.orchestration.home.run_preprocess_step", worker)
+    monkeypatch.setattr(
+        "guppy.orchestration.home.open_preprocess_view",
+        lambda session_folders, params: page_links.offer_page(name="Preprocessing", content=next(shown)),
+    )
+    results_button = homepage._widgets["results_buttons"]["preprocess"]
+
+    homepage._hooks["onclickpreprocess"]()
+    poll_until_stopped(capture_periodic)
+    results_button.clicks += 1
+
+    assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
+    assert page_area.tabs[1][0].object == "second"
+
+
+def test_a_failed_rerun_hides_view_results(homepage, selected_session, monkeypatch, capture_periodic):
+    results_button = homepage._widgets["results_buttons"]["preprocess"]
+    results_button.visible = True
 
     def failing_worker(params):
         progress.fail("Preprocessing failed")
@@ -451,36 +533,59 @@ def test_a_failed_rerun_disables_show_results(homepage, selected_session, monkey
     homepage._hooks["onclickpreprocess"]()
     poll_until_stopped(capture_periodic)
 
-    assert results_html(homepage, "preprocess").startswith("<span ")
+    assert results_button.visible is False
 
 
-def test_label_stores_shows_every_session_in_the_clicks_tab(homepage, selected_session, monkeypatch, tab_messages):
-    def offer_two_sessions(params, on_saved):
-        for session in ["mouse_01", "mouse_02"]:
-            page_links.offer_page(
-                name=session, template=pn.template.BootstrapTemplate(title=f"Label Stores GUI - {session}")
-            )
+def offer_label_stores_pages(*, sessions):
+    """An ``orchestrate_store_labeling_page`` stand-in offering one page per session."""
 
-    monkeypatch.setattr("guppy.orchestration.home.orchestrate_store_labeling_page", offer_two_sessions)
+    def orchestrate(params, on_saved):
+        for session in sessions:
+            template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {session}")
+            template.main.append(pn.pane.Markdown(f"labels for {session}"))
+            page_links.offer_template(name=session, template=template)
+
+    return orchestrate
+
+
+def test_label_stores_shows_a_lone_session_under_the_steps_title(homepage, page_area, selected_session, monkeypatch):
+    monkeypatch.setattr(
+        "guppy.orchestration.home.orchestrate_store_labeling_page", offer_label_stores_pages(sessions=["mouse_01"])
+    )
 
     homepage._hooks["onclickLabelStores"]()
 
-    (message,) = tab_messages
-    assert message["key"] == "open_label_stores"
-    token = message["href"].removeprefix("page?token=")
-    assert step_view._pending_pages[token].title == "Label Stores — 2 sessions"
+    assert page_area.tabs._names == ["Input Parameters", "Label Stores — mouse_01"]
+    assert page_area.tabs[1][0][0].object == "labels for mouse_01"
 
 
-def test_a_click_that_opens_nothing_closes_its_tab(homepage, monkeypatch, tab_messages):
+def test_label_stores_shows_every_session_in_one_tab(homepage, page_area, selected_session, monkeypatch):
+    monkeypatch.setattr(
+        "guppy.orchestration.home.orchestrate_store_labeling_page",
+        offer_label_stores_pages(sessions=["mouse_01", "mouse_02"]),
+    )
+
+    homepage._hooks["onclickLabelStores"]()
+
+    assert page_area.tabs._names == ["Input Parameters", "Label Stores — 2 sessions"]
+    assert page_area.tabs.active == 1
+    session_tabs = page_area.tabs[1][0]
+    assert isinstance(session_tabs, pn.Tabs)
+    assert session_tabs._names == ["mouse_01", "mouse_02"]
+    assert [column[0].object for column in session_tabs] == ["labels for mouse_01", "labels for mouse_02"]
+
+
+def test_a_click_that_opens_nothing_adds_no_tab(homepage, page_area, monkeypatch):
     # No session is selected, so the click is refused before any page is built.
     monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
 
     homepage._hooks["onclickLabelStores"]()
 
-    assert tab_messages == [{"key": "open_label_stores", "href": None}]
+    assert page_area.tabs._names == ["Input Parameters"]
+    assert page_area.tabs.active == 0
 
 
-def test_a_click_that_fails_closes_its_tab(homepage, selected_session, monkeypatch, tab_messages):
+def test_a_click_that_fails_adds_no_tab(homepage, page_area, selected_session, monkeypatch):
     def fail(params, on_saved):
         raise RuntimeError("header could not be read")
 
@@ -489,14 +594,15 @@ def test_a_click_that_fails_closes_its_tab(homepage, selected_session, monkeypat
     with pytest.raises(RuntimeError):
         homepage._hooks["onclickLabelStores"]()
 
-    assert tab_messages == [{"key": "open_label_stores", "href": None}]
+    assert page_area.tabs._names == ["Input Parameters"]
 
 
-def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
-    homepage, selected_session, monkeypatch, capture_periodic
-):
-    """A step that finishes having reported fewer units than it declared must still leave the
-    bar full, rather than stranded partway."""
+def test_a_step_starts_as_not_run_yet(homepage):
+    assert status_text(homepage, "read_rawData") == "Not run yet"
+
+
+def test_success_marks_the_step_done_and_hides_its_bar(homepage, selected_session, monkeypatch, capture_periodic):
+    """A step that finishes having reported fewer units than it declared is still done."""
 
     def worker(params):
         progress.start(10)
@@ -507,8 +613,22 @@ def test_success_snaps_the_bar_to_full_when_the_step_undercounted(
     homepage._hooks["onclickreaddata"]()
     poll_until_stopped(capture_periodic)
 
-    read_progress = homepage._widgets["read_progress"]
-    assert (read_progress.value, read_progress.max) == (10, 10)
+    assert re.fullmatch(r"✓ Done at \d\d:\d\d", status_text(homepage, "read_rawData"))
+    assert homepage._widgets["statuses"]["read_rawData"].progress.visible is False
+
+
+def test_failure_marks_the_step_failed_and_hides_its_bar(homepage, selected_session, monkeypatch, capture_periodic):
+    def worker(params):
+        progress.fail("Reading failed")
+
+    monkeypatch.setattr("guppy.orchestration.home.run_read_raw_data_step", worker)
+    monkeypatch.setattr(pn.state.notifications, "error", lambda message, *, duration: None)
+
+    homepage._hooks["onclickreaddata"]()
+    poll_until_stopped(capture_periodic)
+
+    assert re.fullmatch(r"✗ Failed at \d\d:\d\d", status_text(homepage, "read_rawData"))
+    assert homepage._widgets["statuses"]["read_rawData"].progress.visible is False
 
 
 class TestSelectArtifactWindowsHandler:
@@ -548,29 +668,39 @@ class TestSelectArtifactWindowsHandler:
 
 
 PAGE_OPENING_HANDLERS = [
-    ("onclickImportCustomEvents", "orchestrate_custom_events_page", "import_custom_events"),
-    ("onclickVisualization", "visualizeResults", "open_visualization"),
-    ("onclickSelectArtifactWindows", "orchestrate_select_artifact_windows", "select_artifact_windows"),
-    ("onclickTonicAnalysis", "orchestrate_tonic_analysis", "tonic_analysis"),
-    ("onclickLabelGroups", "orchestrate_group_labeling_page", "label_groups"),
-    ("onclickMetadata", "orchestrate_metadata_page", "open_metadata"),
+    (
+        "onclickImportCustomEvents",
+        "orchestrate_custom_events_page",
+        "Import Custom Events — Page",
+        "import_custom_events",
+    ),
+    ("onclickVisualization", "visualizeResults", "Visualization — Page", "open_visualization"),
+    ("onclickSelectArtifactWindows", "orchestrate_select_artifact_windows", "Page", "select_artifact_windows"),
+    ("onclickTonicAnalysis", "orchestrate_tonic_analysis", "Page", "tonic_analysis"),
+    ("onclickLabelGroups", "orchestrate_group_labeling_page", "Page", "label_groups"),
+    ("onclickMetadata", "orchestrate_metadata_page", "Input Metadata — Page", "open_metadata"),
 ]
 
 
 @pytest.mark.parametrize(
-    "hook_name, orchestrator, button_name", PAGE_OPENING_HANDLERS, ids=[name for _, _, name in PAGE_OPENING_HANDLERS]
+    "hook_name, orchestrator, tab_name, step_name",
+    PAGE_OPENING_HANDLERS,
+    ids=[name for name, _, _, _ in PAGE_OPENING_HANDLERS],
 )
-def test_a_page_opening_click_fills_its_tab(
-    homepage, selected_session, monkeypatch, tab_messages, hook_name, orchestrator, button_name
+def test_a_page_opening_click_shows_its_page_in_a_new_tab_and_marks_it_opened(
+    homepage, page_area, selected_session, monkeypatch, hook_name, orchestrator, tab_name, step_name
 ):
+    page = pn.pane.Markdown("Page")
     monkeypatch.setattr(
-        f"guppy.orchestration.home.{orchestrator}",
-        lambda params: page_links.offer_link(title="Page", href="page-view?token=abc"),
+        f"guppy.orchestration.home.{orchestrator}", lambda params: page_links.offer_page(name="Page", content=page)
     )
 
     homepage._hooks[hook_name]()
 
-    assert tab_messages == [{"key": button_name, "href": "page-view?token=abc"}]
+    assert page_area.tabs._names == ["Input Parameters", tab_name]
+    assert page_area.tabs.active == 1
+    assert page_area.tabs[1][0] is page
+    assert re.fullmatch(r"✓ Opened at \d\d:\d\d", status_text(homepage, step_name))
 
 
 # Import Custom Events builds its pages without validating anything, so it has nothing to refuse.
@@ -578,10 +708,12 @@ REFUSING_HANDLERS = PAGE_OPENING_HANDLERS[1:]
 
 
 @pytest.mark.parametrize(
-    "hook_name, orchestrator, button_name", REFUSING_HANDLERS, ids=[name for _, _, name in REFUSING_HANDLERS]
+    "hook_name, orchestrator, tab_name, step_name",
+    REFUSING_HANDLERS,
+    ids=[name for name, _, _, _ in REFUSING_HANDLERS],
 )
-def test_a_refused_page_opening_click_notifies_and_closes_its_tab(
-    homepage, selected_session, monkeypatch, tab_messages, hook_name, orchestrator, button_name
+def test_a_refused_page_opening_click_notifies_and_adds_no_tab(
+    homepage, page_area, selected_session, monkeypatch, hook_name, orchestrator, tab_name, step_name
 ):
     def refuse(params):
         raise ValueError("Run Step 3 first.")
@@ -593,17 +725,5 @@ def test_a_refused_page_opening_click_notifies_and_closes_its_tab(
     homepage._hooks[hook_name]()
 
     assert notifications == ["Run Step 3 first."]
-    assert tab_messages == [{"key": button_name, "href": None}]
-
-
-def test_remove_artifacts_success_enables_show_results(homepage, selected_session, monkeypatch, capture_periodic):
-    def worker(params):
-        progress.start(1)
-        progress.advance(1)
-
-    monkeypatch.setattr("guppy.orchestration.home.run_remove_artifacts_step", worker)
-
-    homepage._hooks["onclickRemoveArtifacts"]()
-    poll_until_stopped(capture_periodic)
-
-    assert results_html(homepage, "remove_artifacts").startswith('<a href="artifact-view?token=')
+    assert page_area.tabs._names == ["Input Parameters"]
+    assert status_text(homepage, step_name) == "Not run yet"

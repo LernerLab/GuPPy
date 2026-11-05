@@ -1,6 +1,6 @@
 """Label Groups step: define a group of output runs, without computing anything.
 
-Clicking the sidebar button offers a link to a Panel page where a group is
+Clicking the sidebar button shows a page on the homepage where a group is
 named, given a destination, and given its member runs. Saving writes only
 ``group_members.json`` into ``<destination>/<group_name>_group/`` — the group directory is
 a definition at that point, exactly as a run folder holds ``storesList.csv`` before Step 2
@@ -10,8 +10,8 @@ selected on the homepage.
 
 import logging
 
-from .step_view import serve_page
 from ..frontend.group_labeling import GroupLabelingPage
+from ..utils import page_links
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def build_group_labeling_page(*, inputParameters: dict[str, object]) -> GroupLab
 
 
 def orchestrate_group_labeling_page(inputParameters: dict[str, object]) -> None:
-    """Serve the Label Groups page and offer a link to it.
+    """Offer the Label Groups page.
 
     Parameters
     ----------
@@ -46,4 +46,4 @@ def orchestrate_group_labeling_page(inputParameters: dict[str, object]) -> None:
         Full pipeline input parameters; see :func:`build_group_labeling_page`.
     """
     page = build_group_labeling_page(inputParameters=inputParameters)
-    serve_page(template=page.build_template(), title="Label Groups")
+    page_links.offer_template(name="Label Groups", template=page.build_template())

@@ -1,20 +1,23 @@
+import panel as pn
+
 from guppy.orchestration import artifact_view
+from guppy.utils import page_links
+from guppy.utils.page_links import Page
 
 
-def test_build_page_resolves_folders_and_composes(monkeypatch):
+def test_open_artifact_view_offers_the_page_for_the_resolved_runs(panel_extension, monkeypatch):
     monkeypatch.setattr(artifact_view, "resolve_run_folders", lambda session_folders, params: ["/a/output_1"])
+    review_page = pn.pane.Markdown("review")
     calls = []
-    monkeypatch.setattr(
-        artifact_view,
-        "build_artifact_review_page",
-        lambda *, run_folders: calls.append(run_folders),
-    )
 
-    artifact_view._build_page(["/a"], {"combine_data": False})
+    def build_artifact_review_page(*, run_folders):
+        calls.append(run_folders)
+        return review_page
+
+    monkeypatch.setattr(artifact_view, "build_artifact_review_page", build_artifact_review_page)
+
+    with page_links.collect() as pages:
+        artifact_view.open_artifact_view(["/a"], {"combine_data": False})
 
     assert calls == [["/a/output_1"]]
-
-
-def test_exposes_route_factory_and_open_helper():
-    assert callable(artifact_view.build_artifact_view)
-    assert callable(artifact_view.open_artifact_view)
+    assert pages == [Page(name="Artifact Removal", content=review_page)]
