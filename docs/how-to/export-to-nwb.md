@@ -56,7 +56,7 @@ Click **Input Metadata**. An Input Metadata tab opens beside the form, with a ta
 each selected session, named `<session> (<run>)`.
 
 ```{image} ../_static/images/export_to_nwb_button.png
-:alt: The bottom of the sidebar showing Step 6, Input Metadata, and Step 7, Export to NWB, with its progress bar, positioned below Step 5, Visualization
+:alt: The bottom of the sidebar showing Step 6, Input Metadata, and Step 7, Export to NWB, each with its status line, positioned below Step 5, Visualization
 :width: 50%
 ```
 

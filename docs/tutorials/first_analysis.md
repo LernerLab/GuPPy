@@ -148,7 +148,7 @@ You can close this Label Stores tab and return to the original homepage tab. Ope
 Click **Read Raw Data**. A progress bar appears in the sidebar directly below the button and fills as the work runs. That bar is the primary signal that the step is in progress.
 
 ```{image} ../_static/images/04_read_progress.png
-:alt: GuPPy homepage sidebar with the Read Raw Data progress bar partially filled
+:alt: GuPPy homepage sidebar with Read Raw Data running, its progress bar just appeared below the button
 :align: center
 ```
 
