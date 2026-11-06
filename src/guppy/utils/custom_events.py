@@ -1,6 +1,6 @@
 """Parse, validate, and write user-supplied custom event timestamps.
 
-This module backs the optional "Import Custom Events" GUI step. A custom event
+This module backs the optional "Import Custom Events" step. A custom event
 is written as a GuPPy-compatible event CSV — a single column with the header
 ``timestamps`` and one timestamp (in seconds) per row — into a session folder.
 ``detect_acquisition_formats`` and ``CsvRecordingExtractor`` then surface it as a
@@ -78,7 +78,7 @@ def write_custom_event_csv(
 
     The file is written as ``<name>.csv`` into ``folder_path`` with a single
     ``timestamps`` column. The filename (minus ``.csv``) becomes the store_id
-    surfaced in the Label Stores GUI.
+    surfaced on the Label Stores page.
 
     Parameters
     ----------
