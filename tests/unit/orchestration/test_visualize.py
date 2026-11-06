@@ -1,5 +1,5 @@
 """
-Unit tests for guppy.orchestration.visualize._validate_psth_outputs_exist.
+Unit tests for guppy.orchestration.visualize.
 """
 
 import logging
@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from guppy.orchestration.visualize import (
-    _validate_psth_outputs_exist,
+    _validate_results_exist,
     helper_plots,
     visualizeResults,
 )
@@ -50,44 +50,71 @@ def make_parameters():
     return _make
 
 
-class TestValidatePsthOutputsExist:
+class TestValidateResultsExist:
     def test_passes_when_z_score_psth_files_present(self, tmp_path, make_session, make_parameters):
         session_dir, run_folder = make_session(tmp_path)
         (run_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
 
-        _validate_psth_outputs_exist(make_parameters(session_dir))
+        _validate_results_exist(make_parameters(session_dir))
 
     def test_passes_when_dff_psth_files_present(self, tmp_path, make_session, make_parameters):
         session_dir, run_folder = make_session(tmp_path)
         (run_folder / "ttl_region_dff_region.h5").write_bytes(b"")
 
-        _validate_psth_outputs_exist(make_parameters(session_dir))
+        _validate_results_exist(make_parameters(session_dir))
 
     def test_raises_when_the_run_folder_holds_no_psth_files(self, tmp_path, make_session, make_parameters):
         session_dir, _ = make_session(tmp_path)
 
-        with pytest.raises(ValueError, match="No PSTH results were found"):
-            _validate_psth_outputs_exist(make_parameters(session_dir))
+        with pytest.raises(ValueError, match="Nothing to visualize was found"):
+            _validate_results_exist(make_parameters(session_dir))
 
     def test_step3_hdf5_does_not_satisfy_the_check(self, tmp_path, make_session, make_parameters):
         """z_score_region.hdf5 (step-3 output) must not be mistaken for a PSTH file."""
         session_dir, run_folder = make_session(tmp_path)
         (run_folder / "z_score_region.hdf5").write_bytes(b"")
 
-        with pytest.raises(ValueError, match="No PSTH results were found"):
-            _validate_psth_outputs_exist(make_parameters(session_dir))
+        with pytest.raises(ValueError, match="Nothing to visualize was found"):
+            _validate_results_exist(make_parameters(session_dir))
+
+    def test_transient_frequency_table_does_not_satisfy_the_check(self, tmp_path, make_session, make_parameters):
+        """Step 4 writes freqAndAmp_z_score_region.h5 even for a run without events."""
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "freqAndAmp_z_score_region.h5").write_bytes(b"")
+
+        with pytest.raises(ValueError, match="Nothing to visualize was found"):
+            _validate_results_exist(make_parameters(session_dir))
 
     def test_raises_names_the_empty_output_directory(self, tmp_path, make_session, make_parameters):
         session_dir, run_folder = make_session(tmp_path)
 
         with pytest.raises(ValueError, match=re.escape(str(run_folder))):
-            _validate_psth_outputs_exist(make_parameters(session_dir))
+            _validate_results_exist(make_parameters(session_dir))
 
-    def test_raises_tells_the_user_to_run_step_4(self, tmp_path, make_session, make_parameters):
+    def test_raises_names_what_step_5_can_show(self, tmp_path, make_session, make_parameters):
         session_dir, _ = make_session(tmp_path)
 
-        with pytest.raises(ValueError, match="Run step 4"):
-            _validate_psth_outputs_exist(make_parameters(session_dir))
+        with pytest.raises(ValueError) as error:
+            _validate_results_exist(make_parameters(session_dir))
+
+        assert str(error.value).endswith(
+            "Step 5 shows PSTH results, which need behavioral events and come from step 4 (or, for a "
+            "'_group' directory, from the Group Analysis step); binned metrics and covariate correlations "
+            "from step 4; and results from the Tonic Analysis step."
+        )
+
+    def test_passes_when_only_tonic_results_are_present(self, tmp_path, make_session, make_parameters):
+        """A session without behavioral events can still hold Tonic Analysis results."""
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "tonic_region.h5").write_bytes(b"")
+
+        _validate_results_exist(make_parameters(session_dir))
+
+    def test_passes_when_only_binned_metrics_are_present(self, tmp_path, make_session, make_parameters):
+        session_dir, run_folder = make_session(tmp_path)
+        (run_folder / "binned_metrics_region.h5").write_bytes(b"")
+
+        _validate_results_exist(make_parameters(session_dir))
 
     def test_one_populated_directory_is_enough(self, tmp_path, make_session):
         """A directory without results is skipped downstream, not fatal here."""
@@ -95,7 +122,7 @@ class TestValidatePsthOutputsExist:
         session2_dir, _ = make_session(tmp_path, "session2")
         (run_folder_1 / "ttl_region_z_score_region.h5").write_bytes(b"")
 
-        _validate_psth_outputs_exist(
+        _validate_results_exist(
             {
                 "session_folders": [str(session1_dir), str(session2_dir)],
                 "combine_data": False,
@@ -116,7 +143,7 @@ class TestValidatePsthOutputsExist:
         session_dir = tmp_path / "empty_session"
         session_dir.mkdir()
 
-        _validate_psth_outputs_exist(make_parameters(session_dir, selected_runs=()))
+        _validate_results_exist(make_parameters(session_dir, selected_runs=()))
 
     def test_group_folder_with_results_passes(self, tmp_path, make_session, make_parameters):
         session_dir, _ = make_session(tmp_path)
@@ -124,7 +151,7 @@ class TestValidatePsthOutputsExist:
         group_folder.mkdir()
         (group_folder / "ttl_region_z_score_region.h5").write_bytes(b"")
 
-        _validate_psth_outputs_exist(make_parameters(session_dir, selected_group_folders=[str(group_folder)]))
+        _validate_results_exist(make_parameters(session_dir, selected_group_folders=[str(group_folder)]))
 
     def test_group_folder_without_results_is_named(self, tmp_path, make_session, make_parameters):
         session_dir, _ = make_session(tmp_path)
@@ -132,7 +159,7 @@ class TestValidatePsthOutputsExist:
         group_folder.mkdir()
 
         with pytest.raises(ValueError, match=re.escape(str(group_folder))):
-            _validate_psth_outputs_exist(make_parameters(session_dir, selected_group_folders=[str(group_folder)]))
+            _validate_results_exist(make_parameters(session_dir, selected_group_folders=[str(group_folder)]))
 
 
 class TestVisualizeResultsSelectionSources:
@@ -211,7 +238,7 @@ class TestHelperPlots:
         (run_folder / "storesList.csv").write_text("Dv1A,Dv2A,PrtN\ncontrol_region,signal_region,ttl\n")
         return run_folder
 
-    def test_no_dashboard_is_opened_without_psth_results(self, run_folder_without_psth):
+    def test_no_dashboard_is_opened_without_any_results(self, run_folder_without_psth):
         with patch("guppy.orchestration.visualize.VisualizationDashboard") as dashboard_class:
             helper_plots(
                 str(run_folder_without_psth), ["ttl_region"], {"nSecPrev": -10, "nSecPost": 20}, label="output_1"
@@ -226,10 +253,26 @@ class TestHelperPlots:
             )
 
         assert str(run_folder_without_psth) in caplog.text
-        assert "No PSTH results were found" in caplog.text
+        assert "Nothing to visualize was found" in caplog.text
 
-    def test_no_dashboard_is_opened_without_behavior_events(self, run_folder_without_psth):
+    def test_no_dashboard_is_opened_without_behavior_events_or_whole_session_results(self, run_folder_without_psth):
         with patch("guppy.orchestration.visualize.VisualizationDashboard") as dashboard_class:
             helper_plots(str(run_folder_without_psth), [], {"nSecPrev": -10, "nSecPost": 20}, label="output_1")
 
         dashboard_class.assert_not_called()
+
+    def test_a_dashboard_without_a_plotter_is_opened_for_tonic_results_alone(self, run_folder_without_psth):
+        (run_folder_without_psth / "tonic_region.h5").write_bytes(b"")
+
+        with patch("guppy.orchestration.visualize.VisualizationDashboard") as dashboard_class:
+            dashboard_class.return_value.build_template.return_value.main.objects = []
+            helper_plots(str(run_folder_without_psth), [], {"nSecPrev": -10, "nSecPost": 20}, label="output_1")
+
+        dashboard_class.assert_called_once_with(
+            filepath=str(run_folder_without_psth),
+            plotter=None,
+            basename="output_1",
+            events=[],
+            metric=None,
+            available_metrics=[],
+        )

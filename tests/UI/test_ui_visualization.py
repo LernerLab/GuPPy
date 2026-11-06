@@ -51,6 +51,7 @@ def visualization_server_url(panel_extension, tmp_path_factory):
         x_max=10.0,
     )
     dashboard = VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename="test_session",
         events=_EVENTS,
