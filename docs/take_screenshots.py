@@ -360,7 +360,7 @@ def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
 
 
 def screenshot_covariate_label_stores(page: Page) -> None:
-    """How-to: the Label Stores GUI with both behavioral covariates typed and named.
+    """How-to: the Label Stores page with both behavioral covariates typed and named.
 
     Built directly rather than driven through the UI, for the reasons
     ``screenshot_label_stores_configured`` documents. The cached labels are the
@@ -390,7 +390,7 @@ def screenshot_covariate_label_stores(page: Page) -> None:
     )
 
     template = pn.template.BootstrapTemplate(
-        title="Label Stores GUI - sample_data_csv_covariate_1"
+        title="Label Stores - sample_data_csv_covariate_1"
     )
     template.main.append(selector.widget)
     url = _serve(template)
@@ -474,9 +474,9 @@ def screenshot_import_custom_events(page: Page) -> None:
 
 
 def screenshot_label_stores(page: Page, tmp_path: Path) -> None:
-    """Screenshot 2: the Label Stores GUI with CSV channel names."""
+    """Screenshot 2: the Label Stores page with CSV channel names."""
     # Pass the real sample-data directory so the page title reads
-    # "Label Stores GUI - sample_data_csv_1" instead of leaking a tmp dir basename.
+    # "Label Stores - sample_data_csv_1" instead of leaking a tmp dir basename.
     template = build_store_labeling_template(
         events=["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"],
         flags=[],
@@ -668,7 +668,7 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
 
 
 def screenshot_label_stores_configured(page: Page, tmp_path: Path) -> None:
-    """Screenshot 2b: the Label Stores GUI after clicking Select Stores.
+    """Screenshot 2b: the Label Stores page after clicking Select Stores.
 
     Shows the Label Stores panel with one row per channel
     (Type dropdown + Name text field), which is the state the user
@@ -690,7 +690,7 @@ def screenshot_label_stores_configured(page: Page, tmp_path: Path) -> None:
     selector.configure_store_ids(store_id_to_store_labels={})
 
     template = pn.template.BootstrapTemplate(
-        title="Label Stores GUI - sample_data_csv_1"
+        title="Label Stores - sample_data_csv_1"
     )
     template.main.append(selector.widget)
     url = _serve(template)
@@ -776,7 +776,7 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
     selector.run_name.value = run_name
 
     template = pn.template.BootstrapTemplate(
-        title="Label Stores GUI - sample_data_csv_1"
+        title="Label Stores - sample_data_csv_1"
     )
     template.main.append(
         pn.Column(

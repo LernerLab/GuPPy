@@ -12,7 +12,7 @@ from guppy.utils.nwb_metadata import Channel
 
 @pytest.fixture(scope="session")
 def metadata_server_url(panel_extension, ui_base_dir, tmp_path_factory):
-    """Serve the Metadata GUI on a free local port (two fixed dms channels)."""
+    """Serve the Input Metadata page on a free local port (two fixed dms channels)."""
     temporary_folder = tmp_path_factory.mktemp("metadata_session")
     channels = [Channel("dms", "control", "Dv1A"), Channel("dms", "signal", "Dv2A")]
     template = build_metadata_template(
@@ -40,7 +40,7 @@ def metadata_server_url(panel_extension, ui_base_dir, tmp_path_factory):
 @pytest.mark.ui
 def test_page_title_contains_metadata_gui(page, metadata_server_url):
     page.goto(metadata_server_url)
-    assert "Metadata GUI" in page.title()
+    assert "Input Metadata" in page.title()
 
 
 @pytest.mark.ui

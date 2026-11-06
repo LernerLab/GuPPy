@@ -4,8 +4,8 @@ GuPPy can align analyses to behavioral events you derived outside the
 acquisition system — for example movement onsets thresholded from a velocity
 trace, or events scored by hand from video. This guide shows the two ways to
 bring those timestamps in. Both produce the same artifact: a GuPPy-compatible
-event CSV in the session folder that appears as a selectable store in the
-Label Stores GUI.
+event CSV in the session folder that appears as a selectable store on the
+Label Stores page.
 
 This is an **optional** step. If all the events you care about are already in
 the recording, skip it.
@@ -50,7 +50,7 @@ a spreadsheet).
    in seconds — into the paste box. The values come straight from a spreadsheet
    column; no header or surrounding text.
 4. Click **Add event** to add another event, then **Save**.
-5. Open the **Label Stores GUI**: each imported event now appears as a store
+5. Open the **Label Stores** page: each imported event now appears as a store
    named after what you typed, ready to label like any other.
 
 ```{image} ../_static/images/import_custom_events.png
@@ -94,4 +94,4 @@ timestamps
 
 Place that file in the session folder. GuPPy detects it automatically — no
 configuration needed — and it shows up as a store named `movement_onset` the
-next time you open the Label Stores GUI.
+next time you open the Label Stores page.

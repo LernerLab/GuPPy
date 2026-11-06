@@ -235,7 +235,7 @@ def import_custom_events(
 ) -> None:
     """Write custom event CSVs into sessions via the actual Panel-backed logic, headlessly.
 
-    Mirrors the optional "Import Custom Events" GUI step: builds the form
+    Mirrors the optional "Import Custom Events" step: builds the form
     headlessly (rooting the file selectors at ``base_dir``), sets the
     FileSelector to ``selected_folders``, injects ``custom_events_map``, and calls
     ``orchestrate_custom_events_page``. Each event is written as a

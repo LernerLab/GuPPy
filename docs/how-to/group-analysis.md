@@ -17,7 +17,7 @@ every session you want to include first; see [Your First Analysis](../tutorials/
 for that baseline workflow. A run folder can join a group once it has its own PSTH output.
 
 Every member run also needs the same **recording-site labels**, meaning the names you gave the
-channels in Step 1's Label Stores GUI, such as `DMS` or `DLS`. GuPPy checks this when the step
+channels on Step 1's Label Stores page, such as `DMS` or `DLS`. GuPPy checks this when the step
 runs and stops with an error naming the mismatched run if the sites disagree.
 
 Behavioral **event** labels are free to differ between members. Averaging a `novelobject` session
@@ -67,7 +67,7 @@ definition survives the rebuild.
 ## Visualizing a group
 
 A group folder behaves like any other run folder in the visualizer, so there is no mode
-to switch on and nothing to select a second time. Click **Open Visualization GUI** in the sidebar.
+to switch on and nothing to select a second time. Click **Open Visualization** in the sidebar.
 Each selected run and group gets its own tab on the page that opens.
 
 You can visualize a group on its own. Step 5 accepts an empty individual selection as long as a

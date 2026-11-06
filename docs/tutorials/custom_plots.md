@@ -1,6 +1,6 @@
 # Custom Plots from GuPPy Outputs
 
-The Visualization GUI covers the plots most analyses need, but sooner or later you will want a figure it does not offer: your own color scheme for a paper, two recording sites overlaid, a subset of trials, a statistic GuPPy does not compute. Everything you need for that is already on disk in the run folder, and this tutorial opens it.
+The Visualization page covers the plots most analyses need, but sooner or later you will want a figure it does not offer: your own color scheme for a paper, two recording sites overlaid, a subset of trials, a statistic GuPPy does not compute. Everything you need for that is already on disk in the run folder, and this tutorial opens it.
 
 This is the sequel to [Your First Analysis](first_analysis.md). It uses the run folder that tutorial produces and builds three figures from it with plain matplotlib.
 

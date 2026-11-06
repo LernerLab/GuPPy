@@ -20,7 +20,7 @@ manually scored events). For each event, enter a **name** and paste its
 column. Click **Add event** for more, then **Save**.
 
 Each event is written into this session as ``<name>.csv`` and appears as a
-selectable store the next time you open the Label Stores GUI. This step is
+selectable store the next time you open the Label Stores page. This step is
 optional — leave it empty and just continue if you have no custom events.
 """
 

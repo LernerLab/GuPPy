@@ -93,7 +93,7 @@ A **store** is the human-readable label GuPPy uses for one of your data channels
 Click **Label Stores** in the sidebar. A Label Stores tab opens beside the form, with the Label Stores panel for the selected folder. With several folders selected, the panel has a tab for each.
 
 ```{image} ../_static/images/02_label_stores.png
-:alt: Label Stores GUI with the three sample CSV channels listed as available options
+:alt: The Label Stores page with the three sample CSV channels listed as available options
 :align: center
 ```
 
@@ -104,7 +104,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 2. **Click "Select Label Stores".** A new *Configure Label Stores* section appears below, with one row per channel. Each row has a **Type** dropdown and a **Name** text field.
 
    ```{image} ../_static/images/02b_label_stores_configured.png
-   :alt: Label Stores GUI after clicking Select Label Stores, showing the Configure Label Stores section with a Type dropdown and Name field for each of the three channels
+   :alt: The Label Stores page after clicking Select Label Stores, showing the Configure Label Stores section with a Type dropdown and Name field for each of the three channels
    :align: center
    ```
 
@@ -220,12 +220,12 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 ## Step 5: Visualize the results
 
-Click **Open Visualization GUI** in the sidebar. A Visualization tab opens with the Visualization GUI for this session, organized into two tabs.
+Click **Open Visualization** in the sidebar. A Visualization tab opens with the Visualization page for this session, organized into two tabs.
 
 A **Metric** selector sits with the display settings on the PSTH tab, and beside the event selector on the Heat Map tab. It lists the metrics Step 4 actually computed for this run, so here it offers only `z-score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
 
 ```{image} ../_static/images/03_visualization.png
-:alt: GuPPy Visualization GUI showing the PSTH tab with the RewardPort event selected
+:alt: GuPPy's Visualization page showing the PSTH tab with the RewardPort event selected
 :align: center
 ```
 

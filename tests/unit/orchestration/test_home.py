@@ -541,7 +541,7 @@ def offer_label_stores_pages(*, sessions):
 
     def orchestrate(params, on_saved):
         for session in sessions:
-            template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {session}")
+            template = pn.template.BootstrapTemplate(title=f"Label Stores - {session}")
             template.main.append(pn.pane.Markdown(f"labels for {session}"))
             page_links.offer_template(name=session, template=template)
 

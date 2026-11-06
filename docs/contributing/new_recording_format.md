@@ -22,7 +22,7 @@ inline comment there explains this is intentional, because different formats nee
 discovery inputs. TDT, CSV, Doric, and NWB widen it to take only `folder_path`. NPM widens it
 further, to `discover_events_and_flags(cls, folder_path, num_ch, inputParameters)`, since
 demultiplexing its interleaved channels needs the channel count and, optionally, the NPM decomposition
-settings chosen in the Label Stores GUI.
+settings chosen on the Label Stores page.
 
 `read()` returns one dict per event with keys such as `store_id`, `timestamps`, `data`, and
 `sampling_rate`; `save()` writes those dicts to HDF5; `count_samples()` reports an event's total

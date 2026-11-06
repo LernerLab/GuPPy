@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTemplate:
-    """Build and return the Import Custom Events GUI Panel template without serving it.
+    """Build and return the Import Custom Events Panel template without serving it.
 
     Parameters
     ----------
@@ -61,7 +61,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
             written.append(Path(csv_path).name)
 
         if not written:
-            config.set_alert_message("#### No events to save — continue to the Label Stores GUI.")
+            config.set_alert_message("#### No events to save — continue to the Label Stores page.")
             return
         message = "#### Saved: " + ", ".join(written)
         if warnings:

@@ -17,7 +17,7 @@ By the end you will have:
 
 - Created two named runs on one session, `filter_100` and `filter_250`
 - Run Steps 2 through 4 into each run, one run at a time
-- Opened both runs in the Visualization GUI to compare them
+- Opened both runs on the Visualization page to compare them
 - Confirmed on disk that each run kept its own data and its own parameter snapshot
 
 ## Prerequisites
@@ -82,7 +82,7 @@ Leave **Create new run** selected again, replace the **Run name** with `filter_2
 click **Save**.
 
 ```{image} ../_static/images/compare_parameters_run_name.png
-:alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create new run selected and the Run name field filled in with filter_250
+:alt: The Label Stores page's "Choose where to save these store labels" section, with Create new run selected and the Run name field filled in with filter_250
 :width: 70%
 ```
 
@@ -125,8 +125,8 @@ defeat the comparison.
 
 ## Compare the two runs
 
-Select **both** runs under **Existing runs (steps 2–5)**, then click **Open Visualization
-GUI**. GuPPy opens one Visualization tab with a dashboard per selected run, each in its own
+Select **both** runs under **Existing runs (steps 2–5)**, then click **Open
+Visualization**. GuPPy opens one Visualization tab with a dashboard per selected run, each in its own
 inner tab, so you can flip between them with the same event and view selected.
 
 Selecting two runs whose saved parameters differ shows the notification "Selected output
