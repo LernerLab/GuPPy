@@ -22,6 +22,7 @@ from .store_labeling import orchestrate_store_labeling_page
 from .tonic_analysis import orchestrate_tonic_analysis
 from .transients_view import open_transients_view
 from .visualize import visualizeResults
+from ..frontend.header import guppy_header_template
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.page_area import PageArea
 from ..frontend.sidebar import Sidebar
@@ -29,10 +30,6 @@ from ..utils import page_links
 from ..utils.progress import StepProgress, _current_step
 
 logger = logging.getLogger(__name__)
-
-ASSETS_DIRECTORY = Path(__file__).parent.parent / "assets"
-# The primary color of the documentation site's theme, so the app and the docs read as one product.
-HEADER_BACKGROUND = "#0a7d91"
 
 
 def build_homepage(
@@ -68,18 +65,15 @@ def build_homepage(
     # runs that clobber the shared progress file and output directories.
     step_running = {"active": False}
 
-    template = pn.template.BootstrapTemplate(
-        title="GuPPy: Guided Photometry Analysis in Python",
-        logo=str(ASSETS_DIRECTORY / "GuppyMark.png"),
-        favicon=str(ASSETS_DIRECTORY / "favicon.png"),
-        header_background=HEADER_BACKGROUND,
+    template = guppy_header_template(
+        page_name="Guided Photometry Analysis in Python", title="GuPPy: Guided Photometry Analysis in Python"
     )
     # Right-aligned in the header bar so the running version is visible without scrolling
     # the long sidebar, and is not mistaken for another pipeline step.
     template.header.append(
         pn.pane.Markdown(
             f"GuPPy {version('guppy-neuro')}",
-            styles={"color": "white", "margin-left": "auto", "margin-right": "1em"},
+            styles={"color": "#6C757D", "margin-left": "auto", "margin-right": "1em"},
         )
     )
     parameter_form = ParameterForm(
