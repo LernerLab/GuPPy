@@ -401,7 +401,7 @@ def screenshot_covariate_label_stores(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "covariate_label_stores.png",
-        clip={"x": 0, "y": 0, "width": 660, "height": 1090},
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1090},
     )
     print("Saved covariate_label_stores.png")
 
