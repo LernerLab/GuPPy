@@ -79,3 +79,18 @@ class TestProgressGradient:
 
         (stylesheet,) = status.progress.stylesheets
         assert "background-size: 100.00% 100%" in stylesheet
+
+    def test_the_gradient_follows_the_fraction_done_when_the_maximum_is_not_100(self, status):
+        # A step counts its own work units: 3 of 5 is 60% done, the same gradient as 60 of 100.
+        status.progress.max = 5
+        status.progress.value = 3
+
+        (stylesheet,) = status.progress.stylesheets
+        assert "background-size: 166.67% 100%" in stylesheet
+
+    def test_changing_only_the_maximum_repaints_the_gradient(self, status):
+        status.progress.value = 3
+        status.progress.max = 6
+
+        (stylesheet,) = status.progress.stylesheets
+        assert "background-size: 200.00% 100%" in stylesheet
