@@ -82,7 +82,10 @@ mean.
 ## Reading the results
 
 Run **Step 5: Visualization** and open the **Tonic** tab. A run with no saved epochs
-shows a short note in its place.
+shows a short note in its place. A run without behavioral events, such as an injection
+session recorded with no TTLs, has no PSTH to show, so its dashboard leaves out the PSTH,
+Heat Map and Significance tabs and shows only those of the Tonic, Binned and Covariates
+tabs that hold results.
 
 **Baseline epoch** picks which of your epochs the others are measured against.
 

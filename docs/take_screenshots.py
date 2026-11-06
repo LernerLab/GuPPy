@@ -634,6 +634,7 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         x_max=20.0,
     )
     dashboard = VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename="average",
         events=events,
@@ -748,6 +749,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
         x_max=20.0,
     )
     dashboard = VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename="sample_data_csv_1",
         events=events,
