@@ -66,7 +66,7 @@ In the **Input Folder Selection** card's **Session folders** browser, navigate t
 :align: center
 ```
 
-The **Data Source** toggle above the cards lets you switch between `local` (the default, file-system browsing) and `dandi` (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
+The **Data Source** toggle above the cards lets you switch between **Local folder** (the default, file-system browsing) and **DANDI Archive** (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 ### Set parameters
 

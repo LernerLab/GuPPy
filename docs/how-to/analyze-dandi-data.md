@@ -12,13 +12,13 @@ Streaming a public dandiset needs no DANDI API key. GuPPy reads the dandiset's
 
 ## Choosing a dandiset and assets
 
-Set **Data Source**, above the cards at the top of the page, to `dandi`. In
+Set **Data Source**, above the cards at the top of the page, to **DANDI Archive**. In
 **Input Folder Selection** the local file browser is replaced by the DANDI panel,
 which walks you through three screens: a list of dandisets, one dandiset's page,
 and that dandiset's files.
 
 ```{image} ../_static/images/dandi_source_selection.png
-:alt: The Data Source toggle at the top of the page switched from local to dandi, with the Input Folder Selection card below it showing the DANDI source panel with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
+:alt: The Data Source toggle at the top of the page switched from Local folder to DANDI Archive, with the Input Folder Selection card below it showing the DANDI source panel with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
 :width: 100%
 ```
 

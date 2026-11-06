@@ -796,7 +796,7 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
 
 
 def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
-    """How-to: the Data Source toggle set to ``dandi``, and the DANDI panel it reveals.
+    """How-to: the Data Source toggle set to DANDI Archive, and the DANDI panel it reveals.
 
     Assigning ``source_mode`` fires its param watcher synchronously, which swaps the DANDI
     panel in and runs its opening search, so the catalog is populated before the template is

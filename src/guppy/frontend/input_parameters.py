@@ -224,27 +224,14 @@ class ParameterForm:
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
-        # Color the "dandi" button muted pink (matches the DANDI brain-logo palette) so
-        # the two options are visually distinguishable at a glance.
-        dandi_button_stylesheet = """
-        :host .bk-btn-group > button:nth-child(2) {
-            background-color: #E8B4BC !important;
-            border-color: #D89AA3 !important;
-            color: #3A2A2F !important;
-        }
-        :host .bk-btn-group > button:nth-child(2).bk-active {
-            background-color: #C98A94 !important;
-            border-color: #B56E78 !important;
-            color: #FFFFFF !important;
-        }
-        """
+        # An outlined segmented control: the selected source fills in, the other stays an outline.
         self.source_mode = pn.widgets.RadioButtonGroup(
             name="Data Source",
-            options=["local", "dandi"],
+            options={"Local folder": "local", "DANDI Archive": "dandi"},
             value="local",
             button_type="primary",
+            button_style="outline",
             width=300,
-            stylesheets=[dandi_button_stylesheet],
         )
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
