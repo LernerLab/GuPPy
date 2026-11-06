@@ -2,7 +2,7 @@
 
 import panel as pn
 
-HOME_TAB_NAME = "Input Parameters"
+HOME_TAB_NAME = "Home"
 
 # Panel makes either every tab closable or none, so the form's tab, always first, hides its button.
 _KEEP_HOME_TAB_OPEN = ".bk-tab:first-child .bk-close { display: none; }"

@@ -185,7 +185,7 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 
 Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
-When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View results →** button in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Input Parameters tab and keep working, and the results tab stays open.
+When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View results →** button in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Home tab and keep working, and the results tab stays open.
 
 <!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a tab inside the homepage, so the screenshot script will need to run Preprocess to capture it. -->
 

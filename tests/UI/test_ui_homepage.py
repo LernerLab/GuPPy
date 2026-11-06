@@ -7,10 +7,10 @@ from guppy.orchestration.home import build_homepage
 
 
 @pytest.mark.ui
-def test_page_title_contains_input_parameters_gui(page, live_server_url):
+def test_page_title_names_guppy(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_text("Parameter Selection").first).to_be_visible()
-    assert "Input Parameters GUI" in page.title()
+    assert page.title() == "GuPPy: Guided Photometry Analysis in Python"
 
 
 @pytest.mark.ui
