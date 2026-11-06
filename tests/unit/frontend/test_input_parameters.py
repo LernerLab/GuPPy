@@ -305,6 +305,10 @@ class TestParameterFormInitialState:
         assert parameter_form.session_selector_header.visible is True
         assert parameter_form.dandi_file_panel.panel.visible is False
 
+    def test_source_mode_labels_map_to_mode_values(self, parameter_form):
+        assert parameter_form.source_mode.options == {"Local folder": "local", "DANDI Archive": "dandi"}
+        assert parameter_form.source_mode.button_style == "outline"
+
 
 class TestParameterForm:
     def test_add_button_grows_the_comparison_table_without_limit(self, parameter_form):
