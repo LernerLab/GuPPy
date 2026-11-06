@@ -19,7 +19,7 @@ source_suffix = [".rst", ".md"]
 myst_enable_extensions = ["attrs_block", "colon_fence", "dollarmath"]
 myst_heading_anchors = 3
 
-html_favicon = "../assets/favicon.png"
+html_favicon = "../src/guppy/assets/favicon.png"
 
 # A CSS-only static directory: registering _static/ instead would copy its 11 MB of
 # screenshots a second time, alongside the copies the image directive already makes.
@@ -42,8 +42,8 @@ html_theme_options = {
         },
     ],
     "logo": {
-        "image_light": "../assets/GuppyMark.png",
-        "image_dark": "../assets/GuppyMark.png",
+        "image_light": "../src/guppy/assets/GuppyMark.png",
+        "image_dark": "../src/guppy/assets/GuppyMark.png",
         "text": "GuPPy",
         "alt_text": "GuPPy",
     },

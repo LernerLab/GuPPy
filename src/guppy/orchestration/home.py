@@ -30,6 +30,10 @@ from ..utils.progress import StepProgress, _current_step
 
 logger = logging.getLogger(__name__)
 
+ASSETS_DIRECTORY = Path(__file__).parent.parent / "assets"
+# The primary color of the documentation site's theme, so the app and the docs read as one product.
+HEADER_BACKGROUND = "#0a7d91"
+
 
 def build_homepage(
     *,
@@ -64,7 +68,12 @@ def build_homepage(
     # runs that clobber the shared progress file and output directories.
     step_running = {"active": False}
 
-    template = pn.template.BootstrapTemplate(title="GuPPy: Guided Photometry Analysis in Python")
+    template = pn.template.BootstrapTemplate(
+        title="GuPPy: Guided Photometry Analysis in Python",
+        logo=str(ASSETS_DIRECTORY / "GuppyMark.png"),
+        favicon=str(ASSETS_DIRECTORY / "favicon.png"),
+        header_background=HEADER_BACKGROUND,
+    )
     # Right-aligned in the header bar so the running version is visible without scrolling
     # the long sidebar, and is not mistaken for another pipeline step.
     template.header.append(

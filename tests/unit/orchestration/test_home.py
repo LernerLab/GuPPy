@@ -2,10 +2,12 @@ import re
 import threading
 import time
 from importlib.metadata import version
+from pathlib import Path
 
 import panel as pn
 import pytest
 
+import guppy
 from guppy.orchestration.home import build_homepage
 from guppy.utils import page_links, progress
 
@@ -51,6 +53,19 @@ def test_title_names_guppy(homepage):
 def test_header_shows_installed_version(homepage):
     version_pane = homepage.header.objects[0]
     assert version_pane.object == f"GuPPy {version('guppy-neuro')}"
+
+
+class TestBranding:
+    def test_header_shows_guppy_mark(self, homepage):
+        assert Path(homepage.logo) == Path(guppy.__file__).parent / "assets" / "GuppyMark.png"
+        assert Path(homepage.logo).is_file()
+
+    def test_browser_tab_shows_guppy_favicon(self, homepage):
+        assert Path(homepage.favicon) == Path(guppy.__file__).parent / "assets" / "favicon.png"
+        assert Path(homepage.favicon).is_file()
+
+    def test_header_uses_documentation_theme_color(self, homepage):
+        assert homepage.header_background == "#0a7d91"
 
 
 def test_hooks_omits_removed_save_parameters_hook(homepage):
