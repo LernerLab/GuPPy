@@ -141,6 +141,10 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 
 6. **Click Save.** GuPPy creates the run folder (`<output root folder>/sample_data_csv_1/output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
 
+   :::{note}
+   When several sessions are selected, GuPPy opens one Label Stores tab per session, and each tab also offers **Save to all selected sessions**. Clicking it saves the labels here and then writes the same `storesList.csv`, under the same run name, into every other selected session whose recording has all of the chosen stores. A pop-up lists the run folders it wrote, and the alert lists any session it skipped with the reason, such as a missing store or an existing run of that name. NPM sessions are always skipped, because their stores depend on the NPM configuration confirmed on their own tab. Label the skipped sessions in their own tabs.
+   :::
+
 You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `output_1` under `sample_data_csv_1`. Every step from here on acts on the runs selected there.
 
 ## Step 2: Load the raw data

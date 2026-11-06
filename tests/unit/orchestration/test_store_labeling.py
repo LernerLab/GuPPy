@@ -16,6 +16,7 @@ from guppy.orchestration.store_labeling import (
     build_store_labeling_template,
     orchestrate_store_labeling_page,
     read_header,
+    save_store_labels_to_sessions,
     show_dir,
 )
 from guppy.utils import page_links
@@ -1175,3 +1176,123 @@ def test_orchestrate_store_labeling_page_offers_one_page_per_session(panel_exten
     assert page.name == "sample_data_csv_1"
     (row,) = page.content
     assert isinstance(row, pn.Row)
+
+
+# ---------------------------------------------------------------------------
+# save_store_labels_to_sessions
+# ---------------------------------------------------------------------------
+
+
+class TestSaveStoreLabelsToSessions:
+    @pytest.fixture
+    def roots(self, isolated_cache):
+        """Input and output root folders holding three empty sessions."""
+        input_root_folder = isolated_cache / "input_root"
+        output_root_folder = isolated_cache / "output_root"
+        for session_name in ("sessionA", "sessionB", "sessionC"):
+            (input_root_folder / session_name).mkdir(parents=True)
+        return input_root_folder, output_root_folder
+
+    @pytest.fixture
+    def store_labeling_config(self):
+        return {"store_ids": ["Dv1A", "Dv2A"], "store_labels": ["control_DMS", "signal_DMS"]}
+
+    def test_saves_to_every_session_holding_all_the_store_ids(self, roots, store_labeling_config):
+        input_root_folder, output_root_folder = roots
+
+        saved_run_folders, skipped_sessions = save_store_labels_to_sessions(
+            store_labeling_config=store_labeling_config,
+            run_name="1",
+            overwrite_mode="create_new_file",
+            store_ids_by_session={
+                str(input_root_folder / "sessionA"): ["Dv1A", "Dv2A", "PrtN"],
+                str(input_root_folder / "sessionB"): ["Dv2A", "Dv1A"],
+            },
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert saved_run_folders == [
+            str(output_root_folder / "sessionA" / "output_1"),
+            str(output_root_folder / "sessionB" / "output_1"),
+        ]
+        assert skipped_sessions == {}
+        stores_list = (output_root_folder / "sessionB" / "output_1" / "storesList.csv").read_text()
+        assert stores_list.splitlines() == ["Dv1A,Dv2A", "control_DMS,signal_DMS"]
+
+    def test_skips_a_session_missing_a_store_id(self, roots, store_labeling_config):
+        input_root_folder, output_root_folder = roots
+        session_b = str(input_root_folder / "sessionB")
+
+        saved_run_folders, skipped_sessions = save_store_labels_to_sessions(
+            store_labeling_config=store_labeling_config,
+            run_name="1",
+            overwrite_mode="create_new_file",
+            store_ids_by_session={session_b: ["Dv1A", "Dv3B"]},
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert saved_run_folders == []
+        assert skipped_sessions == {session_b: "it has no store id(s) ['Dv2A']."}
+        assert not (output_root_folder / "sessionB").exists()
+
+    def test_skips_an_npm_session(self, roots, store_labeling_config):
+        input_root_folder, output_root_folder = roots
+        session_c = str(input_root_folder / "sessionC")
+
+        saved_run_folders, skipped_sessions = save_store_labels_to_sessions(
+            store_labeling_config=store_labeling_config,
+            run_name="1",
+            overwrite_mode="create_new_file",
+            store_ids_by_session={session_c: None},
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert saved_run_folders == []
+        assert skipped_sessions == {
+            session_c: "its store ids depend on its NPM configuration, so label it on its own page."
+        }
+
+    def test_skips_a_session_whose_run_already_exists_when_creating(self, roots, store_labeling_config):
+        input_root_folder, output_root_folder = roots
+        session_a = str(input_root_folder / "sessionA")
+        existing_run_folder = output_root_folder / "sessionA" / "output_1"
+        existing_run_folder.mkdir(parents=True)
+
+        saved_run_folders, skipped_sessions = save_store_labels_to_sessions(
+            store_labeling_config=store_labeling_config,
+            run_name="1",
+            overwrite_mode="create_new_file",
+            store_ids_by_session={session_a: ["Dv1A", "Dv2A"]},
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert saved_run_folders == []
+        assert skipped_sessions == {
+            session_a: (
+                f"Output directory already exists: {str(existing_run_folder)!r}. "
+                "Choose a different run name or select over_write_file to replace it."
+            )
+        }
+
+    def test_overwrites_an_existing_run_when_overwriting(self, roots, store_labeling_config):
+        input_root_folder, output_root_folder = roots
+        existing_run_folder = output_root_folder / "sessionA" / "output_1"
+        existing_run_folder.mkdir(parents=True)
+        (existing_run_folder / "stale.hdf5").write_text("")
+
+        saved_run_folders, skipped_sessions = save_store_labels_to_sessions(
+            store_labeling_config=store_labeling_config,
+            run_name="1",
+            overwrite_mode="over_write_file",
+            store_ids_by_session={str(input_root_folder / "sessionA"): ["Dv1A", "Dv2A"]},
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert saved_run_folders == [str(existing_run_folder)]
+        assert skipped_sessions == {}
+        assert sorted(path.name for path in existing_run_folder.iterdir()) == ["storesList.csv"]

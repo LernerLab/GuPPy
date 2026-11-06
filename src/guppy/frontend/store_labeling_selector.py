@@ -48,6 +48,15 @@ class StoreLabelingSelector:
 
         self.update_options = pn.widgets.Button(name="Select Stores", width=600)
         self.save = pn.widgets.Button(name="Save", width=600)
+        self.save_to_all_sessions = pn.widgets.Button(
+            name="Save to all selected sessions",
+            width=600,
+            visible=False,
+            description=(
+                "Save these store labels here, then under the same run name in every other selected "
+                "session that has all of these store ids."
+            ),
+        )
 
         self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, width=600)
 
@@ -115,6 +124,7 @@ class StoreLabelingSelector:
             self.run_name,
             self.select_location,
             self.save,
+            self.save_to_all_sessions,
         )
 
     def callback(self, target: pn.WidgetBox, event: object) -> None:
@@ -155,6 +165,10 @@ class StoreLabelingSelector:
         # browser and the dropdown renders blank.
         value = self.select_location.value if self.select_location.value in options else next(iter(options), None)
         self.select_location.param.update(options={Path(option).name: option for option in options}, value=value)
+
+    def show_save_to_all_sessions_button(self) -> None:
+        """Reveal the button that saves this page's store labels to every selected session."""
+        self.save_to_all_sessions.visible = True
 
     def set_alert_message(self, message: str) -> None:
         """Set the text shown in the alert pane, hiding the pane when there is nothing to report.

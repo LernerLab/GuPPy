@@ -14,11 +14,12 @@ from ..utils.dandi_filter import BUNDLED_VERDICT_CACHE_PATH, PhotometryVerdictCa
 from ..utils.utils import (
     common_parent_directory,
     discover_run_folders,
+    existing_run_folders_for_run_names,
     is_group_folder,
     legacy_run_folders,
     parse_run_name,
     run_directory_root,
-    run_folder_for_run,
+    run_names_in_sessions,
     session_is_under_input_root,
 )
 from ..utils.validation import (
@@ -996,17 +997,11 @@ class ParameterForm:
         A name need not exist in every session to be offered: applying it selects the runs
         that do exist and leaves the remaining sessions to the folder tree.
         """
-        output_root_folder = self.output_root_folder
-        input_root_folder = self.input_root_folder
-        run_names = []
-        for session in sessions:
-            for directory in discover_run_folders(
-                session, output_root_folder=output_root_folder, input_root_folder=input_root_folder
-            ):
-                run_name = parse_run_name(directory)
-                if run_name not in run_names:
-                    run_names.append(run_name)
-        return run_names
+        return run_names_in_sessions(
+            session_folders=sessions,
+            output_root_folder=self.output_root_folder,
+            input_root_folder=self.input_root_folder,
+        )
 
     def _apply_selected_run_folders(self, run_folders: list[str]) -> None:
         """Write ``run_folders`` into the outputs FileSelector as its selection.
@@ -1115,17 +1110,12 @@ class ParameterForm:
 
     def _run_folders_on_disk(self, *, sessions: list[str], run_names: list[str]) -> list[str]:
         """Return the existing run directories named by ``run_names`` across ``sessions``."""
-        output_root_folder = self.output_root_folder
-        input_root_folder = self.input_root_folder
-        run_folders = []
-        for session in sessions:
-            for run_name in run_names:
-                run_folder = run_folder_for_run(
-                    session, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
-                )
-                if Path(run_folder).is_dir():
-                    run_folders.append(run_folder)
-        return run_folders
+        return existing_run_folders_for_run_names(
+            session_folders=sessions,
+            run_names=run_names,
+            output_root_folder=self.output_root_folder,
+            input_root_folder=self.input_root_folder,
+        )
 
     def _apply_source_mode_to_root_folders(self) -> None:
         """Show only the root folders the current data source has a use for.

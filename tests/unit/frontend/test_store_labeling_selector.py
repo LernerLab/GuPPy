@@ -104,6 +104,13 @@ class TestStoreLabelingSelector:
         selector.set_alert_message("#### No alerts !!")
         assert selector.alert.visible is False
 
+    def test_save_to_all_sessions_button_starts_hidden(self, selector):
+        assert selector.save_to_all_sessions.visible is False
+
+    def test_show_save_to_all_sessions_button_reveals_it(self, selector):
+        selector.show_save_to_all_sessions_button()
+        assert selector.save_to_all_sessions.visible is True
+
     def test_opens_in_create_mode_with_run_picker_hidden(self, selector):
         assert selector.get_overwrite_mode() == "create_new_file"
         assert selector.run_name.visible is True

@@ -13,6 +13,7 @@ from guppy.utils.utils import (
     discover_group_folders,
     discover_run_folders,
     event_labels_for_analysis,
+    existing_run_folders_for_run_names,
     get_all_stores_for_combining_data,
     group_folder_for_group,
     is_group_folder,
@@ -26,6 +27,7 @@ from guppy.utils.utils import (
     relative_output_labels,
     resolve_run_folders,
     run_folder_for_run,
+    run_names_in_sessions,
     select_run_folders,
     selected_session_runs,
     sibling_run_folders,
@@ -913,3 +915,45 @@ class TestCommonParentDirectory:
             str(pathlib.Path("/data", "batch_a", "cohort_b", "s2")),
         ]
         assert common_parent_directory(paths=paths) == str(pathlib.Path("/data"))
+
+
+class TestRunNamesInSessions:
+    def test_returns_each_run_name_once_in_order_of_first_appearance(self, tmp_path):
+        input_root_folder = tmp_path / "input_root"
+        output_root_folder = tmp_path / "output_root"
+        for relative_run_folder in (
+            "sessionA/output_2",
+            "sessionA/output_10",
+            "sessionB/output_1",
+            "sessionB/output_2",
+        ):
+            (output_root_folder / relative_run_folder).mkdir(parents=True)
+
+        run_names = run_names_in_sessions(
+            session_folders=[str(input_root_folder / "sessionA"), str(input_root_folder / "sessionB")],
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert run_names == ["2", "10", "1"]
+
+
+class TestExistingRunFoldersForRunNames:
+    def test_returns_only_run_folders_that_exist(self, tmp_path):
+        input_root_folder = tmp_path / "input_root"
+        output_root_folder = tmp_path / "output_root"
+        for relative_run_folder in ("sessionA/output_1", "sessionA/output_2", "sessionB/output_2"):
+            (output_root_folder / relative_run_folder).mkdir(parents=True)
+
+        run_folders = existing_run_folders_for_run_names(
+            session_folders=[str(input_root_folder / "sessionA"), str(input_root_folder / "sessionB")],
+            run_names=["1", "2"],
+            output_root_folder=str(output_root_folder),
+            input_root_folder=str(input_root_folder),
+        )
+
+        assert run_folders == [
+            str(output_root_folder / "sessionA" / "output_1"),
+            str(output_root_folder / "sessionA" / "output_2"),
+            str(output_root_folder / "sessionB" / "output_2"),
+        ]

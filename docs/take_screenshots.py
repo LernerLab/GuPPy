@@ -555,7 +555,11 @@ def screenshot_parameters(page: Page, tmp_path: Path) -> None:
 def screenshot_label_groups_page(page: Page) -> None:
     """How-to: the Label Groups page, showing its member-runs and destination sections."""
     labeling_page = GroupLabelingPage(
-        start_path=str(SAMPLE_DATA_DIR.parent), selected_group_folders=[]
+        start_path=str(SAMPLE_DATA_DIR.parent),
+        selected_group_folders=[],
+        session_folders=[],
+        output_root_folder=None,
+        input_root_folder=None,
     )
     url = _serve(labeling_page.build_template())
     # The page lays out two 640px columns side by side, so it needs a wide viewport.

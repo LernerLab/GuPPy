@@ -34,7 +34,10 @@ step that touches them.
 2. Leave the mode at **create_new_group**.
 3. Under **1 · What goes into the group?**, pick the member runs. These are the
    run directories under the output root folder. They may live under different
-   parent directories.
+   parent directories. To pick the same run from many sessions at once, select the
+   sessions on the homepage before clicking **Label Groups** and choose the run in
+   **Run name(s) for all sessions**. That selects the run in every selected session that
+   has it, and the browser underneath shows the result for adjusting run by run.
 4. Under **2 · Where does the group go?**, type a **Group name** and pick the destination
    directory. The name may not contain path separators, `..`, `_output_`, or `_group`.
 5. Click **Save group definition**.
