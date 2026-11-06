@@ -420,7 +420,7 @@ def status_text(homepage, step_name):
 
 def test_main_area_holds_only_the_page_area(homepage, page_area):
     assert list(homepage.main) == [page_area.tabs]
-    assert page_area.tabs._names == ["Input Parameters"]
+    assert page_area.tabs._names == ["Home"]
 
 
 RESULTS_HANDLERS = [
@@ -469,7 +469,7 @@ def test_step_success_opens_the_results_page_and_enables_show_results(
     homepage._hooks[hook_name]()
     poll_until_stopped(capture_periodic)
 
-    assert page_area.tabs._names == ["Input Parameters", page_name]
+    assert page_area.tabs._names == ["Home", page_name]
     assert page_area.tabs.active == 1
     assert page_area.tabs[1][0] is results_page
     assert results_button.visible is True
@@ -496,7 +496,7 @@ def test_show_results_reopens_a_closed_results_tab(
     page_area.tabs.pop(1)
     results_button.clicks += 1
 
-    assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
+    assert page_area.tabs._names == ["Home", "Preprocessing"]
     assert page_area.tabs.active == 1
     assert page_area.tabs[1][0].object == "second"
 
@@ -520,7 +520,7 @@ def test_show_results_clicked_while_open_replaces_its_tab(
     poll_until_stopped(capture_periodic)
     results_button.clicks += 1
 
-    assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
+    assert page_area.tabs._names == ["Home", "Preprocessing"]
     assert page_area.tabs[1][0].object == "second"
 
 
@@ -559,7 +559,7 @@ def test_label_stores_shows_a_lone_session_under_the_steps_title(homepage, page_
 
     homepage._hooks["onclickLabelStores"]()
 
-    assert page_area.tabs._names == ["Input Parameters", "Label Stores — mouse_01"]
+    assert page_area.tabs._names == ["Home", "Label Stores — mouse_01"]
     assert page_area.tabs[1][0][0].object == "labels for mouse_01"
 
 
@@ -571,7 +571,7 @@ def test_label_stores_shows_every_session_in_one_tab(homepage, page_area, select
 
     homepage._hooks["onclickLabelStores"]()
 
-    assert page_area.tabs._names == ["Input Parameters", "Label Stores — 2 sessions"]
+    assert page_area.tabs._names == ["Home", "Label Stores — 2 sessions"]
     assert page_area.tabs.active == 1
     session_tabs = page_area.tabs[1][0]
     assert isinstance(session_tabs, pn.Tabs)
@@ -585,7 +585,7 @@ def test_a_click_that_opens_nothing_adds_no_tab(homepage, page_area, monkeypatch
 
     homepage._hooks["onclickLabelStores"]()
 
-    assert page_area.tabs._names == ["Input Parameters"]
+    assert page_area.tabs._names == ["Home"]
     assert page_area.tabs.active == 0
 
 
@@ -598,7 +598,7 @@ def test_a_click_that_fails_adds_no_tab(homepage, page_area, selected_session, m
     with pytest.raises(RuntimeError):
         homepage._hooks["onclickLabelStores"]()
 
-    assert page_area.tabs._names == ["Input Parameters"]
+    assert page_area.tabs._names == ["Home"]
 
 
 def test_a_step_starts_as_not_run_yet(homepage):
@@ -701,7 +701,7 @@ def test_a_page_opening_click_shows_its_page_in_a_new_tab_and_marks_it_opened(
 
     homepage._hooks[hook_name]()
 
-    assert page_area.tabs._names == ["Input Parameters", tab_name]
+    assert page_area.tabs._names == ["Home", tab_name]
     assert page_area.tabs.active == 1
     assert page_area.tabs[1][0] is page
     assert re.fullmatch(r"✓ Opened at \d\d:\d\d", status_text(homepage, step_name))
@@ -729,5 +729,5 @@ def test_a_refused_page_opening_click_notifies_and_adds_no_tab(
     homepage._hooks[hook_name]()
 
     assert notifications == ["Run Step 3 first."]
-    assert page_area.tabs._names == ["Input Parameters"]
+    assert page_area.tabs._names == ["Home"]
     assert status_text(homepage, step_name) == "Not run yet"

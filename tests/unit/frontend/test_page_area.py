@@ -16,7 +16,7 @@ def page_area(form):
 
 class TestPageArea:
     def test_first_tab_is_the_form(self, page_area, form):
-        assert page_area.tabs._names == ["Input Parameters"]
+        assert page_area.tabs._names == ["Home"]
         assert page_area.tabs[0][0] is form
         assert page_area.tabs.active == 0
 
@@ -25,7 +25,7 @@ class TestPageArea:
 
         page_area.show(key="preprocess", name="Preprocessing", content=preprocessing)
 
-        assert page_area.tabs._names == ["Input Parameters", "Preprocessing"]
+        assert page_area.tabs._names == ["Home", "Preprocessing"]
         assert page_area.tabs[1][0] is preprocessing
         assert page_area.tabs.active == 1
 
@@ -37,7 +37,7 @@ class TestPageArea:
 
         page_area.show(key="preprocess", name="Preprocessing (rerun)", content=second_run)
 
-        assert page_area.tabs._names == ["Input Parameters", "Preprocessing (rerun)", "Label Stores — mouse_01"]
+        assert page_area.tabs._names == ["Home", "Preprocessing (rerun)", "Label Stores — mouse_01"]
         assert page_area.tabs[1][0] is second_run
         assert page_area.tabs.active == 1
 
@@ -50,6 +50,6 @@ class TestPageArea:
 
         page_area.show(key="preprocess", name="Preprocessing", content=second_run)
 
-        assert page_area.tabs._names == ["Input Parameters", "Label Stores — mouse_01", "Preprocessing"]
+        assert page_area.tabs._names == ["Home", "Label Stores — mouse_01", "Preprocessing"]
         assert page_area.tabs[2][0] is second_run
         assert page_area.tabs.active == 2
