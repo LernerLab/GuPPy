@@ -9,6 +9,32 @@ _NOT_RUN_COLOR = "#8a96a3"
 _RUNNING_COLOR = "#55616f"
 _DONE_COLOR = "#1e7e34"
 _FAILED_COLOR = "#c0392b"
+# The GuPPy logo's gradient, violet through blue and teal to green.
+_LOGO_GRADIENT = "linear-gradient(90deg, #6E56CF, #1F7FC4, #14A39A, #5DB45C)"
+
+
+def _progress_stylesheet(*, value: int) -> str:
+    """Return the CSS that fills a progress bar with the logo's gradient.
+
+    The gradient spans the whole track, so a bar part-way through shows only its violet end and
+    turns green as it completes. The filled part is only ``value`` percent of the track wide, so
+    the gradient is drawn ``100 / value`` times wider than it.
+
+    Parameters
+    ----------
+    value : int
+        The bar's progress, from 0 to 100.
+
+    Returns
+    -------
+    str
+        A stylesheet for the ``Progress`` widget.
+    """
+    gradient_width = f"{100 * 100 / max(value, 1):.2f}% 100%"
+    return f"""
+progress[value]::-webkit-progress-value {{ background-image: {_LOGO_GRADIENT}; background-size: {gradient_width}; }}
+progress[value]::-moz-progress-bar {{ background-image: {_LOGO_GRADIENT}; background-size: {gradient_width}; }}
+"""
 
 
 class StepStatus:
@@ -24,7 +50,12 @@ class StepStatus:
 
     def __init__(self, *, has_progress: bool, has_results: bool) -> None:
         self.message = pn.pane.HTML(margin=(4, 10))
-        self.progress = pn.indicators.Progress(value=0, max=100, width=300, visible=False) if has_progress else None
+        self.progress = None
+        if has_progress:
+            self.progress = pn.indicators.Progress(
+                value=0, max=100, width=300, visible=False, stylesheets=[_progress_stylesheet(value=0)]
+            )
+            self.progress.param.watch(self._repaint_progress, "value")
         self.results_button = (
             pn.widgets.Button(
                 name="View results →",
@@ -44,6 +75,9 @@ class StepStatus:
             status_row.extend([pn.HSpacer(), self.results_button])
         self.layout = pn.Column(*([self.progress] if has_progress else []), status_row, margin=0)
         self._show(text="Not run yet", color=_NOT_RUN_COLOR)
+
+    def _repaint_progress(self, event: object) -> None:
+        self.progress.stylesheets = [_progress_stylesheet(value=event.new)]
 
     def _show(self, *, text: str, color: str) -> None:
         self.message.object = f'<span style="{_TEXT_STYLE} color: {color};">{text}</span>'
