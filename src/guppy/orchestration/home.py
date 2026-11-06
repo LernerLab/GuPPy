@@ -16,6 +16,7 @@ from .metadata import orchestrate_metadata_page
 from .preprocess import run_preprocess_step, run_remove_artifacts_step
 from .preprocess_view import open_preprocess_view
 from .psth import run_psth_step
+from .raw_data_view import open_raw_data_view
 from .read_raw_data import run_read_raw_data_step
 from .select_artifact_windows import orchestrate_select_artifact_windows
 from .store_labeling import orchestrate_store_labeling_page
@@ -308,7 +309,11 @@ def build_homepage(
         return on_success
 
     def onclickreaddata(event: object = None) -> None:
-        _run_worker_with_progress(run_read_raw_data_step, "read_rawData")
+        _run_worker_with_progress(
+            run_read_raw_data_step,
+            "read_rawData",
+            on_success=_open_results(button_name="read_rawData", open_view=open_raw_data_view),
+        )
 
     def onclickpreprocess(event: object = None) -> None:
         _run_worker_with_progress(

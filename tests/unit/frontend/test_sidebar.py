@@ -121,7 +121,7 @@ class TestSidebar:
 
 
 class TestShowResults:
-    @pytest.mark.parametrize("name", ["preprocess", "remove_artifacts", "psth_computation"])
+    @pytest.mark.parametrize("name", ["read_rawData", "preprocess", "remove_artifacts", "psth_computation"])
     def test_starts_hidden(self, sidebar, name):
         button = sidebar.results_buttons[name]
         assert button is sidebar.statuses[name].results_button
