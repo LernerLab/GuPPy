@@ -820,8 +820,8 @@ def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
     page.get_by_text("Select one to see its metadata").first.wait_for(timeout=60000)
     page.wait_for_timeout(1500)
     status_line = page.get_by_text("Select one to see its metadata").first.bounding_box()
-    # Start at the homepage's tab strip, so the shot shows the toggle sits on the Input Parameters tab.
-    top = page.get_by_text("Input Parameters", exact=True).first.bounding_box()["y"] - 6
+    # Start at the homepage's tab strip, so the shot shows the toggle sits on the Home tab.
+    top = page.get_by_text("Home", exact=True).first.bounding_box()["y"] - 6
     page.screenshot(
         path=OUTPUT_DIR / "dandi_source_selection.png",
         clip={
