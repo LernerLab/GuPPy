@@ -12,6 +12,40 @@ from .tonic_epochs import build_tonic_results_view
 pn.extension()
 
 
+def _controls(*controls: object) -> pn.FlexBox:
+    """Lay a card's controls out in one row that wraps onto as many lines as the page width needs.
+
+    Parameters
+    ----------
+    *controls : object
+        Panel objects to lay out, in reading order.
+
+    Returns
+    -------
+    panel.FlexBox
+        The controls, stretched to the width of the card.
+    """
+    return pn.FlexBox(*controls, sizing_mode="stretch_width")
+
+
+def _labeled(*, label: str, content: object) -> pn.Column:
+    """Keep a control group under its bold label, so the two wrap together.
+
+    Parameters
+    ----------
+    label : str
+        Text shown above the group.
+    content : object
+        The Panel object the label describes.
+
+    Returns
+    -------
+    panel.Column
+        The label above its content.
+    """
+    return pn.Column(pn.pane.Markdown(f"**{label}**", margin=(5, 10, 0, 10)), content)
+
+
 class VisualizationDashboard:
     """Dashboard for interactive PSTH and heatmap visualization.
 
@@ -63,6 +97,7 @@ class VisualizationDashboard:
             ("Binned", self._binned_tab),
             ("Covariates", self._covariate_tab),
             ("Significance", self._significance_tab),
+            sizing_mode="stretch_width",
         )
 
     def _metric_control(self) -> pn.widgets.Select:
@@ -313,51 +348,55 @@ class VisualizationDashboard:
         # gets its own card holding only the controls that drive it, so it is
         # always clear which control belongs to which plot.
         shared_settings = pn.Card(
-            pn.Row(self._metric_control(), width_plot, height_plot),
-            hide_minor_ticks,
+            _controls(self._metric_control(), width_plot, height_plot, hide_minor_ticks),
             title="Display settings (all plots)",
             collapsed=False,
+            sizing_mode="stretch_width",
         )
 
         single_event_plot = pn.Card(
-            event_selector,
-            y_selector,
-            pn.Row(trace_color),
-            pn.pane.Markdown("**Axis limits**"),
-            cont_limits,
-            save_cont,
+            _controls(
+                event_selector,
+                y_selector,
+                trace_color,
+                _labeled(label="Axis limits", content=cont_limits),
+                save_cont,
+            ),
             self.plotter.contPlot,
             title="1 · Single-event PSTH (mean, one trial, or all trials)",
             collapsed=False,
+            sizing_mode="stretch_width",
         )
 
         comparison_plot = pn.Card(
-            pn.pane.Markdown("Tick events to overlay their mean traces:"),
-            parameters,
-            pn.Row(overlay_palette),
-            per_event_colors,
-            pn.pane.Markdown("**Axis limits**"),
-            overlay_limits,
-            save_overlay,
+            _controls(
+                _labeled(label="Tick events to overlay their mean traces:", content=parameters),
+                overlay_palette,
+                per_event_colors,
+                _labeled(label="Axis limits", content=overlay_limits),
+                save_overlay,
+            ),
             self.plotter.update_selector,
             title="2 · Multi-event comparison",
             collapsed=False,
+            sizing_mode="stretch_width",
         )
 
         selected_trials_plot = pn.Card(
             pn.pane.Markdown(
                 "_Uses the event and trace color chosen in section 1. Mean color (below) colors the mean overlay._"
             ),
-            psth_checkbox,
-            pn.Row(mean_color),
-            pn.pane.Markdown("Move trials into the right-hand column to plot them:"),
-            psth_y_parameters,
-            pn.pane.Markdown("**Axis limits**"),
-            trials_limits,
-            save_trials,
+            _controls(
+                psth_checkbox,
+                mean_color,
+                _labeled(label="Move trials into the right-hand column to plot them:", content=psth_y_parameters),
+                _labeled(label="Axis limits", content=trials_limits),
+                save_trials,
+            ),
             self.plotter.plot_specific_trials,
             title="3 · Selected trials (of the section-1 event)",
             collapsed=False,
+            sizing_mode="stretch_width",
         )
 
         return pn.Column(
@@ -366,6 +405,7 @@ class VisualizationDashboard:
             single_event_plot,
             comparison_plot,
             selected_trials_plot,
+            sizing_mode="stretch_width",
         )
 
     def _build_heatmap_tab(self) -> pn.Column:
@@ -418,19 +458,26 @@ class VisualizationDashboard:
         color_limits = self._range_number_inputs(name="heatmap_clim", label="Color scale")
 
         heatmap_card = pn.Card(
-            pn.Row(event_selector_heatmap, self._metric_control(), color_map, width_heatmap, height_heatmap),
-            pn.Row(hide_minor_ticks_heatmap, ticks_inside_heatmap, hide_outer_border_heatmap),
-            pn.pane.Markdown("**Axis limits**"),
-            axis_limits,
-            pn.pane.Markdown("**Color scale limits**"),
-            color_limits,
-            save_hm,
+            _controls(
+                event_selector_heatmap,
+                self._metric_control(),
+                color_map,
+                width_heatmap,
+                height_heatmap,
+                hide_minor_ticks_heatmap,
+                ticks_inside_heatmap,
+                hide_outer_border_heatmap,
+                _labeled(label="Axis limits", content=axis_limits),
+                _labeled(label="Color scale limits", content=color_limits),
+                save_hm,
+            ),
             pn.Row(self.plotter.heatmap, heatmap_y_parameters),
             title="Trial heatmap",
             collapsed=False,
+            sizing_mode="stretch_width",
         )
 
-        return pn.Column("## " + self.basename, heatmap_card)
+        return pn.Column("## " + self.basename, heatmap_card, sizing_mode="stretch_width")
 
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""

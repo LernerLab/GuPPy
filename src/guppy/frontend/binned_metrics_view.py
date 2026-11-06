@@ -106,7 +106,7 @@ class BinnedMetricsView:
     @property
     def widget(self) -> pn.Column:
         """The composed selectors and plot."""
-        return pn.Column(pn.Row(self.site_select, self.metric_select), self.plot_pane)
+        return pn.Column(pn.Row(self.site_select, self.metric_select), self.plot_pane, sizing_mode="stretch_width")
 
 
 def build_binned_metrics_view(filepath: str) -> pn.Column:

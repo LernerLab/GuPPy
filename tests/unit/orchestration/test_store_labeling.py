@@ -1173,5 +1173,5 @@ def test_orchestrate_store_labeling_page_offers_one_page_per_session(panel_exten
 
     (page,) = pages
     assert page.name == "sample_data_csv_1"
-    (row,) = page.content
-    assert isinstance(row, pn.Row)
+    (layout,) = page.content
+    assert isinstance(layout, pn.FlexBox)

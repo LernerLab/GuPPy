@@ -60,7 +60,6 @@ def build_metadata_template(
         title=f"Metadata GUI - {session_label}",
         header_background=style.HEADER_BG,
         header_color="#FFFFFF",
-        main_max_width="1120px",
     )
     template.config.raw_css = [style.DOCUMENT_CSS]
 

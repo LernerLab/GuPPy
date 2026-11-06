@@ -43,6 +43,19 @@ class TestStoreLabelingConfig:
         config, _, _, _ = build_config(show_config_button, ["Dv1A"])
         assert len(config.config_widgets) == 5
 
+    def test_every_store_shares_one_wrapping_row(self, panel_extension, show_config_button):
+        # One tile per store in a single FlexBox, so a wide page holds several stores side by side.
+        config, dropdowns, _, _ = build_config(show_config_button, ["Dv1A", "Dv2A", "PrtN"])
+
+        store_tiles = config.config_widgets[1]
+        assert isinstance(store_tiles, pn.FlexBox)
+        assert [tile.width for tile in store_tiles] == [430, 430, 430]
+        assert [tile[1][0][1] for tile in store_tiles] == [
+            dropdowns["Dv1A_0"],
+            dropdowns["Dv2A_1"],
+            dropdowns["PrtN_2"],
+        ]
+
     def test_single_store_id_dropdown_in_dict(self, panel_extension, show_config_button):
         _, dropdowns, _, _ = build_config(show_config_button, ["Dv1A"])
         assert "Dv1A_0" in dropdowns
