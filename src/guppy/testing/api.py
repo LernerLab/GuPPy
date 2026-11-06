@@ -378,6 +378,7 @@ def _drive_store_labeling_page(
     run_name_policy: str,
     output_root_folder: str | None,
     input_root_folder: str | None,
+    save_hook_name: str = "save_button",
 ) -> None:
     """Drive one session's Label Stores page to save storesList.csv.
 
@@ -403,6 +404,8 @@ def _drive_store_labeling_page(
         Directory the mirrored output tree is written into, as the page resolves it.
     input_root_folder : str or None
         Input root folder the session was selected under, as the page resolves it.
+    save_hook_name : {"save_button", "save_to_all_sessions_button"}, optional
+        The page's save hook to click: Save, or Save to All Selected Sessions.
     """
     selector = template._widgets["selector"]
 
@@ -460,7 +463,7 @@ def _drive_store_labeling_page(
             selector.run_name.value = run_name
             _raise_on_alert(selector=selector)
 
-    template._hooks["save_button"]()
+    template._hooks[save_hook_name]()
     _raise_on_alert(selector=selector)
 
 
@@ -476,6 +479,7 @@ def step1(
     dandi_uri_map: dict[str, str] | None = None,
     run_name: str | None = None,
     run_name_policy: Literal["create", "overwrite"] = "create",
+    save_to_all_sessions: bool = False,
 ) -> None:
     """
     Run pipeline Step 1 (Label Stores) by driving the real Panel pages headlessly.
@@ -506,6 +510,10 @@ def step1(
         file in the folder. None defaults to seconds.
     npm_split_events : list[bool] | None
         List of booleans indicating whether to split events for NPM files, one per CSV file. None if not applicable.
+    save_to_all_sessions : bool
+        When True, drive only the first session's page and click its "Save to all selected
+        sessions" button, which labels every other session with the same mapping. When
+        False, drive each session's page and click Save.
 
     Raises
     ------
@@ -573,8 +581,14 @@ def step1(
 
     # Drive each session's Label Stores page exactly as the GUI does.
     num_ch = input_params.get("noChannels", DEFAULT_NUM_CHANNELS)
-    for session in abs_sessions:
-        events, flags, npm_interactive = read_header(input_params, num_ch, session)
+    headers = {session: read_header(input_params, num_ch, session) for session in abs_sessions}
+    store_ids_by_session = {
+        session: (events if npm_interactive is None else None)
+        for session, (events, _, npm_interactive) in headers.items()
+    }
+    sessions_to_drive = abs_sessions[:1] if save_to_all_sessions else abs_sessions
+    for session in sessions_to_drive:
+        events, flags, npm_interactive = headers[session]
         template = build_store_labeling_template(
             events,
             flags,
@@ -582,6 +596,11 @@ def step1(
             isosbestic_control=isosbestic_control,
             inputParameters=input_params,
             npm_interactive=npm_interactive,
+            store_ids_by_other_session={
+                other_session: store_ids
+                for other_session, store_ids in store_ids_by_session.items()
+                if other_session != session
+            },
         )
         if npm_interactive is not None:
             _drive_npm_configuration_form(
@@ -603,6 +622,7 @@ def step1(
             run_name_policy=run_name_policy,
             output_root_folder=input_params["output_root_folder"],
             input_root_folder=input_params["input_root_folder"],
+            save_hook_name="save_to_all_sessions_button" if save_to_all_sessions else "save_button",
         )
 
 
@@ -1327,9 +1347,12 @@ def step4(
 
 def label_groups(
     *,
-    member_run_folders: Iterable[str],
     destination_directory: str,
     group_name: str,
+    member_run_folders: Iterable[str] = (),
+    base_dir: str | None = None,
+    selected_folders: Iterable[str] = (),
+    run_names: Iterable[str] = (),
 ) -> None:
     """Define a group headlessly, as the Label Groups page does.
 
@@ -1338,13 +1361,21 @@ def label_groups(
 
     Parameters
     ----------
-    member_run_folders : iterable of str
-        Output (run) directories to record as the group's members. Each must already
-        hold Step-4 results.
     destination_directory : str
         Directory the group output directory is written into.
     group_name : str
         Name of the group. Becomes the ``<group_name>_group`` directory name.
+    member_run_folders : iterable of str, optional
+        Output (run) directories to record as the group's members, picked one by one.
+        Each must already hold Step-4 results.
+    base_dir : str or None, optional
+        Input root folder the homepage is pointed at. Required with ``run_names``.
+    selected_folders : iterable of str, optional
+        Sessions selected on the homepage, whose runs ``run_names`` selects. Required
+        with ``run_names``.
+    run_names : iterable of str, optional
+        Run names picked in the page's "Run Names for All Sessions" control, selecting
+        that run in every one of ``selected_folders`` that has it.
 
     Raises
     ------
@@ -1353,10 +1384,20 @@ def label_groups(
         the page's alert).
     """
     destination = str(Path(destination_directory).resolve())
-    page = build_group_labeling_page(inputParameters={"abspath": destination, "selected_group_folders": []})
+    run_names = list(run_names)
+    if run_names:
+        homepage = build_homepage()
+        _point_form_at_output_directory(template=homepage, base_dir=str(Path(base_dir).resolve()))
+        homepage._widgets["files_1"].value = [str(Path(session).resolve()) for session in selected_folders]
+        input_params = homepage._hooks["getInputParameters"]()
+    else:
+        input_params = {"abspath": destination, "selected_group_folders": []}
+    page = build_group_labeling_page(inputParameters=input_params)
     page.group_name.value = group_name
     page.destination_selector.value = [destination]
-    page.members_selector.value = [str(Path(run_folder).resolve()) for run_folder in member_run_folders]
+    page.run_names_for_all_sessions.value = run_names
+    hand_picked = [str(Path(run_folder).resolve()) for run_folder in member_run_folders]
+    page.members_selector.value = list(dict.fromkeys(list(page.members_selector.value) + hand_picked))
     page.save.clicks += 1
     # The page reports validation failures on its alert instead of raising.
     if page.alert.visible:

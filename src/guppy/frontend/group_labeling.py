@@ -14,9 +14,12 @@ import panel as pn
 from .frontend_utils import default_root_path
 from ..utils.utils import (
     GROUP_MEMBERS_FILENAME,
+    existing_run_folders_for_run_names,
     group_folder_for_group,
     is_group_folder,
+    parse_run_name,
     read_group_members,
+    run_names_in_sessions,
     validate_group_name,
     write_group_members,
 )
@@ -41,11 +44,31 @@ class GroupLabelingPage:
     selected_group_folders : list of str
         Group directories selected on the homepage. Used only to open the edit browser
         near a group already in play; editing never depends on this being non-empty.
+    session_folders : list of str
+        Sessions selected on the homepage. Their run names are offered for selecting
+        member runs by name across every one of them.
+    output_root_folder : str or None
+        Folder the mirrored output tree is written into. ``None`` when no sessions are
+        selected.
+    input_root_folder : str or None
+        Folder the session folders are selected inside. ``None`` when no sessions are
+        selected.
     """
 
-    def __init__(self, *, start_path: str, selected_group_folders: list[str]) -> None:
+    def __init__(
+        self,
+        *,
+        start_path: str,
+        selected_group_folders: list[str],
+        session_folders: list[str],
+        output_root_folder: str | None,
+        input_root_folder: str | None,
+    ) -> None:
         self.start_path = start_path if start_path and Path(start_path).is_dir() else default_root_path()
         self.selected_group_folders = list(selected_group_folders)
+        self.session_folders = list(session_folders)
+        self.output_root_folder = output_root_folder
+        self.input_root_folder = input_root_folder
         self.edit_start_path = (
             str(Path(self.selected_group_folders[0]).parent) if self.selected_group_folders else self.start_path
         )
@@ -101,7 +124,16 @@ group — run **Group Analysis** afterwards to compute the averages.
             "### 1 · What Goes into the Group?\n\n"
             "Pick the **output run directories** to average — the `<session>_output_<run>` folders "
             "*inside* each session, not the session folders themselves. Each must already have "
-            "Step-4 results.",
+            "Step-4 results. Naming a run below selects it in every session selected on the "
+            "homepage that has it; the browser underneath shows the result and can be adjusted "
+            "run by run.",
+            width=620,
+        )
+        self.run_names_for_all_sessions = pn.widgets.MultiChoice(
+            name="Run Names for All Sessions",
+            value=[],
+            options=self._run_names_for_sessions(),
+            placeholder="Select runs by name across all sessions",
             width=620,
         )
         self.members_selector = pn.widgets.FileSelector(
@@ -126,6 +158,7 @@ group — run **Group Analysis** afterwards to compute the averages.
         )
         self.members_column = pn.Column(
             self.members_markdown,
+            self.run_names_for_all_sessions,
             self.members_selector,
             width=640,
         )
@@ -143,6 +176,7 @@ group — run **Group Analysis** afterwards to compute the averages.
     def attach_callbacks(self) -> None:
         """Wire the page's widget callbacks."""
         self.mode_button.on_click(self._on_mode_change)
+        self.run_names_for_all_sessions.param.watch(self._on_run_names_for_all_sessions_change, "value")
         self.group_to_edit_selector.param.watch(self._on_group_to_edit_change, "value")
         self.save.on_click(self._on_save)
 
@@ -152,6 +186,32 @@ group — run **Group Analysis** afterwards to compute the averages.
         creating = self._current_mode == CREATE_NEW_GROUP
         self.destination_column.visible = creating
         self.edit_column.visible = not creating
+
+    def _run_names_for_sessions(self) -> list[str]:
+        """Return every run name present in at least one homepage-selected session."""
+        if not self.session_folders:
+            return []
+        return run_names_in_sessions(
+            session_folders=self.session_folders,
+            output_root_folder=self.output_root_folder,
+            input_root_folder=self.input_root_folder,
+        )
+
+    def _on_run_names_for_all_sessions_change(self, event: object) -> None:
+        """Select or deselect the member runs matching the bulk choice, leaving hand-picked ones alone."""
+        added = [run_name for run_name in event.new if run_name not in event.old]
+        removed = [run_name for run_name in event.old if run_name not in event.new]
+        kept = [path for path in (self.members_selector.value or []) if parse_run_name(path) not in removed]
+        added_run_folders = existing_run_folders_for_run_names(
+            session_folders=self.session_folders,
+            run_names=added,
+            output_root_folder=self.output_root_folder,
+            input_root_folder=self.input_root_folder,
+        )
+        # Setting ``value`` alone leaves the browser's selected pane stale; ``_update_files``
+        # re-enumerates so runs outside the directory on show appear there too.
+        self.members_selector.value = list(dict.fromkeys(kept + added_run_folders))
+        self.members_selector._update_files()
 
     def _on_group_to_edit_change(self, event: object) -> None:
         """Load the chosen group's recorded members into the member selector."""

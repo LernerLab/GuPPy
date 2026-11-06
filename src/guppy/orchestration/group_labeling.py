@@ -23,8 +23,9 @@ def build_group_labeling_page(*, inputParameters: dict[str, object]) -> GroupLab
     ----------
     inputParameters : dict
         Full pipeline input parameters; starts the page's browsers in the output
-        base directory (falling back to ``abspath``) and uses
-        ``selected_group_folders`` to populate its edit list.
+        base directory (falling back to ``abspath``), uses ``selected_group_folders`` to
+        populate its edit list, and offers the run names of ``session_folders`` for
+        selecting member runs by name.
 
     Returns
     -------
@@ -34,6 +35,9 @@ def build_group_labeling_page(*, inputParameters: dict[str, object]) -> GroupLab
     return GroupLabelingPage(
         start_path=inputParameters.get("output_root_folder") or inputParameters.get("abspath") or "",
         selected_group_folders=list(inputParameters.get("selected_group_folders") or []),
+        session_folders=list(inputParameters.get("session_folders") or []),
+        output_root_folder=inputParameters.get("output_root_folder"),
+        input_root_folder=inputParameters.get("input_root_folder"),
     )
 
 
