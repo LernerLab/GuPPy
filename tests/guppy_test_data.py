@@ -63,3 +63,11 @@ def resolve_plot(plot: "hv.DynamicMap") -> "hv.Element":
     the empty key resolves it against the full data, which is what assertions inspect.
     """
     return plot[()]
+
+
+def inked_color(image: "hv.RGB") -> str:
+    """Return the ``#RRGGBB`` color a shaded trace is drawn in, read from its most opaque pixel."""
+    alpha = image.dimension_values("A")
+    index = int(alpha.argmax())
+    red, green, blue = (int(image.dimension_values(channel)[index]) for channel in "RGB")
+    return f"#{red:02X}{green:02X}{blue:02X}"

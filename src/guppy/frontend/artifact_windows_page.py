@@ -23,6 +23,7 @@ from ..utils.artifact_windows import (
     windows_to_coords,
 )
 from ..utils.utils import parse_run_name, sibling_run_folders
+from ..visualization.palette import CONTROL, SIGNAL
 from ..visualization.preprocessing import (
     build_markable_trace,
     make_spans_pipe,
@@ -509,10 +510,10 @@ class ArtifactWindowSelector:
         trace = self.pair_traces[self.site_select.value]
         control_name, signal_name, fit_name = trace["plot_name"]
         choice = self.trace_select.value
-        values, overlay, title = {
-            CONTROL_TRACE: (trace["control"], None, control_name),
-            SIGNAL_TRACE: (trace["signal"], None, signal_name),
-            FIT_TRACE: (trace["signal"], trace["fit"], fit_name),
+        values, overlay, title, color = {
+            CONTROL_TRACE: (trace["control"], None, control_name, CONTROL),
+            SIGNAL_TRACE: (trace["signal"], None, signal_name, SIGNAL),
+            FIT_TRACE: (trace["signal"], trace["fit"], fit_name, SIGNAL),
         }[choice]
         return build_markable_trace(
             x=trace["x"],
@@ -522,6 +523,7 @@ class ArtifactWindowSelector:
             spans=self.spans_pipe,
             on_x_select=self._on_drag,
             hooks=[self._capture_figure],
+            color=color,
         )
 
     def _capture_figure(self, plot: object, element: object) -> None:

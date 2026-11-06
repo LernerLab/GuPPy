@@ -1,3 +1,4 @@
+import holoviews as hv
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,6 +8,7 @@ from guppy.frontend.tonic_epochs import (
     TonicEpochConfig,
     TonicResultsView,
     build_tonic_results_view,
+    epoch_color,
 )
 from guppy.utils._hdf5_io import write_hdf5
 
@@ -140,15 +142,26 @@ class TestTonicEpochConfig:
 
         assert config.epochs_for("DLS") == [("baseline", 0.0, 2.0)]
 
+    def test_each_epoch_window_is_shaded_in_its_own_color(self, config):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("drug", 4.0, 6.0), ("washout", 8.0, 10.0)])
+
+        assert config.spans_pipe.data == [(0.0, 2.0, "#6E56CF"), (4.0, 6.0, "#1F7FC4"), (8.0, 10.0, "#14A39A")]
+
     def test_editing_a_bound_repaints_the_spans_without_rebuilding_the_plot(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
         plot = config.plot_pane.object
 
         config.site_to_rows["DMS"][0].end_input.value = 4.0
 
-        assert config.spans_pipe.data == [(0.0, 4.0)]
+        # The first epoch takes the first epoch color, violet.
+        assert config.spans_pipe.data == [(0.0, 4.0, "#6E56CF")]
         # The traces are density-shaded server-side, so a bound edit must not re-aggregate them.
         assert config.plot_pane.object is plot
+
+
+class TestEpochColor:
+    def test_epochs_take_the_logo_gradient_in_order_and_wrap_after_four(self):
+        assert [epoch_color(index) for index in range(5)] == ["#6E56CF", "#1F7FC4", "#14A39A", "#9BC53D", "#6E56CF"]
 
 
 def _write_tonic_results(filepath, site):
@@ -209,6 +222,16 @@ class TestTonicResultsView:
 
         dff_bars = bars[1].Bars.I
         np.testing.assert_allclose(dff_bars.dimension_values("Δ mean ΔF/F"), [0.0, 0.8])
+
+    def test_each_epoch_bar_matches_its_window_color(self, panel_extension, run_folder):
+        _write_tonic_results(run_folder, "DMS")
+        view = TonicResultsView(str(run_folder), label="output_1")
+
+        zscore_bars = view.bars_pane.object[0].Bars.I
+        bar_colors = hv.Store.lookup_options("bokeh", zscore_bars, "style").kwargs["color"].apply(zscore_bars)
+
+        assert list(bar_colors) == ["#6E56CF", "#1F7FC4"]
+        assert view.spans_pipe.data == [(0.0, 2.0, "#6E56CF"), (8.0, 10.0, "#1F7FC4")]
 
     def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")

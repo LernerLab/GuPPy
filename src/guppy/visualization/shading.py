@@ -16,10 +16,12 @@ it — the distinction that makes an artifact visible.
 import holoviews as hv
 from holoviews.operation.datashader import datashade
 
+from .palette import CONTROL, SIGNAL
+
 # Hues for a shaded trace. datashade ramps opacity from the background up to the color with
 # the number of samples in the pixel, so one color carries the whole density scale.
-TRACE_COLOR = "#1f77b4"
-FIT_COLOR = "#ff7f0e"
+TRACE_COLOR = SIGNAL
+FIT_COLOR = CONTROL
 
 
 def shade_trace(curve: hv.Curve, color: str = TRACE_COLOR) -> hv.DynamicMap:

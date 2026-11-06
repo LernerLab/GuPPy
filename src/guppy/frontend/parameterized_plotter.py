@@ -25,6 +25,7 @@ from ..analysis.io_utils import (
     recording_sites_for_output_directory,
 )
 from ..utils.utils import read_Df
+from ..visualization.palette import SIGNAL
 
 pn.extension()
 
@@ -138,14 +139,14 @@ class ParameterizedPlotter(param.Parameterized):
     save_options_trials = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_heatmap = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     color_map = param.ObjectSelector(default="plasma")
-    trace_color = param.Color(default="#0000ff")
+    trace_color = param.Color(default=SIGNAL)
     mean_color = param.Color(default="#000000")
     # When True, hide the minor tick marks between axis numbers on the PSTH line plots
     # for a cleaner look. Ticks are shown by default; the user opts in to hide them.
     hide_minor_ticks = param.Boolean(default=False)
     # Categorical palette used to colour the per-event curves in the comparison plot.
     overlay_palette = param.ObjectSelector(
-        default="Category10", objects=["Category10", "Category20", "Colorblind", "Dark2", "Set1"]
+        default="GuPPy", objects=["GuPPy", "Category10", "Category20", "Colorblind", "Dark2", "Set1"]
     )
     # Per-event colour overrides for the comparison plot, keyed by the selection label
     # (the entries of ``selector_for_multipe_events_plot``). Only events the user has

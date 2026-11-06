@@ -28,6 +28,7 @@ from ..frontend.page_area import PageArea
 from ..frontend.sidebar import Sidebar
 from ..utils import page_links
 from ..utils.progress import StepProgress, _current_step
+from ..visualization.palette import apply_plot_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ def build_homepage(
     # runs that clobber the shared progress file and output directories.
     step_running = {"active": False}
 
+    apply_plot_defaults()
     template = guppy_header_template(
         page_name="Guided Photometry Analysis in Python", title="GuPPy: Guided Photometry Analysis in Python"
     )

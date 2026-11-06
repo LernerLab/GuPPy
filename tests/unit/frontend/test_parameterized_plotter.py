@@ -325,7 +325,7 @@ class TestParameterizedPlotter:
         assert plotter.trials_Y is None
 
     def test_default_trace_color(self, plotter):
-        assert plotter.trace_color == "#0000ff"
+        assert plotter.trace_color == "#3A9E5C"
 
     def test_default_mean_color(self, plotter):
         assert plotter.mean_color == "#000000"
@@ -346,7 +346,7 @@ class TestParameterizedPlotter:
         assert plotter.param["save_options_cont"].objects == ["png", "svg"]
 
     def test_default_overlay_palette(self, plotter):
-        assert plotter.overlay_palette == "Category10"
+        assert plotter.overlay_palette == "GuPPy"
 
     def test_default_height_plot(self, plotter):
         assert plotter.Height_Plot == 300
@@ -855,17 +855,17 @@ class TestParameterizedPlotter:
         assert plotter.overlay_color_overrides == {}
 
     def test_overlay_effective_colors_uses_palette_when_no_overrides(self, plotter):
-        # Category10 palette; two events selected in order -> its first two colors.
+        # GuPPy palette; two events selected in order -> its first two colors, green then blue.
         plotter.selector_for_multipe_events_plot = ["event1", "event2"]
 
-        assert plotter.overlay_effective_colors() == {"event1": "#1f77b4", "event2": "#ff7f0e"}
+        assert plotter.overlay_effective_colors() == {"event1": "#3A9E5C", "event2": "#1F6FD1"}
 
     def test_overlay_effective_colors_override_wins(self, plotter):
         # An explicit override replaces only that event's color; the other keeps its palette color.
         plotter.selector_for_multipe_events_plot = ["event1", "event2"]
         plotter.overlay_color_overrides = {"event2": "#123456"}
 
-        assert plotter.overlay_effective_colors() == {"event1": "#1f77b4", "event2": "#123456"}
+        assert plotter.overlay_effective_colors() == {"event1": "#3A9E5C", "event2": "#123456"}
 
     def test_overlay_effective_colors_cycles_palette_beyond_its_length(self, plotter):
         # Dark2 has 8 colors; a 9th event wraps back to the first color.
