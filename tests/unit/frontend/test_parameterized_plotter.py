@@ -411,6 +411,30 @@ class TestParameterizedPlotter:
         assert seen["exporting_during_render"] is True
         assert plotter_for_save._exporting is False
 
+    def test_on_screen_plots_stretch_to_the_width_of_their_card(self, plotter_for_save):
+        plotter_for_save.Height_Plot = 400
+        plotter_for_save.height_heatmap = 500
+
+        psth_figure = hv.render(plotter_for_save.contPlot(), backend="bokeh")
+        heatmap_figure = hv.render(plotter_for_save.heatmap(), backend="bokeh")
+
+        assert (psth_figure.sizing_mode, psth_figure.height) == ("stretch_width", 400)
+        assert (heatmap_figure.sizing_mode, heatmap_figure.height) == ("stretch_width", 500)
+
+    def test_downloads_render_at_the_saved_size(self, plotter_for_save, capture_render):
+        plotter_for_save.Width_Plot = 800
+        plotter_for_save.Height_Plot = 400
+        plotter_for_save.width_heatmap = 1200
+        plotter_for_save.height_heatmap = 500
+
+        plotter_for_save.download_cont()
+        psth_figure = hv.render(capture_render["plot"], backend="bokeh")
+        plotter_for_save.download_heatmap()
+        heatmap_figure = hv.render(capture_render["plot"], backend="bokeh")
+
+        assert (psth_figure.sizing_mode, psth_figure.width, psth_figure.height) == ("fixed", 800, 400)
+        assert (heatmap_figure.sizing_mode, heatmap_figure.width, heatmap_figure.height) == ("fixed", 1200, 500)
+
     def test_download_cont_renders_current_x_range(self, plotter_for_save, capture_render):
         # Bug #1: a live zoom writes cont_X, and the download must render that current
         # view, not the range baked into the last reactive render.

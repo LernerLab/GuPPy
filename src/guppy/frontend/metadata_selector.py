@@ -53,6 +53,25 @@ _SCALAR_DOCS = {
 # Device categories describing biology rather than hardware (grouped separately in the library).
 _BIOLOGY_CATEGORIES = {"virus", "virus_injection", "indicator"}
 
+# Every single-value field shares one width, so a group of them wraps into even columns.
+_FIELD_WIDTH = 300
+
+
+def _fields(*fields: object) -> pn.FlexBox:
+    """Lay fields out in one row that wraps onto as many lines as the page width needs.
+
+    Parameters
+    ----------
+    *fields : object
+        Panel objects to lay out, in reading order.
+
+    Returns
+    -------
+    panel.FlexBox
+        The fields, stretched to the width of their container.
+    """
+    return pn.FlexBox(*fields, sizing_mode="stretch_width")
+
 
 def _sheets(required: bool) -> list[str]:
     """Per-widget stylesheet list for an input (adds the accent required-mark when required)."""
@@ -179,7 +198,6 @@ class MetadataSelector:
             advanced_card,
             action_footer,
             sizing_mode="stretch_width",
-            max_width=1080,
             styles={"padding": "8px 4px 40px 4px"},
         )
 
@@ -202,7 +220,7 @@ class MetadataSelector:
                 name=style.humanize(name),
                 value=scalars.get(name, ""),
                 description=_SCALAR_DOCS.get(name),
-                sizing_mode="stretch_width",
+                width=_FIELD_WIDTH,
                 stylesheets=_sheets(name in self.required_scalars),
                 **keywords,
             )
@@ -221,7 +239,7 @@ class MetadataSelector:
         self.institution = text("institution")
 
         # Experimenter repeater.
-        self.experimenter_box = pn.Column(sizing_mode="stretch_width")
+        self.experimenter_box = _fields()
         self.experimenter_inputs: list[pn.widgets.TextInput] = []
         add_experimenter = pn.widgets.Button(name="Add experimenter", width=180, stylesheets=[style.BUTTON_GHOST])
         add_experimenter.on_click(lambda event: self._add_experimenter(""))
@@ -267,14 +285,12 @@ class MetadataSelector:
         return pn.Card(
             style.section_label("Session"),
             self.session_description,
-            pn.Row(self.identifier, self.session_start_time, sizing_mode="stretch_width"),
-            pn.Row(self.lab, self.institution, sizing_mode="stretch_width"),
+            _fields(self.identifier, self.session_start_time, self.lab, self.institution),
             style.section_label("Experimenter", "last name first, e.g. Doe, Jane"),
             self.experimenter_box,
             add_experimenter,
             style.section_label("Subject"),
-            pn.Row(self.subject_id, self.sex, self.species, sizing_mode="stretch_width"),
-            pn.Row(self.genotype, self.strain, sizing_mode="stretch_width"),
+            _fields(self.subject_id, self.sex, self.species, self.genotype, self.strain),
             self.age_or_dob,
             pn.Row(self.age, self.date_of_birth),
             title="Core NWB metadata",
@@ -285,11 +301,11 @@ class MetadataSelector:
         )
 
     def _add_experimenter(self, value: str) -> None:
-        row = pn.Row(sizing_mode="stretch_width")
+        row = pn.Row()
         text_input = pn.widgets.TextInput(
             value=value,
             placeholder="Last, First",
-            sizing_mode="stretch_width",
+            width=_FIELD_WIDTH,
             stylesheets=[style.INPUT_STYLESHEET],
         )
         remove = pn.widgets.Button(name="✕", width=42, stylesheets=[style.BUTTON_CLOSE])
@@ -363,16 +379,14 @@ class MetadataSelector:
 
     def _add_device(self, category_key: str, entry: dict) -> None:
         fields: list[tuple[FieldSpec, object]] = []  # (spec, widget or list-row)
-        rows = []
-        insertion_header_added = False
+        rows = [_fields()]
         name_widget = None
         for spec in field_specs(category_key):
-            if spec.target == "insertion" and not insertion_header_added:
-                rows.append(style.subgroup_label("Fiber insertion (optional)"))
-                insertion_header_added = True
+            if spec.target == "insertion" and len(rows) == 1:
+                rows.extend([style.subgroup_label("Fiber insertion (optional)"), _fields()])
             widget = self._make_field_widget(spec, entry)
             fields.append((spec, widget))
-            rows.append(widget)
+            rows[-1].append(widget)
             if spec.name == "name":
                 name_widget = widget
 
@@ -419,7 +433,7 @@ class MetadataSelector:
                 options=[""],
                 value=(value or ""),
                 description=spec.doc,
-                sizing_mode="stretch_width",
+                width=_FIELD_WIDTH,
                 stylesheets=_sheets(spec.required),
             )
             self.device_link_selects.append((select, spec.link_target, spec.required))
@@ -440,7 +454,7 @@ class MetadataSelector:
                 options=choices,
                 value=chosen,
                 description=spec.doc,
-                sizing_mode="stretch_width",
+                width=_FIELD_WIDTH,
                 stylesheets=_sheets(spec.required),
             )
         if spec.is_list:
@@ -466,14 +480,14 @@ class MetadataSelector:
                 name=label,
                 value=_as_float(value),
                 description=spec.doc,
-                sizing_mode="stretch_width",
+                width=_FIELD_WIDTH,
                 stylesheets=_sheets(spec.required),
             )
         return pn.widgets.TextInput(
             name=label,
             value=("" if value is None else str(value)),
             description=spec.doc,
-            sizing_mode="stretch_width",
+            width=_FIELD_WIDTH,
             stylesheets=_sheets(spec.required),
         )
 
@@ -518,8 +532,7 @@ class MetadataSelector:
             self.channel_records.append({"fields": fields})
             instance_card = pn.Card(
                 style.channel_role_chip(channel.role, channel.store_name),
-                pn.Row(excitation, emission, *link_widgets[:2], sizing_mode="stretch_width"),
-                pn.Row(*link_widgets[2:], sizing_mode="stretch_width"),
+                _fields(excitation, emission, *link_widgets),
                 hide_header=True,
                 sizing_mode="stretch_width",
                 stylesheets=[style.INSTANCE_CARD],

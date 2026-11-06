@@ -23,14 +23,16 @@ class StoreLabelingSelector:
     """
 
     def __init__(self, allnames: list[str]) -> None:
-        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", width=600, visible=False)
+        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="danger", sizing_mode="stretch_width", visible=False)
         if len(allnames) == 0:
             self.set_alert_message(
                 "####Alert !! \n No store_ids found. There are not any TDT files or csv files to look for store_ids."
             )
 
         # creating different buttons and selectors for the GUI
-        self.cross_selector = pn.widgets.CrossSelector(name="Store Selection", value=[], options=allnames, width=600)
+        self.cross_selector = pn.widgets.CrossSelector(
+            name="Store Selection", value=[], options=allnames, sizing_mode="stretch_width"
+        )
         self.multi_choice = pn.widgets.MultiChoice(
             name="Select Stores which you want more than once (multi-choice: multiple options selection)",
             value=[],
@@ -42,14 +44,14 @@ class StoreLabelingSelector:
         )
 
         self.repeat_stores = pn.widgets.Checkbox(name="Stores to repeat", value=False)
-        self.repeat_store_wd = pn.WidgetBox("", width=600)
+        self.repeat_store_wd = pn.WidgetBox("", sizing_mode="stretch_width")
 
         self.repeat_stores.link(self.repeat_store_wd, callbacks={"value": self.callback})
 
-        self.update_options = pn.widgets.Button(name="Select Stores", width=600)
-        self.save = pn.widgets.Button(name="Save", width=600)
+        self.update_options = pn.widgets.Button(name="Select Stores", sizing_mode="stretch_width")
+        self.save = pn.widgets.Button(name="Save", sizing_mode="stretch_width")
 
-        self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, width=600)
+        self.text = pn.widgets.LiteralInput(value=[], name="Selected Stores", type=list, sizing_mode="stretch_width")
 
         self._saved_notification = None
 
@@ -60,12 +62,14 @@ class StoreLabelingSelector:
 - **Create new run** — save into a new output folder named after **Run name**.
 - **Overwrite existing run** — replace the output folder picked in **Run to overwrite**.
             """,
-            width=600,
+            sizing_mode="stretch_width",
         )
 
-        self.run_name = pn.widgets.TextInput(name="Run name", value="", width=600)
+        self.run_name = pn.widgets.TextInput(name="Run name", value="", sizing_mode="stretch_width")
 
-        self.select_location = pn.widgets.Select(name="Run to overwrite", options=[], width=600, visible=False)
+        self.select_location = pn.widgets.Select(
+            name="Run to overwrite", options=[], sizing_mode="stretch_width", visible=False
+        )
 
         self.overwrite_mode = pn.widgets.RadioBoxGroup(
             options={"Create new run": "create_new_file", "Overwrite existing run": "over_write_file"},
@@ -78,7 +82,7 @@ class StoreLabelingSelector:
         )
 
         self.literal_input_2 = pn.widgets.CodeEditor(
-            value="""{}""", theme="tomorrow", language="json", height=250, width=600
+            value="""{}""", theme="tomorrow", language="json", height=250, sizing_mode="stretch_width"
         )
 
         self.take_widgets = pn.WidgetBox(self.multi_choice, self.literal_input_1)
@@ -86,7 +90,7 @@ class StoreLabelingSelector:
         self.change_widgets = pn.WidgetBox(self.text)
 
         self.store_id_config_widgets = pn.Column(visible=False)
-        self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", width=600)
+        self.show_config_button = pn.widgets.Button(name="Show Selected Configuration", sizing_mode="stretch_width")
 
         # Store-selection state shared across the GUI button callbacks. ``store_ids``
         # is the list of store_ids the user selected; ``store_id_dropdowns`` and
@@ -115,6 +119,7 @@ class StoreLabelingSelector:
             self.run_name,
             self.select_location,
             self.save,
+            sizing_mode="stretch_width",
         )
 
     def callback(self, target: pn.WidgetBox, event: object) -> None:

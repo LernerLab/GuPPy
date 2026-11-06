@@ -506,7 +506,12 @@ def build_store_labeling_template(
     if npm_interactive is not None:
         store_labeling_instructions.confirm_button.on_click(confirm_npm_configuration)
 
-    template.main.append(pn.Row(store_labeling_instructions.widget, store_labeling_selector.widget))
+    # The selector sits beside the instructions when the page has room for both and wraps below them when not,
+    # growing to fill whatever width is left on its line.
+    store_labeling_selector.widget.styles = {"flex": "1 1 600px"}
+    template.main.append(
+        pn.FlexBox(store_labeling_instructions.widget, store_labeling_selector.widget, sizing_mode="stretch_width")
+    )
 
     # Expose hooks/widgets so tests can drive the page headlessly without a browser.
     template._hooks = {"save_button": save_button, "confirm_npm_configuration": confirm_npm_configuration}

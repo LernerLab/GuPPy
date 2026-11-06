@@ -142,6 +142,19 @@ class TestVisualizationDashboard:
         # its note rather than failing -- which is what lets it be added unconditionally.
         assert "No PSTH significance results" in dashboard._significance_tab[0].object
 
+    def test_the_tabs_stretch_to_the_page_width(self, dashboard):
+        assert dashboard._tabs.sizing_mode == "stretch_width"
+        assert dashboard._psth_tab.sizing_mode == "stretch_width"
+        assert dashboard._heatmap_tab.sizing_mode == "stretch_width"
+
+    def test_each_card_flows_its_controls_through_one_row(self, dashboard):
+        # Controls stacked one per line leave a wide card mostly empty, so each card's
+        # controls share one wrapping row.
+        cards = [*dashboard._psth_tab[1:], dashboard._heatmap_tab[1]]
+
+        assert [card.sizing_mode for card in cards] == ["stretch_width"] * 5
+        assert [sum(isinstance(item, pn.FlexBox) for item in card) for card in cards] == [1] * 5
+
     def test_psth_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._psth_tab, pn.Column)
 

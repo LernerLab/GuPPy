@@ -146,7 +146,7 @@ class PsthSignificanceView:
     @property
     def widget(self) -> pn.Column:
         """The composed selector, caption and plot."""
-        return pn.Column(self.comparison_select, self.caption, self.plot_pane)
+        return pn.Column(self.comparison_select, self.caption, self.plot_pane, sizing_mode="stretch_width")
 
 
 def build_psth_significance_view(filepath: str) -> pn.Column:

@@ -180,6 +180,7 @@ class CovariateCorrelationView:
             self.trace_pane,
             self.plot_pane,
             self.table_pane,
+            sizing_mode="stretch_width",
         )
 
 

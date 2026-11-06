@@ -92,32 +92,6 @@ _SECTION_ATTRIBUTES = (
     "significance_param_wd",
 )
 
-# Panel puts a default 5px margin either side of every object, so each member of a
-# row of siblings occupies its own width plus 10px.
-_SIBLING_MARGIN = 10
-
-
-def _occupied_width(node) -> int:
-    """Return the horizontal extent ``node`` takes up inside its parent, in pixels."""
-    declared = getattr(node, "width", None)
-    if declared:
-        return declared
-    return _content_width(node)
-
-
-def _content_width(node) -> int:
-    """Return the horizontal extent a layout's children need, ignoring its own declared width."""
-    # pn.WidgetBox is not a pn.Column subclass; ListPanel is the common base that
-    # also covers Column, Row and Card.
-    if not isinstance(node, pn.layout.ListPanel):
-        return 0
-    extents = [extent for extent in (_occupied_width(child) for child in node.objects) if extent]
-    if not extents:
-        return 0
-    if isinstance(node, pn.Row):
-        return sum(extents) + _SIBLING_MARGIN * len(extents)
-    return max(extents)
-
 
 def _label_width(name: str) -> int:
     """Approximate the rendered width of a widget label plus its help icon, in pixels."""
@@ -126,7 +100,7 @@ def _label_width(name: str) -> int:
 
 def _width_bearing_containers(node) -> list:
     """Return every layout at or below ``node`` that pins its own width."""
-    if not isinstance(node, pn.layout.ListPanel):
+    if not isinstance(node, (pn.layout.ListPanel, pn.FlexBox)):
         return []
     found = [node] if getattr(node, "width", None) else []
     for child in node.objects:
@@ -258,28 +232,46 @@ class TestParameterFormInitialState:
             "Event B",
         ]
 
-    def test_no_layout_overflows_its_declared_width(self, parameter_form):
-        # Contents wider than their container overflow the panel visually, which no other
-        # assertion here would catch. Sweeping every card rather than a hardcoded list of
-        # boxes means a newly added parameter cannot slip past the check.
-        for card_name in _CARD_ATTRIBUTES:
-            for container in _width_bearing_containers(getattr(parameter_form, card_name)):
-                occupied = _content_width(container)
-                assert occupied <= container.width, (
-                    f"{card_name}: {type(container).__name__} contents occupy {occupied}px "
-                    f"inside a {container.width}px container"
-                )
+    def test_every_card_stretches_to_the_page_width(self, parameter_form):
+        sizes = {
+            card_name: (getattr(parameter_form, card_name).sizing_mode, getattr(parameter_form, card_name).width)
+            for card_name in _CARD_ATTRIBUTES
+        }
 
-    def test_width_sweep_reaches_every_parameter_box(self, parameter_form):
-        # Guards the sweep itself: a refactor that drops a box out of the card tree would
-        # otherwise leave the overflow test passing because it found nothing to check.
-        swept = {
-            id(container)
+        assert sizes == {card_name: ("stretch_width", None) for card_name in _CARD_ATTRIBUTES}
+
+    def test_no_layout_inside_the_cards_pins_its_width(self, parameter_form):
+        # A layout with a fixed width stops short of a wide window and overflows a narrow one.
+        # The DANDI panel is a self-contained component that keeps its own fixed width.
+        dandi_containers = {
+            id(container) for container in _width_bearing_containers(parameter_form.dandi_file_panel.panel)
+        }
+        pinned = [
+            (card_name, type(container).__name__, container.width)
             for card_name in _CARD_ATTRIBUTES
             for container in _width_bearing_containers(getattr(parameter_form, card_name))
-        }
-        for box_name in _SECTION_ATTRIBUTES:
-            assert id(getattr(parameter_form, box_name)) in swept, f"{box_name} was not reached by the sweep"
+            if id(container) not in dandi_containers
+        ]
+
+        assert pinned == []
+
+    def test_every_parameter_section_stretches_to_the_card_width(self, parameter_form):
+        sizes = [getattr(parameter_form, box_name).sizing_mode for box_name in _SECTION_ATTRIBUTES]
+
+        assert sizes == ["stretch_width"] * len(_SECTION_ATTRIBUTES)
+
+    def test_parameter_rows_wrap_on_a_narrow_window(self, parameter_form):
+        unwrapped = [
+            box_name
+            for box_name in _SECTION_ATTRIBUTES
+            for item in getattr(parameter_form, box_name)
+            if isinstance(item, pn.Row)
+            and any(
+                isinstance(child, pn.widgets.Widget) and not isinstance(child, pn.widgets.TooltipIcon) for child in item
+            )
+        ]
+
+        assert unwrapped == []
 
     def test_df_widget_initial_peak_start_values(self, parameter_form):
         df = parameter_form.df_widget.value
@@ -1391,7 +1383,7 @@ class TestFolderSelectionCards:
 
 class TestTitledBox:
     def test_heading_carries_the_title(self, panel_extension):
-        box = _titled_box(title="Signal Filtering", read_by="Step 3", contents=[], width=960)
+        box = _titled_box(title="Signal Filtering", read_by="Step 3", contents=[])
 
         assert box.objects[0].object == "### Signal Filtering"
 
@@ -1400,23 +1392,25 @@ class TestTitledBox:
             title="Signal Filtering",
             read_by="Step 3 and Group Analysis",
             contents=[],
-            width=960,
         )
 
         assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
 
-    def test_contents_follow_the_heading(self, panel_extension):
-        widget = pn.widgets.IntInput(name="Cores", value=2, width=150)
+    def test_contents_share_one_wrapping_row_after_the_heading(self, panel_extension):
+        first = pn.widgets.IntInput(name="Cores", value=2, width=150)
+        second = pn.widgets.IntInput(name="Threads", value=1, width=150)
 
-        box = _titled_box(title="Parallel Execution", read_by="Step 2", contents=[widget], width=960)
+        box = _titled_box(title="Parallel Execution", read_by="Step 2", contents=[first, second])
 
-        assert box.objects[2] is widget
+        assert isinstance(box.objects[2], pn.FlexBox)
+        assert box.objects[2].flex_wrap == "wrap"
+        assert list(box.objects[2]) == [first, second]
 
-    def test_panes_sit_inside_the_declared_width(self, panel_extension):
-        box = _titled_box(title="Metric Binning", read_by="Step 4", contents=[], width=960)
+    def test_box_and_its_children_stretch_to_the_container_width(self, panel_extension):
+        box = _titled_box(title="Metric Binning", read_by="Step 4", contents=[])
 
-        assert box.width == 960
-        assert [pane.width for pane in box.objects] == [920, 920]
+        assert box.sizing_mode == "stretch_width"
+        assert [child.sizing_mode for child in box.objects] == ["stretch_width", "stretch_width", "stretch_width"]
 
 
 class TestTableHeading:
@@ -1440,7 +1434,7 @@ class TestParameterHelp:
             widget.name
             for section in parameter_form.individual_parameters.objects
             for item in section
-            for widget in (list(item) if isinstance(item, pn.Row) else [item])
+            for widget in (list(item) if isinstance(item, pn.FlexBox) else [item])
             if isinstance(widget, pn.widgets.Widget)
             and not isinstance(
                 widget,
@@ -1461,7 +1455,7 @@ class TestParameterHelp:
             (widget.name, widget.width)
             for section in parameter_form.individual_parameters.objects
             for item in section
-            for widget in (list(item) if isinstance(item, pn.Row) else [item])
+            for widget in (list(item) if isinstance(item, pn.FlexBox) else [item])
             if isinstance(widget, pn.widgets.Widget)
             and getattr(widget, "description", None)
             and widget.width
@@ -1472,6 +1466,26 @@ class TestParameterHelp:
 
 
 class TestParameterSections:
+    def test_each_section_flows_its_controls_through_one_row(self, parameter_form):
+        # Splitting a section's controls across several FlexBoxes caps it at the widest
+        # of those rows, leaving the rest of a wide page empty.
+        flex_boxes_per_section = {
+            section.objects[0].object: sum(isinstance(item, pn.FlexBox) for item in section)
+            for section in parameter_form.individual_parameters.objects
+        }
+
+        assert flex_boxes_per_section == {
+            "### Parallel Execution": 1,
+            "### Control Channel Fitting": 1,
+            "### Signal Filtering": 1,
+            "### Z-score Normalization": 1,
+            "### PSTH Computation": 1,
+            "### Peak and AUC Measurement": 1,
+            "### Transient Detection": 1,
+            "### Metric Binning": 1,
+            "### Significance Testing": 1,
+        }
+
     def test_sections_appear_in_pipeline_order(self, parameter_form):
         titles = [section.objects[0].object for section in parameter_form.individual_parameters.objects]
 
@@ -1492,14 +1506,14 @@ class TestParameterSections:
 
     def test_the_shared_transient_controls_sit_with_the_detector(self, parameter_form):
         section = parameter_form.transients_param_wd
-        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.Row) else [item])]
+        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.FlexBox) else [item])]
 
         assert parameter_form.transients in widgets
         assert parameter_form.useTransientsAsEvents in widgets
 
     def test_the_psth_metric_sits_with_the_psth_window(self, parameter_form):
         section = parameter_form.psth_param_wd
-        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.Row) else [item])]
+        widgets = [widget for item in section for widget in (list(item) if isinstance(item, pn.FlexBox) else [item])]
 
         assert parameter_form.computePsth in widgets
         assert parameter_form.baselineCorrectionStart in widgets

@@ -229,16 +229,17 @@ A **Metric** selector sits with the display settings on the PSTH tab, and beside
 :align: center
 ```
 
-The **PSTH** tab is the default view. It shows the trial-aligned trace for one event with controls running down the left:
+The **PSTH** tab is the default view. A *Display settings* card at the top holds what every plot on the tab shares: the *Metric*, the plot *Height*, and the *Saved width* that a figure saved with *Save As…* is rendered at. On screen, each plot spans the full width of the window.
 
-- *Event selector*: which TTL channel to align to (here `RewardPort`).
-- *X* and *Y* dropdowns: what to plot on each axis. X is typically `timestamps`, Y can be `mean` (the trial average) or an individual trial like `trial_1`.
-- *X Limit* and *Y Limit* range sliders: restrict the displayed window.
-- *Width Plot*, *Height Plot*, *Save options* dropdowns and a *Save PSTH* button: figure dimensions and export.
+Below it, three cards each hold one plot, with its controls in a row above it:
 
-On the right is a trial multi-select (*Trial # - Timestamps*) and a *Select mean and/or just trials* checkbox group, which together let you overlay any combination of individual trials and the mean. With a TTL file containing only a handful of timestamps, the average will be noisy; this is expected for the minimal sample dataset.
+- *Single-event PSTH*: the *Event selector* picks which TTL channel to align to (here `RewardPort`), and *View* shows the trial average (`mean`) or an individual trial.
+- *Multi-event comparison*: overlays the mean traces of the events you move into the right-hand list.
+- *Selected trials*: overlays any combination of individual trials of the first card's event, with or without their mean.
 
-The **Heat Map** tab shows trials stacked vertically with colour encoding the metric, which is the better view for inspecting trial-to-trial variability. Its controls mirror the PSTH tab: event selector, *Color map* (`plasma`, `viridis`, …), width and height, save options, and a trial picker.
+Each card also has its own axis limits and a *Save As…* button. With a TTL file containing only a handful of timestamps, the average will be noisy; this is expected for the minimal sample dataset.
+
+The **Heat Map** tab shows trials stacked vertically with colour encoding the metric, which is the better view for inspecting trial-to-trial variability. Its controls mirror the PSTH tab: event selector, *Color map* (`plasma`, `viridis`, …), saved width and height, axis and colour-scale limits, *Save As…*, and a trial picker.
 
 For this tutorial, the goal is just to reach a rendered PSTH; feel free to play with the controls. A deeper walkthrough of the visualization options will live in an upcoming how-to guide.
 
