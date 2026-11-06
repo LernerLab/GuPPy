@@ -64,7 +64,7 @@ def build_homepage(
     # runs that clobber the shared progress file and output directories.
     step_running = {"active": False}
 
-    template = pn.template.BootstrapTemplate(title="Input Parameters GUI")
+    template = pn.template.BootstrapTemplate(title="GuPPy: Guided Photometry Analysis in Python")
     # Right-aligned in the header bar so the running version is visible without scrolling
     # the long sidebar, and is not mistaken for another pipeline step.
     template.header.append(

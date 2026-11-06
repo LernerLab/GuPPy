@@ -44,6 +44,10 @@ def test_returns_bootstrap_template(homepage):
     assert isinstance(homepage, pn.template.BootstrapTemplate)
 
 
+def test_title_names_guppy(homepage):
+    assert homepage.title == "GuPPy: Guided Photometry Analysis in Python"
+
+
 def test_header_shows_installed_version(homepage):
     version_pane = homepage.header.objects[0]
     assert version_pane.object == f"GuPPy {version('guppy-neuro')}"

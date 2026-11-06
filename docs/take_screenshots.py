@@ -161,7 +161,7 @@ def screenshot_sidebar(
 
 
 def screenshot_homepage(page: Page) -> None:
-    """Screenshot 1: the Input Parameters GUI landing page, as a first launch shows it.
+    """Screenshot 1: the GuPPy homepage, as a first launch shows it.
 
     Rendered wide enough that the 1000px cards clear the sidebar without being cut off,
     which the default viewport is too narrow for once a card carries prose.
@@ -861,7 +861,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         # an entry into the "Selected files" pane; setting FileSelector.value alone
         # updates the parameter without redrawing the panes.
         form = ParameterForm(
-            template=pn.template.MaterialTemplate(title="Input Parameters GUI"),
+            template=pn.template.MaterialTemplate(title="GuPPy: Guided Photometry Analysis in Python"),
         )
         form.input_root_selector.value = [str(SAMPLE_DATA_DIR.parent)]
         form.output_root_selector.value = [str(output_root_folder)]
@@ -870,7 +870,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         form.outputs_selector._selector.value = [str(run_folders[2])]
         form.output_folder_selection.collapsed = False
 
-        template = pn.template.MaterialTemplate(title="Input Parameters GUI")
+        template = pn.template.MaterialTemplate(title="GuPPy: Guided Photometry Analysis in Python")
         template.main.append(form.output_folder_selection)
         url = _serve(template)
 
