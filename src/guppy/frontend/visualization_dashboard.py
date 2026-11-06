@@ -46,6 +46,22 @@ def _labeled(*, label: str, content: object) -> pn.Column:
     return pn.Column(pn.pane.Markdown(f"**{label}**", margin=(5, 10, 0, 10)), content)
 
 
+def _plot(plot_method: Callable[[], object]) -> pn.viewable.Viewable:
+    """Show a plotter method's plot across the full width of its card.
+
+    Parameters
+    ----------
+    plot_method : callable
+        A plotter method decorated with ``param.depends``, re-run whenever its parameters change.
+
+    Returns
+    -------
+    panel.viewable.Viewable
+        The reactive pane, stretched to the width of its container.
+    """
+    return pn.panel(plot_method, sizing_mode="stretch_width")
+
+
 class VisualizationDashboard:
     """Dashboard for interactive PSTH and heatmap visualization.
 
@@ -298,10 +314,12 @@ class VisualizationDashboard:
         )
 
         width_plot = pn.Param(
-            self.plotter.param.Width_Plot, widgets={"Width_Plot": {"type": pn.widgets.Select, "width": 70}}
+            self.plotter.param.Width_Plot,
+            widgets={"Width_Plot": {"type": pn.widgets.Select, "name": "Saved width", "width": 90}},
         )
         height_plot = pn.Param(
-            self.plotter.param.Height_Plot, widgets={"Height_Plot": {"type": pn.widgets.Select, "width": 70}}
+            self.plotter.param.Height_Plot,
+            widgets={"Height_Plot": {"type": pn.widgets.Select, "name": "Height", "width": 90}},
         )
         hide_minor_ticks = pn.Param(
             self.plotter.param.hide_minor_ticks,
@@ -362,7 +380,7 @@ class VisualizationDashboard:
                 _labeled(label="Axis limits", content=cont_limits),
                 save_cont,
             ),
-            self.plotter.contPlot,
+            _plot(self.plotter.contPlot),
             title="1 · Single-event PSTH (mean, one trial, or all trials)",
             collapsed=False,
             sizing_mode="stretch_width",
@@ -376,7 +394,7 @@ class VisualizationDashboard:
                 _labeled(label="Axis limits", content=overlay_limits),
                 save_overlay,
             ),
-            self.plotter.update_selector,
+            _plot(self.plotter.update_selector),
             title="2 · Multi-event comparison",
             collapsed=False,
             sizing_mode="stretch_width",
@@ -393,7 +411,7 @@ class VisualizationDashboard:
                 _labeled(label="Axis limits", content=trials_limits),
                 save_trials,
             ),
-            self.plotter.plot_specific_trials,
+            _plot(self.plotter.plot_specific_trials),
             title="3 · Selected trials (of the section-1 event)",
             collapsed=False,
             sizing_mode="stretch_width",
@@ -424,10 +442,12 @@ class VisualizationDashboard:
             self.plotter.param.color_map, widgets={"color_map": {"type": pn.widgets.Select, "width": 150}}
         )
         width_heatmap = pn.Param(
-            self.plotter.param.width_heatmap, widgets={"width_heatmap": {"type": pn.widgets.Select, "width": 150}}
+            self.plotter.param.width_heatmap,
+            widgets={"width_heatmap": {"type": pn.widgets.Select, "name": "Saved width", "width": 150}},
         )
         height_heatmap = pn.Param(
-            self.plotter.param.height_heatmap, widgets={"height_heatmap": {"type": pn.widgets.Select, "width": 150}}
+            self.plotter.param.height_heatmap,
+            widgets={"height_heatmap": {"type": pn.widgets.Select, "name": "Height", "width": 150}},
         )
         hide_minor_ticks_heatmap = pn.Param(
             self.plotter.param.hide_minor_ticks_heatmap,
@@ -471,7 +491,7 @@ class VisualizationDashboard:
                 _labeled(label="Color scale limits", content=color_limits),
                 save_hm,
             ),
-            pn.Row(self.plotter.heatmap, heatmap_y_parameters),
+            pn.Row(_plot(self.plotter.heatmap), heatmap_y_parameters, sizing_mode="stretch_width"),
             title="Trial heatmap",
             collapsed=False,
             sizing_mode="stretch_width",
