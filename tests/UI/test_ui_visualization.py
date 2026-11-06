@@ -79,7 +79,7 @@ def visualization_server_url(panel_extension, tmp_path_factory):
 def test_page_title_contains_visualization_gui(page, visualization_server_url):
     page.goto(visualization_server_url)
     expect(page.get_by_text("PSTH").first).to_be_visible()
-    assert "Visualization GUI" in page.title()
+    assert "Visualization" in page.title()
 
 
 @pytest.mark.ui

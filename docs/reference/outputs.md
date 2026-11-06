@@ -16,7 +16,7 @@ With roots of `/data` and `/data_analysis`, a session at `/data/subject1/session
 
 Nothing is written into a session folder except a custom event you import yourself, which Step 1 discovers beside the acquisition files.
 
-`<run_name>` is either the name you type in the Label Stores GUI or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `output_1` on the first run, `output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Each run folder is self-contained, so one session can have several runs under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
+`<run_name>` is either the name you type on the Label Stores page or, when you leave it to GuPPy, the lowest integer for which no such directory exists yet — `output_1` on the first run, `output_2` on the second. Re-running Step 1 over an existing run folder with the overwrite option deletes its entire contents first. Each run folder is self-contained, so one session can have several runs under different parameters — see [Comparing Two Parameter Sets](../tutorials/compare_parameters.md).
 
 Ticking **Output root folder is the same as the input root folder** points both roots at one folder, so each session mirrors onto itself and its run folders are created inside the session folder.
 
