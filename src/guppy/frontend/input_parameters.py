@@ -93,7 +93,8 @@ def _titled_box(*, title: str, read_by: str, contents: list) -> pn.WidgetBox:
         The pipeline steps whose workers read the section's parameters, phrased to
         follow "Read by" (e.g. ``"Step 3"``).
     contents : list
-        Panel objects to lay out under the heading.
+        Panel objects to lay out under the heading, in one row that wraps onto as many
+        lines as the width of the page needs.
 
     Returns
     -------
@@ -106,7 +107,8 @@ def _titled_box(*, title: str, read_by: str, contents: list) -> pn.WidgetBox:
         sizing_mode="stretch_width",
         styles={"color": "#6C757D", "font-size": "0.85em", "margin-top": "0"},
     )
-    return pn.WidgetBox(heading, read_by_note, *contents, sizing_mode="stretch_width", styles=SECTION_STYLES)
+    controls = pn.FlexBox(*contents, sizing_mode="stretch_width")
+    return pn.WidgetBox(heading, read_by_note, controls, sizing_mode="stretch_width", styles=SECTION_STYLES)
 
 
 def _table_heading(*, label: str, description: str, width: int) -> pn.Row:
@@ -585,24 +587,25 @@ class ParameterForm:
             description="End of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
-        # Each section's controls sit in FlexBox rows, which wrap onto a new line when the
-        # window is too narrow to hold them side by side.
         self.zscore_param_wd = _titled_box(
             title="Z-score Normalization",
             read_by="Step 3",
-            contents=[
-                pn.FlexBox(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
-            ],
+            contents=[self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end],
         )
 
         self.psth_param_wd = _titled_box(
             title="PSTH Computation",
             read_by="Step 4 and Group Analysis",
             contents=[
-                pn.FlexBox(self.computePsth, self.nSecPrev, self.nSecPost),
-                pn.FlexBox(self.computeCorr),
-                pn.FlexBox(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
-                pn.FlexBox(self.baselineCorrectionStart, self.baselineCorrectionEnd),
+                self.computePsth,
+                self.nSecPrev,
+                self.nSecPost,
+                self.computeCorr,
+                self.timeInterval,
+                self.use_time_or_trials,
+                self.bin_psth_trials,
+                self.baselineCorrectionStart,
+                self.baselineCorrectionEnd,
             ],
         )
 
@@ -627,16 +630,18 @@ class ParameterForm:
             title="Peak and AUC Measurement",
             read_by="Step 4",
             contents=[
-                _table_heading(
-                    label="Peak and area windows",
-                    description=(
-                        "Each row is one window that peak amplitude and area are measured over, in "
-                        "seconds relative to the event. Every window must lie inside the PSTH window. "
-                        "The table commits an edit only once you click another cell."
+                pn.Column(
+                    _table_heading(
+                        label="Peak and area windows",
+                        description=(
+                            "Each row is one window that peak amplitude and area are measured over, in "
+                            "seconds relative to the event. Every window must lie inside the PSTH window. "
+                            "The table commits an edit only once you click another cell."
+                        ),
+                        width=260,
                     ),
-                    width=260,
+                    self.df_widget,
                 ),
-                self.df_widget,
                 self.auc_units,
             ],
         )
@@ -664,21 +669,25 @@ class ParameterForm:
             title="Significance Testing",
             read_by="Step 4 and Group Analysis",
             contents=[
-                pn.FlexBox(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
-                _table_heading(
-                    label="Event comparisons",
-                    description=(
-                        "Each row names a pair of events to compare against each other, for example "
-                        "rewarded versus unrewarded nose pokes. Every event is tested against zero "
-                        "automatically, so leave this blank to run only those tests. Each pair is "
-                        "compared within every recording site and metric, using the labels assigned in "
-                        "Step 1. Comparisons run inside one output folder: in a session run folder the "
-                        "trials are resampled, in a group folder the session averages are."
+                self.computePsthSignificance,
+                self.psthSignificanceAlpha,
+                self.psthBootstrapResamples,
+                pn.Column(
+                    _table_heading(
+                        label="Event comparisons",
+                        description=(
+                            "Each row names a pair of events to compare against each other, for example "
+                            "rewarded versus unrewarded nose pokes. Every event is tested against zero "
+                            "automatically, so leave this blank to run only those tests. Each pair is "
+                            "compared within every recording site and metric, using the labels assigned in "
+                            "Step 1. Comparisons run inside one output folder: in a session run folder the "
+                            "trials are resampled, in a group folder the session averages are."
+                        ),
+                        width=200,
                     ),
-                    width=200,
+                    self.comparison_df_widget,
+                    self.add_comparison_button,
                 ),
-                self.comparison_df_widget,
-                self.add_comparison_button,
             ],
         )
 
@@ -692,35 +701,40 @@ class ParameterForm:
             title="Control Channel Fitting",
             read_by="Step 3",
             contents=[
-                pn.FlexBox(self.isosbestic_control, self.control_fit_method),
-                pn.FlexBox(self.photobleaching_detrend, self.control_fit_window_mode),
-                pn.FlexBox(self.control_fit_window_strt, self.control_fit_window_end),
-                pn.FlexBox(self.pair_timestamps_channel),
+                self.isosbestic_control,
+                self.control_fit_method,
+                self.photobleaching_detrend,
+                self.control_fit_window_mode,
+                self.control_fit_window_strt,
+                self.control_fit_window_end,
+                self.pair_timestamps_channel,
             ],
         )
 
         self.filtering_param_wd = _titled_box(
             title="Signal Filtering",
             read_by="Step 3 and Group Analysis",
-            contents=[pn.FlexBox(self.timeForLightsTurnOn, self.moving_avg_filter)],
+            contents=[self.timeForLightsTurnOn, self.moving_avg_filter],
         )
 
         self.transients_param_wd = _titled_box(
             title="Transient Detection",
             read_by="Steps 4 and 5 and Group Analysis",
             contents=[
-                pn.FlexBox(self.transients, self.useTransientsAsEvents),
-                pn.FlexBox(self.transient_detection_method, self.transient_minimum_rise),
-                pn.FlexBox(self.moving_wd, self.highAmpFilt, self.transientsThresh),
+                self.transients,
+                self.useTransientsAsEvents,
+                self.transient_detection_method,
+                self.transient_minimum_rise,
+                self.moving_wd,
+                self.highAmpFilt,
+                self.transientsThresh,
             ],
         )
 
         self.binned_metrics_param_wd = _titled_box(
             title="Metric Binning",
             read_by="Step 4",
-            contents=[
-                pn.FlexBox(self.computeBinnedMetrics, self.binnedMetricsWidth),
-            ],
+            contents=[self.computeBinnedMetrics, self.binnedMetricsWidth],
         )
 
         # One column, ordered by the step that reads each section, so the card reads

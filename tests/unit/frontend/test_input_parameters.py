@@ -1396,18 +1396,21 @@ class TestTitledBox:
 
         assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
 
-    def test_contents_follow_the_heading(self, panel_extension):
-        widget = pn.widgets.IntInput(name="Cores", value=2, width=150)
+    def test_contents_share_one_wrapping_row_after_the_heading(self, panel_extension):
+        first = pn.widgets.IntInput(name="Cores", value=2, width=150)
+        second = pn.widgets.IntInput(name="Threads", value=1, width=150)
 
-        box = _titled_box(title="Parallel Execution", read_by="Step 2", contents=[widget])
+        box = _titled_box(title="Parallel Execution", read_by="Step 2", contents=[first, second])
 
-        assert box.objects[2] is widget
+        assert isinstance(box.objects[2], pn.FlexBox)
+        assert box.objects[2].flex_wrap == "wrap"
+        assert list(box.objects[2]) == [first, second]
 
-    def test_box_and_panes_stretch_to_the_container_width(self, panel_extension):
+    def test_box_and_its_children_stretch_to_the_container_width(self, panel_extension):
         box = _titled_box(title="Metric Binning", read_by="Step 4", contents=[])
 
         assert box.sizing_mode == "stretch_width"
-        assert [pane.sizing_mode for pane in box.objects] == ["stretch_width", "stretch_width"]
+        assert [child.sizing_mode for child in box.objects] == ["stretch_width", "stretch_width", "stretch_width"]
 
 
 class TestTableHeading:
@@ -1463,6 +1466,26 @@ class TestParameterHelp:
 
 
 class TestParameterSections:
+    def test_each_section_flows_its_controls_through_one_row(self, parameter_form):
+        # Splitting a section's controls across several FlexBoxes caps it at the widest
+        # of those rows, leaving the rest of a wide page empty.
+        flex_boxes_per_section = {
+            section.objects[0].object: sum(isinstance(item, pn.FlexBox) for item in section)
+            for section in parameter_form.individual_parameters.objects
+        }
+
+        assert flex_boxes_per_section == {
+            "### Parallel Execution": 1,
+            "### Control Channel Fitting": 1,
+            "### Signal Filtering": 1,
+            "### Z-score Normalization": 1,
+            "### PSTH Computation": 1,
+            "### Peak and AUC Measurement": 1,
+            "### Transient Detection": 1,
+            "### Metric Binning": 1,
+            "### Significance Testing": 1,
+        }
+
     def test_sections_appear_in_pipeline_order(self, parameter_form):
         titles = [section.objects[0].object for section in parameter_form.individual_parameters.objects]
 
