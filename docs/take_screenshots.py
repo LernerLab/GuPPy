@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import socket
 import time
 from pathlib import Path
@@ -96,26 +97,67 @@ def _serve(template: BasicTemplate) -> str:
     return f"http://localhost:{port}"
 
 
-def _sidebar_clip(page: Page, from_step: str | None) -> dict[str, float]:
-    """Clip rectangle over the sidebar, optionally starting at one step's label.
+def _sidebar_clip(
+    page: Page, *, top_label: str, bottom_label: str | None, include_bottom_label: bool
+) -> dict[str, float]:
+    """Clip rectangle over the sidebar, from one step's label down to another's.
 
-    Without ``from_step`` the crop runs from the top of the page. With it, the crop starts
-    just above that step's label and ends below the Export to NWB progress bar, which is
-    the last thing in the sidebar. Both edges are measured off the rendered page rather
-    than hard-coded, since where a step lands depends on how many precede it.
+    The crop starts just above ``top_label``. It ends just above ``bottom_label``, or just
+    below it when ``include_bottom_label`` is set, or below the last step's status line when
+    ``bottom_label`` is ``None``. Both edges are measured off the rendered page rather than
+    hard-coded, since where a step lands depends on how many precede it.
     """
-    viewport_height = page.viewport_size["height"]
-    if from_step is None:
-        return {"x": 0, "y": 0, "width": 360, "height": viewport_height}
-
-    top = page.get_by_text(from_step).first.bounding_box()["y"] - 14
-    # The export progress bar is the last thing in the sidebar; anchoring on it rather than
-    # on the button above keeps the whole bar inside the crop whatever its height.
-    export_progress = page.locator("progress").last
-    export_progress.wait_for(timeout=15000)
-    export_bar = export_progress.bounding_box()
-    bottom = min(export_bar["y"] + export_bar["height"] + 16, viewport_height)
+    top = page.get_by_text(top_label, exact=True).first.bounding_box()["y"] - 14
+    if bottom_label is None:
+        status_lines = page.get_by_text(re.compile(r"^(Not run yet|Running…|✓ .*|✗ .*)$")).all()
+        bottom = max(box["y"] + box["height"] for box in (line.bounding_box() for line in status_lines)) + 16
+    else:
+        label = page.get_by_text(bottom_label, exact=True).first.bounding_box()
+        bottom = label["y"] + label["height"] + 10 if include_bottom_label else label["y"] - 10
     return {"x": 0, "y": top, "width": 340, "height": bottom - top}
+
+
+def screenshot_sidebar(
+    page: Page,
+    output_name: str,
+    *,
+    top_label: str,
+    bottom_label: str | None,
+    include_bottom_label: bool = False,
+    running: str | None = None,
+    done: tuple[str, ...] = (),
+    opened: tuple[str, ...] = (),
+    viewport_height: int = 900,
+) -> None:
+    """Screenshot a stretch of the homepage sidebar, with chosen steps shown done, opened or running.
+
+    A running step shows its progress bar 60% full above a "Running…" status line. Steps are
+    named by the sidebar's keys, e.g. ``"read_rawData"``, ``"preprocess"``,
+    ``"psth_computation"``, ``"export_nwb"`` or ``"open_label_stores"``. The crop is described
+    in ``_sidebar_clip``; steps low in the sidebar need a taller viewport to render at all.
+    """
+    template = build_homepage()
+    statuses = template._widgets["statuses"]
+    for step_name in opened:
+        statuses[step_name].set_opened()
+    for step_name in done:
+        statuses[step_name].set_done()
+    if running is not None:
+        statuses[running].set_running()
+        statuses[running].progress.value = 60
+
+    url = _serve(template)
+    page.set_viewport_size({"width": VIEWPORT["width"], "height": viewport_height})
+    page.goto(url)
+    page.get_by_text("Parameter Selection").first.wait_for()
+    page.wait_for_timeout(1000)
+    clip = _sidebar_clip(
+        page, top_label=top_label, bottom_label=bottom_label, include_bottom_label=include_bottom_label
+    )
+    page.screenshot(path=OUTPUT_DIR / output_name, clip=clip)
+    print(f"Saved {output_name}")
+
+    pn.state.kill_all_servers()
 
 
 def screenshot_homepage(page: Page) -> None:
@@ -135,38 +177,6 @@ def screenshot_homepage(page: Page) -> None:
     print("Saved 01_homepage.png")
 
     page.set_viewport_size(VIEWPORT)
-    pn.state.kill_all_servers()
-
-
-def screenshot_import_custom_events_button(page: Page) -> None:
-    """How-to: the sidebar top showing the Import Custom Events button above Step 1."""
-    template = build_homepage()
-    url = _serve(template)
-    page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
-    page.wait_for_timeout(1000)
-    page.screenshot(
-        path=OUTPUT_DIR / "import_custom_events_button.png",
-        clip={"x": 0, "y": 0, "width": 340, "height": 320},
-    )
-    print("Saved import_custom_events_button.png")
-
-    pn.state.kill_all_servers()
-
-
-def screenshot_select_artifact_windows_button(page: Page) -> None:
-    """How-to: the sidebar showing the two optional artifact steps between Step 3 and Step 4."""
-    template = build_homepage()
-    url = _serve(template)
-    page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
-    page.wait_for_timeout(1000)
-    page.screenshot(
-        path=OUTPUT_DIR / "select_artifact_windows_button.png",
-        clip={"x": 0, "y": 400, "width": 340, "height": 440},
-    )
-    print("Saved select_artifact_windows_button.png")
-
     pn.state.kill_all_servers()
 
 
@@ -213,7 +223,7 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     run_folder.mkdir(parents=True, exist_ok=True)
 
     selector = ArtifactWindowSelector(
-        str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"])
+        str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]), label="sample_data_csv_1/output_1"
     )
     selector.set_windows("DMS", [(128.0, 140.0)])
 
@@ -276,33 +286,15 @@ def _synthetic_site_traces(
     return site_traces
 
 
-def screenshot_tonic_analysis_button(page: Page) -> None:
-    """How-to: the sidebar showing the optional tonic step between Remove Artifacts and Step 4."""
-    template = build_homepage()
-    url = _serve(template)
-    # The crop has to reach Step 4 to show where the optional step falls in the order, which
-    # runs past the bottom of the default viewport — a clip beyond it is silently truncated.
-    page.set_viewport_size({"width": 1280, "height": 1200})
-    page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
-    page.wait_for_timeout(1000)
-    page.screenshot(
-        path=OUTPUT_DIR / "tonic_analysis_button.png",
-        clip={"x": 0, "y": 400, "width": 340, "height": 680},
-    )
-    print("Saved tonic_analysis_button.png")
-
-    page.set_viewport_size(VIEWPORT)
-    pn.state.kill_all_servers()
-
-
 def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
     """How-to: the Tonic Analysis page with the three injection phases filled in."""
     run_folder = tmp_path / "sample_data_csv_injection_1" / "output_1"
     run_folder.mkdir(parents=True, exist_ok=True)
 
     config = TonicEpochConfig(
-        str(run_folder), _synthetic_site_traces(recording_sites=["DMS", "DLS"])
+        str(run_folder),
+        _synthetic_site_traces(recording_sites=["DMS", "DLS"]),
+        label="sample_data_csv_injection_1/output_1",
     )
     config.set_epochs("DMS", TONIC_EPOCHS)
 
@@ -350,7 +342,7 @@ def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
     )
 
     template = pn.template.BootstrapTemplate(title="GuPPy — Visualization")
-    template.main.append(TonicResultsView(str(run_folder)).widget)
+    template.main.append(TonicResultsView(str(run_folder), label=run_folder.name).widget)
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1500})
@@ -489,6 +481,7 @@ def screenshot_label_stores(page: Page, tmp_path: Path) -> None:
         events=["Sample_Control_Channel", "Sample_Signal_Channel", "Sample_TTL"],
         flags=[],
         folder_path=str(SAMPLE_DATA_DIR),
+        inputParameters={"input_root_folder": str(SAMPLE_DATA_DIR.parent), "output_root_folder": str(tmp_path)},
     )
     url = _serve(template)
 
@@ -539,16 +532,14 @@ def screenshot_parameters(page: Page, tmp_path: Path) -> None:
         input_root_folder=str(SAMPLE_DATA_DIR.parent),
         output_root_folder=str(tmp_path),
     )
-    # The Parameter Selection card is collapsed by default; expand it so the
-    # parameter widgets render and fall inside the clip region below.
-    for card in template.main:
-        if isinstance(card, pn.Card) and card.title == "Parameter Selection":
-            card.collapsed = False
     url = _serve(template)
     # Wide enough that the 1000px card clears the sidebar without being cut off on the
     # right, tall enough that the card lays out without scrolling.
     page.set_viewport_size({"width": WIDE_VIEWPORT["width"], "height": 2000})
     page.goto(url)
+    # The Parameter Selection card is collapsed by default; expand it so the
+    # parameter widgets render and fall inside the clip region below.
+    page.get_by_text("Parameter Selection").first.click()
     page.get_by_text("Parallel Execution").first.wait_for()
     page.wait_for_timeout(1500)
     card_top = page.get_by_text("Parameter Selection").first.bounding_box()
@@ -673,49 +664,6 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
     print("Saved group_psth_plot.png")
     page.set_viewport_size(VIEWPORT)
 
-    pn.state.kill_all_servers()
-
-
-def screenshot_sidebar_progress(
-    page: Page,
-    progress_index: int,
-    output_name: str,
-    *,
-    viewport_height: int = 900,
-    clip_from_step: str | None = None,
-) -> None:
-    """Screenshot the homepage sidebar with one progress bar mid-fill.
-
-    The homepage sidebar contains five Progress indicators that fill from 0 to 100 as
-    the corresponding pipeline step runs. We render the homepage with one of them
-    pre-set to 60 to illustrate the in-progress state, then clip the screenshot to the
-    leftmost 360 px so the result is just the sidebar.
-
-    progress_index follows sidebar order: 0 = read raw data, 1 = preprocess,
-    2 = remove artifacts, 3 = PSTH computation, 4 = export to NWB.
-
-    The steps below the fold need a taller viewport to render at all, and a clip
-    anchored on the step they belong to rather than on the top of the page — pass
-    viewport_height and clip_from_step (the sidebar label to start the crop at) for those.
-    """
-    template = build_homepage()
-
-    progress_bars = [
-        w for w in template.sidebar if isinstance(w, pn.indicators.Progress)
-    ]
-    progress_bars[progress_index].value = 60
-
-    url = _serve(template)
-    page.set_viewport_size({"width": VIEWPORT["width"], "height": viewport_height})
-    page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
-    page.wait_for_timeout(1000)
-    page.screenshot(
-        path=OUTPUT_DIR / output_name, clip=_sidebar_clip(page, clip_from_step)
-    )
-    print(f"Saved {output_name}")
-
-    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
@@ -872,7 +820,8 @@ def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
     page.get_by_text("Select one to see its metadata").first.wait_for(timeout=60000)
     page.wait_for_timeout(1500)
     status_line = page.get_by_text("Select one to see its metadata").first.bounding_box()
-    top = page.get_by_text("Data Source:").first.bounding_box()["y"] - 20
+    # Start at the homepage's tab strip, so the shot shows the toggle sits on the Input Parameters tab.
+    top = page.get_by_text("Input Parameters", exact=True).first.bounding_box()["y"] - 6
     page.screenshot(
         path=OUTPUT_DIR / "dandi_source_selection.png",
         clip={
@@ -1050,24 +999,6 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     page.set_viewport_size(VIEWPORT)
 
 
-def screenshot_export_to_nwb_button(page: Page) -> None:
-    """How-to: the sidebar bottom showing the two optional NWB steps below Step 5."""
-    template = build_homepage()
-    url = _serve(template)
-    page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
-    page.goto(url)
-    page.get_by_text("Parameter Selection").first.wait_for()
-    page.wait_for_timeout(1000)
-    page.screenshot(
-        path=OUTPUT_DIR / "export_to_nwb_button.png",
-        clip=_sidebar_clip(page, "Step 5 : Visualization"),
-    )
-    print("Saved export_to_nwb_button.png")
-
-    page.set_viewport_size(VIEWPORT)
-    pn.state.kill_all_servers()
-
-
 def _metadata_template() -> BasicTemplate:
     """Build the Step 6 form pre-filled from the example metadata, for the how-to figures.
 
@@ -1184,57 +1115,107 @@ def main() -> None:
 
     from playwright.sync_api import sync_playwright
 
-    with sync_playwright() as p:
+    with sync_playwright() as p, tempfile.TemporaryDirectory() as tmp:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport=VIEWPORT)
-
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            # The root folders GuPPy remembers decide whether the Root Folder Selection
-            # card opens itself, so point the settings at the temp dir: every shot is then
-            # of a first-time page rather than of whoever ran the script last.
-            os.environ[SETTINGS_PATH_VARIABLE] = str(tmp_path / "settings.json")
-            screenshot_homepage(page)
-            screenshot_import_custom_events_button(page)
-            screenshot_import_custom_events(page)
-            screenshot_data_selection(page, tmp_path)
-            screenshot_parameters(page, tmp_path)
-            screenshot_dandi_source_selection(page, tmp_path)
-            screenshot_dandi_catalog_search(page)
-            screenshot_dandi_dataset_preview(page)
-            screenshot_dandi_asset_browser(page)
-            screenshot_label_stores(page, tmp_path)
-            screenshot_label_stores_configured(page, tmp_path)
-            screenshot_sidebar_progress(page, 0, "04_read_progress.png")
-            screenshot_sidebar_progress(page, 1, "05_preprocess_progress.png")
-            screenshot_sidebar_progress(page, 3, "06_psth_progress.png")
-            screenshot_select_artifact_windows_button(page)
-            screenshot_select_artifact_windows(page, tmp_path)
-            screenshot_tonic_analysis_button(page)
-            screenshot_tonic_analysis(page, tmp_path)
-            screenshot_tonic_results(page, tmp_path)
-            screenshot_covariate_label_stores(page)
-            screenshot_covariate_correlations(page, tmp_path)
-            screenshot_visualization(page, tmp_path)
-            screenshot_run_name_section(
-                page, run_name="filter_250", filename="compare_parameters_run_name.png"
-            )
-            screenshot_run_name_section(
-                page, run_name="1", filename="combine_data_run_name.png"
-            )
-            screenshot_compare_parameters_existing_runs(page)
-            screenshot_label_groups_page(page)
-            screenshot_group_psth_plot(page, tmp_path)
-            screenshot_export_to_nwb_button(page)
-            screenshot_sidebar_progress(
+        tmp_path = Path(tmp)
+        # The root folders GuPPy remembers decide whether the Root Folder Selection
+        # card opens itself, so point the settings at the temp dir: every shot is then
+        # of a first-time page rather than of whoever ran the script last.
+        os.environ[SETTINGS_PATH_VARIABLE] = str(tmp_path / "settings.json")
+        shots = [
+            lambda page: screenshot_homepage(page),
+            lambda page: screenshot_sidebar(
                 page,
-                4,
+                "import_custom_events_button.png",
+                top_label="Import Custom Events (optional)",
+                bottom_label="Step 2 : Read Raw Data",
+            ),
+            lambda page: screenshot_import_custom_events(page),
+            lambda page: screenshot_data_selection(page, tmp_path),
+            lambda page: screenshot_parameters(page, tmp_path),
+            lambda page: screenshot_dandi_source_selection(page, tmp_path),
+            lambda page: screenshot_dandi_catalog_search(page),
+            lambda page: screenshot_dandi_dataset_preview(page),
+            lambda page: screenshot_dandi_asset_browser(page),
+            lambda page: screenshot_label_stores(page, tmp_path),
+            lambda page: screenshot_label_stores_configured(page, tmp_path),
+            lambda page: screenshot_sidebar(
+                page,
+                "04_read_progress.png",
+                top_label="Step 1 : Label Stores",
+                bottom_label="Select Artifact Windows (optional)",
+                running="read_rawData",
+                opened=("open_label_stores",),
+            ),
+            lambda page: screenshot_sidebar(
+                page,
+                "05_preprocess_progress.png",
+                top_label="Step 1 : Label Stores",
+                bottom_label="Select Artifact Windows (optional)",
+                running="preprocess",
+                done=("read_rawData",),
+                opened=("open_label_stores",),
+            ),
+            lambda page: screenshot_sidebar(
+                page,
+                "06_psth_progress.png",
+                top_label="Step 4 : PSTH Computation",
+                bottom_label="Label Groups (optional)",
+                running="psth_computation",
+                viewport_height=1200,
+            ),
+            lambda page: screenshot_sidebar(
+                page,
+                "select_artifact_windows_button.png",
+                top_label="Step 3 : Preprocess",
+                bottom_label="Step 4 : PSTH Computation",
+                include_bottom_label=True,
+                viewport_height=1200,
+            ),
+            lambda page: screenshot_select_artifact_windows(page, tmp_path),
+            lambda page: screenshot_sidebar(
+                page,
+                "tonic_analysis_button.png",
+                top_label="Step 3 : Preprocess",
+                bottom_label="Label Groups (optional)",
+                viewport_height=1200,
+            ),
+            lambda page: screenshot_tonic_analysis(page, tmp_path),
+            lambda page: screenshot_tonic_results(page, tmp_path),
+            lambda page: screenshot_covariate_label_stores(page),
+            lambda page: screenshot_covariate_correlations(page, tmp_path),
+            lambda page: screenshot_visualization(page, tmp_path),
+            lambda page: screenshot_run_name_section(
+                page, run_name="filter_250", filename="compare_parameters_run_name.png"
+            ),
+            lambda page: screenshot_run_name_section(page, run_name="1", filename="combine_data_run_name.png"),
+            lambda page: screenshot_compare_parameters_existing_runs(page),
+            lambda page: screenshot_label_groups_page(page),
+            lambda page: screenshot_group_psth_plot(page, tmp_path),
+            lambda page: screenshot_sidebar(
+                page,
+                "export_to_nwb_button.png",
+                top_label="Step 5 : Visualization",
+                bottom_label=None,
+                viewport_height=1800,
+            ),
+            lambda page: screenshot_sidebar(
+                page,
                 "export_to_nwb_progress.png",
-                viewport_height=1400,
-                clip_from_step="Step 5 : Visualization",
-            )
-            screenshot_input_metadata(page)
-            screenshot_input_metadata_channels(page)
+                top_label="Step 5 : Visualization",
+                bottom_label=None,
+                running="export_nwb",
+                viewport_height=1800,
+            ),
+            lambda page: screenshot_input_metadata(page),
+            lambda page: screenshot_input_metadata_channels(page),
+        ]
+        # Each shot gets its own browser page: a page left on a heavy view (the DANDI browser,
+        # the datashaded traces) can stall the next navigation past Playwright's timeout.
+        for shot in shots:
+            page = browser.new_page(viewport=VIEWPORT)
+            shot(page)
+            page.close()
 
         browser.close()
 
@@ -1242,4 +1223,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Each page is served from a background thread, so an error part-way through would leave
+    # the process running; stopping the servers lets it exit with the traceback instead.
+    try:
+        main()
+    finally:
+        pn.state.kill_all_servers()
