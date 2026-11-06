@@ -154,9 +154,14 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 
 Every step has a status line under its button. It reads *Not run yet* until you run the step, shows the progress bar and *Running…* while it runs, and then reads *✓ Done at* the time it finished, or *✗ Failed at* if it stopped with an error.
 
-GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1/output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
+GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store, named after its store id (so for this tutorial: `sample_data_csv_1/output_1/Sample_Control_Channel.hdf5`, `.../Sample_Signal_Channel.hdf5`, `.../Sample_TTL.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
-When the step finishes, its status line changes to *✓ Done at* the time it finished. Confirmation messages are also logged to the terminal where you launched `guppy`.
+When the step finishes, its status line changes to *✓ Done at* the time it finished, and a Raw Data tab opens beside the form so you can check what was read before preprocessing anything. Pick a recording site and its control and signal traces stack up together, exactly as recorded, on one time axis measured from the first sample. The times of each event store are drawn over both traces as vertical lines, one color per event, and the **Events** checkboxes hide the ones you don't want to see. Zooming one trace zooms the other. If you close the tab, the **View results →** button in the status line under **Read Raw Data** opens it again. Confirmation messages are also logged to the terminal where you launched `guppy`.
+
+```{image} ../_static/images/04b_raw_data_view.png
+:alt: Raw Data results tab after Read Raw Data, showing the control_A and signal_A traces stacked on a shared time axis with the RewardPort event times drawn as orange vertical lines
+:align: center
+```
 
 ## Step 3: Preprocess the signal
 
