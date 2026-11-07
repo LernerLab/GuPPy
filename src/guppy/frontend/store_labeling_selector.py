@@ -35,13 +35,16 @@ class StoreLabelingSelector:
             name="Store Selection", value=[], options=allnames, sizing_mode="stretch_width"
         )
         self.multi_choice = pn.widgets.MultiChoice(
-            name="Select Stores which you want more than once (multi-choice: multiple options selection)",
+            name="Stores Used More Than Once",
             value=[],
             options=allnames,
         )
 
         self.literal_input_1 = pn.widgets.LiteralInput(
-            name="Number of times you want the above store (list)", value=[], type=list
+            name="Times Each Store Is Used",
+            value=[],
+            type=list,
+            description="One count per store above, in the same order, as a list such as [2, 3].",
         )
 
         self.repeat_stores = pn.widgets.Checkbox(name="Stores to Repeat", value=False)

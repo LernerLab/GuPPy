@@ -41,6 +41,12 @@ def notification_area(selector, monkeypatch):
 
 
 class TestStoreLabelingSelector:
+    def test_repeat_store_fields_are_named_without_type_tags(self, selector):
+        assert (selector.multi_choice.name, selector.literal_input_1.name) == (
+            "Stores Used More Than Once",
+            "Times Each Store Is Used",
+        )
+
     def test_empty_allnames_shows_alert(self, panel_extension):
         selector = StoreLabelingSelector(allnames=[])
         assert "No store_ids found" in selector.alert.object
