@@ -286,7 +286,7 @@ class VisualizationDashboard:
                 "select_trials_checkbox": {
                     "type": pn.widgets.CheckBoxGroup,
                     "inline": True,
-                    "name": "Select mean and/or just trials",
+                    "name": "Select Mean and/or Just Trials",
                 }
             },
         )
@@ -301,7 +301,7 @@ class VisualizationDashboard:
         psth_y_parameters = pn.Param(
             self.plotter.param.psth_y,
             widgets={
-                "psth_y": {"type": pn.widgets.CrossSelector, "name": "Trials to show", "width": 420, "align": "start"}
+                "psth_y": {"type": pn.widgets.CrossSelector, "name": "Trials to Show", "width": 420, "align": "start"}
             },
         )
 
@@ -315,7 +315,7 @@ class VisualizationDashboard:
 
         width_plot = pn.Param(
             self.plotter.param.Width_Plot,
-            widgets={"Width_Plot": {"type": pn.widgets.Select, "name": "Saved width", "width": 90}},
+            widgets={"Width_Plot": {"type": pn.widgets.Select, "name": "Saved Width", "width": 90}},
         )
         height_plot = pn.Param(
             self.plotter.param.Height_Plot,
@@ -443,7 +443,7 @@ class VisualizationDashboard:
         )
         width_heatmap = pn.Param(
             self.plotter.param.width_heatmap,
-            widgets={"width_heatmap": {"type": pn.widgets.Select, "name": "Saved width", "width": 150}},
+            widgets={"width_heatmap": {"type": pn.widgets.Select, "name": "Saved Width", "width": 150}},
         )
         height_heatmap = pn.Param(
             self.plotter.param.height_heatmap,

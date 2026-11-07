@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import ClassVar
 
 from panel.theme.base import Inherit
-from panel.theme.bootstrap import Bootstrap
+from panel.theme.bootstrap import Bootstrap, BootstrapDarkTheme, BootstrapDefaultTheme
 from panel.viewable import Viewable
+
+from ..visualization.palette import PLOT_THEME
 
 FONTS_DIRECTORY = Path(__file__).parent.parent / "assets" / "fonts"
 
@@ -104,10 +106,18 @@ code, pre, kbd {{
 """
 
 
+class GuppyTypeTheme(BootstrapDefaultTheme):
+    """Bootstrap's light theme with GuPPy's plot text."""
+
+    bokeh_theme = PLOT_THEME
+
+
 class GuppyTypeDesign(Bootstrap):
-    """Bootstrap with GuPPy's type system applied inside every component."""
+    """Bootstrap with GuPPy's type system applied inside every component and to every plot."""
 
     modifiers: ClassVar[dict] = {Viewable: {"stylesheets": [Inherit, COMPONENT_CSS]}}
+
+    _themes: ClassVar[dict] = {"default": GuppyTypeTheme, "dark": BootstrapDarkTheme}
 
 
 def font_face_css() -> str:

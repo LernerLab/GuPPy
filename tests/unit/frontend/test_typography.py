@@ -16,6 +16,7 @@ from guppy.frontend.typography import (
     font_face_css,
     title_case,
 )
+from guppy.visualization.palette import PLOT_THEME
 
 
 class TestScale:
@@ -44,6 +45,9 @@ class TestComponentCss:
 class TestGuppyTypeDesign:
     def test_adds_the_type_stylesheet_to_every_component(self):
         assert GuppyTypeDesign.modifiers[Viewable]["stylesheets"][1] == COMPONENT_CSS
+
+    def test_plots_in_the_page_take_the_plot_text(self):
+        assert GuppyTypeDesign._themes["default"].bokeh_theme is PLOT_THEME
 
 
 class TestInter:

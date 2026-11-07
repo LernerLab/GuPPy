@@ -282,6 +282,39 @@ def varied_heatmap_plotter(tmp_path, panel_extension):
     )
 
 
+@pytest.fixture
+def twelve_trial_plotter(tmp_path, panel_extension):
+    """Plotter whose event heatmap has twelve trial rows."""
+    trial_columns = [f"trial_{index}" for index in range(1, 13)]
+    columns = [*trial_columns, "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    timestamps = np.linspace(-5.0, 10.0, 30)
+
+    def make_event_dataframe():
+        values = {"timestamps": timestamps}
+        for offset, column in enumerate(trial_columns):
+            values[column] = np.full(30, float(offset))
+        for column in ("bin_1", "mean", "err", "bin_err_1"):
+            values[column] = np.zeros(30)
+        return pd.DataFrame(values, columns=columns)
+
+    events = ["event1", "event2"]
+    return ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=["trial_1", "mean"],
+        heatmap_y_objects=[*[f"{index} - trial_{index}" for index in range(1, 13)], "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict={event: columns for event in events},
+        df_new=pd.concat([make_event_dataframe() for event in events], keys=events, axis=1),
+        x_min=-5.0,
+        x_max=10.0,
+    )
+
+
 class TestParameterizedPlotter:
     def test_constructs(self, plotter):
         assert isinstance(plotter, ParameterizedPlotter)
@@ -785,6 +818,20 @@ class TestParameterizedPlotter:
         figure.y_range.start, figure.y_range.end = 3.0, 1.0
         refigure = hv.render(plotter.heatmap())
         assert {refigure.y_range.start, refigure.y_range.end} == {0.5, 3.5}
+
+    def test_heatmap_labels_every_trial_when_rows_have_room(self, twelve_trial_plotter):
+        # 600 px over 12 rows leaves 50 px a row, past the 18 px a label needs.
+        figure = hv.render(twelve_trial_plotter.heatmap())
+
+        assert list(figure.yaxis[0].ticker.ticks) == list(range(1, 13))
+
+    def test_heatmap_labels_every_nth_trial_when_rows_are_short(self, twelve_trial_plotter):
+        # 100 px over 12 rows leaves about 8 px a row, so every third trial is labeled (18 * 12 / 100 rounds up to 3).
+        twelve_trial_plotter.height_heatmap = 100
+
+        figure = hv.render(twelve_trial_plotter.heatmap())
+
+        assert list(figure.yaxis[0].ticker.ticks) == [1, 4, 7, 10]
 
     def test_heatmap_honours_clim_override(self, plotter):
         # A user-set colour scale survives a render whose selection is unchanged.

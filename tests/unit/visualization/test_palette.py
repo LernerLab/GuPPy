@@ -6,6 +6,7 @@ from guppy.visualization.palette import (
     COVARIATE,
     EPOCH_COLORS,
     HIGHLIGHT,
+    PLOT_THEME,
     SIGNAL,
     apply_plot_defaults,
 )
@@ -58,3 +59,27 @@ class TestApplyPlotDefaults:
         figure = hv.render(hv.Curve([1, 2]).opts(color="#123456"))
 
         assert figure.renderers[0].glyph.line_color == "#123456"
+
+
+class TestPlotText:
+    def test_axis_text_is_helvetica_with_16px_labels_and_14px_ticks(self, holoviews_bokeh):
+        apply_plot_defaults()
+
+        axis = hv.render(hv.Curve([1, 2, 3])).xaxis[0]
+
+        assert (axis.axis_label_text_font, axis.axis_label_text_font_size, axis.major_label_text_font_size) == (
+            "Helvetica, Arial, sans-serif",
+            "16px",
+            "14px",
+        )
+
+    def test_axis_labels_and_titles_are_upright(self):
+        attributes = PLOT_THEME._json["attrs"]
+
+        assert (attributes["Axis"]["axis_label_text_font_style"], attributes["Title"]["text_font_style"]) == (
+            "normal",
+            "normal",
+        )
+
+    def test_legends_use_the_tick_size(self):
+        assert PLOT_THEME._json["attrs"]["Legend"]["label_text_font_size"] == "14px"

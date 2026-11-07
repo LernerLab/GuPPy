@@ -192,7 +192,7 @@ class TestVisualizationDashboard:
         # dynamic number on top, so assert these two static pickers are present
         # rather than a fixed total count.
         picker_names = {picker.name for picker in dashboard._psth_tab.select(pn.widgets.ColorPicker)}
-        assert {"Trace color", "Mean color"} <= picker_names
+        assert {"Trace Color", "Mean Color"} <= picker_names
 
     def test_per_event_color_pickers_card_is_collapsed(self, dashboard):
         card = dashboard._per_event_color_pickers()
