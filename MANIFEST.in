@@ -1,3 +1,5 @@
 include *.md
 recursive-include src *.ipynb
 include src/guppy/utils/bundled_dandi_photometry_verdicts.json
+recursive-include src/guppy/assets *.png
+recursive-include src/guppy/assets/fonts *.woff2 *.txt

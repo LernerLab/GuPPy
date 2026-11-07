@@ -152,7 +152,7 @@ class DandiFilePanel:
             else DandiSearchPanel(on_dandiset_selected=self.load_dandiset, verdict_cache=verdict_cache)
         )
         self.scan_button = pn.widgets.Button(
-            name="Scan for fiber photometry",
+            name="Scan for Fiber Photometry",
             button_type="primary",
             width=260,
             disabled=True,
@@ -185,15 +185,15 @@ class DandiFilePanel:
         # Selecting files and inspecting one are different questions asked of the same tree:
         # the pipeline takes the whole selection, while a preview is of one file. This names
         # which of the selected files the preview is of, rather than picking one unannounced.
-        self.preview_select = pn.widgets.Select(name="File to preview", options=[], width=520)
+        self.preview_select = pn.widgets.Select(name="File to Preview", options=[], width=520)
         self.attach_asset_selection_watcher(callback=self._refresh_preview_options)
 
         self.preview_button = pn.widgets.Button(
-            name="Preview selected file", button_type="primary", width=260, align="end"
+            name="Preview Selected File", button_type="primary", width=260, align="end"
         )
         self.preview_button.on_click(self.preview_selected_asset)
         self.hide_preview_button = pn.widgets.Button(
-            name="Hide preview",
+            name="Hide Preview",
             width=140,
             visible=False,
             align="end",
@@ -207,14 +207,14 @@ class DandiFilePanel:
 
         self.dandiset_heading = pn.pane.Markdown("", width=DANDI_PANEL_WIDTH)
         self.back_to_catalog_button = pn.widgets.Button(
-            name="← Back to dandisets", width=200, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
+            name="← Back to Dandisets", width=200, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
         )
         self.back_to_catalog_button.on_click(self.open_catalog)
 
         # Two screens, as in the browser above: the catalog, or the files of one dandiset.
         self.catalog_view = pn.Column(
             pn.pane.Markdown(
-                "### DANDI source\n"
+                "### DANDI Source\n"
                 "Search the [DANDI Archive](https://dandiarchive.org) for a dataset to "
                 "reanalyze, then select the NWB files to stream through the pipeline.",
                 width=DANDI_PANEL_WIDTH,
@@ -277,7 +277,7 @@ class DandiFilePanel:
             root_directory,
             root_directory=root_directory,
             file_pattern="*.nwb",
-            name="NWB assets",
+            name="NWB Assets",
             width=DANDI_PANEL_WIDTH,
         )
         # Hide the mirror-path TextInput at the top of the FileSelector — users

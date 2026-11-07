@@ -4,11 +4,40 @@ from datetime import datetime
 
 import panel as pn
 
-_TEXT_STYLE = "font-size: 13px;"
-_NOT_RUN_COLOR = "#8a96a3"
-_RUNNING_COLOR = "#55616f"
+from .header import LOGO_GRADIENT
+
+_TEXT_STYLE = "font-size: 12px;"
+_NOT_RUN_COLOR = "#6C757D"
+_RUNNING_COLOR = "#6C757D"
 _DONE_COLOR = "#1e7e34"
 _FAILED_COLOR = "#c0392b"
+
+
+def _progress_stylesheet(*, value: int, maximum: int) -> str:
+    """Return the CSS that fills a progress bar with the logo's gradient.
+
+    The gradient spans the whole track, so a bar part-way through shows only its violet end and
+    turns green as it completes. The filled part is only ``value / maximum`` of the track wide, so
+    the gradient is drawn that many times wider than it.
+
+    Parameters
+    ----------
+    value : int
+        The bar's progress.
+    maximum : int
+        The value at which the bar is full.
+
+    Returns
+    -------
+    str
+        A stylesheet for the ``Progress`` widget.
+    """
+    filled_percent = max(100 * value / maximum, 1)
+    gradient_width = f"{100 * 100 / filled_percent:.2f}% 100%"
+    return f"""
+progress[value]::-webkit-progress-value {{ background-image: {LOGO_GRADIENT}; background-size: {gradient_width}; }}
+progress[value]::-moz-progress-bar {{ background-image: {LOGO_GRADIENT}; background-size: {gradient_width}; }}
+"""
 
 
 class StepStatus:
@@ -24,10 +53,15 @@ class StepStatus:
 
     def __init__(self, *, has_progress: bool, has_results: bool) -> None:
         self.message = pn.pane.HTML(margin=(4, 10))
-        self.progress = pn.indicators.Progress(value=0, max=100, width=300, visible=False) if has_progress else None
+        self.progress = None
+        if has_progress:
+            self.progress = pn.indicators.Progress(
+                value=0, max=100, width=300, visible=False, stylesheets=[_progress_stylesheet(value=0, maximum=100)]
+            )
+            self.progress.param.watch(self._repaint_progress, ["value", "max"])
         self.results_button = (
             pn.widgets.Button(
-                name="View results →",
+                name="View Results →",
                 button_type="primary",
                 button_style="outline",
                 height=28,
@@ -44,6 +78,9 @@ class StepStatus:
             status_row.extend([pn.HSpacer(), self.results_button])
         self.layout = pn.Column(*([self.progress] if has_progress else []), status_row, margin=0)
         self._show(text="Not run yet", color=_NOT_RUN_COLOR)
+
+    def _repaint_progress(self, *events: object) -> None:
+        self.progress.stylesheets = [_progress_stylesheet(value=self.progress.value, maximum=self.progress.max)]
 
     def _show(self, *, text: str, color: str) -> None:
         self.message.object = f'<span style="{_TEXT_STYLE} color: {color};">{text}</span>'

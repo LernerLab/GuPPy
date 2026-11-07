@@ -103,9 +103,10 @@ def _titled_box(*, title: str, read_by: str, contents: list) -> pn.WidgetBox:
     """
     heading = pn.pane.Markdown(f"### {title}", sizing_mode="stretch_width", styles={"margin-bottom": "0"})
     read_by_note = pn.pane.Markdown(
-        f"*Read by {read_by}*",
+        f"Read by {read_by}",
         sizing_mode="stretch_width",
-        styles={"color": "#6C757D", "font-size": "0.85em", "margin-top": "0"},
+        styles={"margin-top": "0"},
+        css_classes=["small"],
     )
     controls = pn.FlexBox(*contents, sizing_mode="stretch_width")
     return pn.WidgetBox(heading, read_by_note, controls, sizing_mode="stretch_width", styles=SECTION_STYLES)
@@ -238,7 +239,7 @@ class ParameterForm:
         """
         self.source_mode = pn.widgets.RadioButtonGroup(
             name="Data Source",
-            options=["local", "dandi"],
+            options={"Local": "local", "DANDI": "dandi"},
             value="local",
             button_type="primary",
             width=300,
@@ -253,7 +254,7 @@ class ParameterForm:
             sizing_mode="stretch_width",
         )
         self.input_root_header = pn.pane.Markdown(
-            "**Input root folder.** Pick the folder your session folders live under. GuPPy "
+            "**Input Root Folder.** Pick the folder your session folders live under. GuPPy "
             "mirrors each session's path below it into the output root folder, so "
             "`<input root>/subject1/session1` writes its runs to "
             "`<output root>/subject1/session1`.",
@@ -262,12 +263,12 @@ class ParameterForm:
         self.input_root_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
-            name="Input root folder",
+            name="Input Root Folder",
             sizing_mode="stretch_width",
         )
 
         self.session_selector_header = pn.pane.Markdown(
-            "**Session folders.** Pick the sessions to analyze. Each one must sit under the " "input root folder.",
+            "**Session Folders.** Pick the sessions to analyze. Each one must sit under the " "input root folder.",
             sizing_mode="stretch_width",
         )
         self.files_1 = pn.widgets.FileSelector(
@@ -284,14 +285,14 @@ class ParameterForm:
         self.dandi_file_panel.panel.visible = False
 
         self.timeForLightsTurnOn = pn.widgets.IntInput(
-            name="Eliminate first few seconds (int)",
+            name="Eliminate First Few Seconds (s)",
             value=1,
             width=320,
             description="Seconds dropped from the start of every recording, discarding the bright transient from when the LED first turns on. Applies to every session in the batch; to cut deeper into one recording, mark its opening as an artifact period instead.",
         )
 
         self.isosbestic_control = pn.widgets.Select(
-            name="Isosbestic Control Channel? (bool)",
+            name="Isosbestic Control Channel?",
             value=True,
             options=[True, False],
             width=310,
@@ -322,20 +323,20 @@ class ParameterForm:
             description="Which part of the recording the fit is estimated from. 'full trace' uses the whole recording; 'baseline epoch' uses only the window set beside it and applies those coefficients throughout, for sessions where a sustained step change such as a drug injection would otherwise distort the fit.",
         )
         self.control_fit_window_strt = pn.widgets.IntInput(
-            name="Control Fit Window Start Time (s) (int)",
+            name="Control Fit Window Start Time (s)",
             value=0,
             width=310,
             description="Start of the baseline epoch the fit is estimated from, in seconds. Must be less than the end and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
         self.control_fit_window_end = pn.widgets.IntInput(
-            name="Control Fit Window End Time (s) (int)",
+            name="Control Fit Window End Time (s)",
             value=0,
             width=310,
             description="End of the baseline epoch the fit is estimated from, in seconds. Must be greater than the start and fall inside the recording. Ignored when the fit window is 'full trace'.",
         )
 
         self.photobleaching_detrend = pn.widgets.Select(
-            name="Photobleaching Detrend? (bool)",
+            name="Photobleaching Detrend?",
             value=False,
             options=[True, False],
             width=310,
@@ -343,14 +344,14 @@ class ParameterForm:
         )
 
         self.numberOfCores = pn.widgets.IntInput(
-            name="# of cores (int)",
+            name="Number of Cores",
             value=2,
             width=150,
             description="Number of CPU workers used for the per-channel steps. Keep it at or below the number of cores in your machine; setting it higher does not help.",
         )
 
         self.combine_data = pn.widgets.Select(
-            name="Combine Data? (bool)",
+            name="Combine Data?",
             value=False,
             options=[True, False],
             width=150,
@@ -369,7 +370,7 @@ class ParameterForm:
             sizing_mode="stretch_width",
         )
         self.output_location_header = pn.pane.Markdown(
-            "**Output root folder.** Pick the folder the mirrored output tree is written into. "
+            "**Output Root Folder.** Pick the folder the mirrored output tree is written into. "
             "A session's runs land in `<output root>/<session path under the input root>/"
             "output_<run name>`, so nothing is written into your session folders.",
             sizing_mode="stretch_width",
@@ -377,19 +378,19 @@ class ParameterForm:
         self.output_root_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
-            name="Output root folder",
+            name="Output Root Folder",
             sizing_mode="stretch_width",
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
-            "**Existing runs (steps 2–5):** Pick at least one existing output directory per "
+            "**Existing Runs (Steps 2–5).** Pick at least one existing output directory per "
             "selected session. Naming a run below selects it in every session that has it; the "
             "tree underneath shows the result and can be adjusted session by session. To create "
-            "a new run, use the Label Stores GUI in step 1.",
+            "a new run, use the Label Stores GUI in Step 1.",
             sizing_mode="stretch_width",
         )
         self.run_names_for_all_sessions = pn.widgets.MultiChoice(
-            name="Run name(s) for all sessions",
+            name="Run Names for All Sessions",
             value=[],
             options=[],
             placeholder="Select runs by name across all sessions",
@@ -399,19 +400,19 @@ class ParameterForm:
             self.folder_path,
             root_directory="/",
             file_pattern="*output_*",
-            name="Existing runs (steps 2–5)",
+            name="Existing Runs (Steps 2–5)",
             sizing_mode="stretch_width",
         )
 
         self.computePsth = pn.widgets.Select(
-            name="z_score and/or \u0394F/F? (psth)",
+            name="Z-Score and/or \u0394F/F (PSTH)",
             options=["z_score", "dff", "Both"],
             width=320,
             description="Which metric Step 4 aligns events on. 'Both' writes a complete set of PSTH outputs for each metric.",
         )
 
         self.transients = pn.widgets.Select(
-            name="z_score and/or \u0394F/F? (transients)",
+            name="Z-Score and/or \u0394F/F (Transients)",
             options=["z_score", "dff", "Both"],
             width=320,
             description="Which metric the transient detector runs on. 'Both' runs it on each metric in turn.",
@@ -426,7 +427,7 @@ class ParameterForm:
         )
 
         self.transient_minimum_rise = pn.widgets.FloatInput(
-            name="Minimum Rise (float)",
+            name="Minimum Rise",
             value=2.0,
             step=0.5,
             width=200,
@@ -434,28 +435,28 @@ class ParameterForm:
         )
 
         self.moving_wd = pn.widgets.IntInput(
-            name="Moving Window for transients detection (s) (int)",
+            name="Moving Window for Transient Detection (s)",
             value=15,
             width=380,
             description="Width of the moving window transients are detected in, in seconds. Ignored when the detection method is 'minimum rise'.",
         )
 
         self.highAmpFilt = pn.widgets.IntInput(
-            name="HAFT (int)",
+            name="HAFT",
             value=2,
             width=150,
             description="High-amplitude filtering threshold. Events greater than this many MADs above the median are filtered out before transients are detected. Ignored when the detection method is 'minimum rise'.",
         )
 
         self.transientsThresh = pn.widgets.IntInput(
-            name="TD Thresh (int)",
+            name="TD Thresh",
             value=3,
             width=160,
             description="Transient detection threshold. Peaks with local maxima greater than this many MADs above the median of the filtered trace are detected as transients. Ignored when the detection method is 'minimum rise'.",
         )
 
         self.computeBinnedMetrics = pn.widgets.Select(
-            name="Compute Binned Metrics? (bool)",
+            name="Compute Binned Metrics?",
             options=[True, False],
             value=False,
             width=250,
@@ -463,21 +464,21 @@ class ParameterForm:
         )
 
         self.binnedMetricsWidth = pn.widgets.IntInput(
-            name="Bin Width (s) (int)",
+            name="Bin Width (s)",
             value=120,
             width=170,
             description="Width of those bins in seconds. The last bin is kept even when the session does not divide evenly, so it may be shorter than the rest.",
         )
 
         self.moving_avg_filter = pn.widgets.IntInput(
-            name="Window for Moving Average filter (int)",
+            name="Window for Moving Average Filter",
             value=100,
             width=320,
             description="Width of the moving-average smoothing kernel applied to the control and signal traces, in samples rather than seconds. The default suits recordings around 1 kHz; lower it proportionally for slower acquisition rates.",
         )
 
         self.z_score_computation = pn.widgets.Select(
-            name="z-score computation Method",
+            name="Z-Score Computation Method",
             options=["standard z-score", "baseline z-score", "modified z-score"],
             value="standard z-score",
             width=260,
@@ -485,34 +486,34 @@ class ParameterForm:
         )
 
         self.baseline_wd_strt = pn.widgets.IntInput(
-            name="Baseline Window Start Time (s) (int)",
+            name="Baseline Window Start Time (s)",
             value=0,
             width=290,
             description="Start of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be less than the end and fall inside the recording.",
         )
         self.baseline_wd_end = pn.widgets.IntInput(
-            name="Baseline Window End Time (s) (int)",
+            name="Baseline Window End Time (s)",
             value=0,
             width=280,
             description="End of the epoch the baseline z-score method normalizes against, in seconds. Leave at 0 for the other two methods. Must be greater than the start and fall inside the recording.",
         )
 
         self.nSecPrev = pn.widgets.IntInput(
-            name="Seconds before 0 (int)",
+            name="Seconds Before 0",
             value=-10,
             width=190,
             description="Start of the peri-event window, in seconds relative to each event timestamp. Negative values reach back before the event, so the default of -10 opens the window 10 seconds before it; a positive value would start the window after the event instead.",
         )
 
         self.nSecPost = pn.widgets.IntInput(
-            name="Seconds after 0 (int)",
+            name="Seconds After 0",
             value=20,
             width=180,
             description="End of the peri-event window, in seconds relative to each event timestamp.",
         )
 
         self.computeCorr = pn.widgets.Select(
-            name="Compute Cross-correlation (bool)",
+            name="Compute Cross-Correlation?",
             options=[True, False],
             value=False,
             width=260,
@@ -520,7 +521,7 @@ class ParameterForm:
         )
 
         self.computePsthSignificance = pn.widgets.Select(
-            name="Compute PSTH Significance? (bool)",
+            name="Compute PSTH Significance?",
             options=[True, False],
             value=False,
             width=270,
@@ -528,7 +529,7 @@ class ParameterForm:
         )
 
         self.psthSignificanceAlpha = pn.widgets.FloatInput(
-            name="Significance Level (alpha) (float)",
+            name="Significance Level (\u03b1)",
             value=0.05,
             step=0.01,
             width=280,
@@ -536,7 +537,7 @@ class ParameterForm:
         )
 
         self.psthBootstrapResamples = pn.widgets.IntInput(
-            name="Bootstrap Resamples (int)",
+            name="Bootstrap Resamples",
             value=1000,
             step=100,
             width=210,
@@ -544,7 +545,7 @@ class ParameterForm:
         )
 
         self.useTransientsAsEvents = pn.widgets.Select(
-            name="Use Transients as Events? (bool)",
+            name="Use Transients as Events?",
             options=[True, False],
             value=False,
             width=260,
@@ -559,7 +560,7 @@ class ParameterForm:
         )
 
         self.use_time_or_trials = pn.widgets.Select(
-            name="Bin PSTH trials (str)",
+            name="Bin PSTH Trials By",
             options=["Time (min)", "# of trials"],
             value="Time (min)",
             width=180,
@@ -567,28 +568,28 @@ class ParameterForm:
         )
 
         self.bin_psth_trials = pn.widgets.IntInput(
-            name="Time(min) / # of trials for binning? (int)",
+            name="Bin Size (min or Trials)",
             value=0,
             width=330,
             description="Size of each bin, in the unit chosen beside it. Set to 0 to leave the trials unbinned.",
         )
 
         self.baselineCorrectionStart = pn.widgets.IntInput(
-            name="Baseline Correction Start time(int)",
+            name="Baseline Correction Start Time (s)",
             value=-5,
             width=280,
             description="Start of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
         self.baselineCorrectionEnd = pn.widgets.IntInput(
-            name="Baseline Correction End time(int)",
+            name="Baseline Correction End Time (s)",
             value=0,
             width=280,
             description="End of the window each trial is baselined against, in seconds relative to the event. Set both bounds to 0 to skip baseline correction. Must lie inside the PSTH window.",
         )
 
         self.zscore_param_wd = _titled_box(
-            title="Z-score Normalization",
+            title="Z-Score Normalization",
             read_by="Step 3",
             contents=[self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end],
         )
@@ -616,10 +617,16 @@ class ParameterForm:
             }
         )
 
-        self.df_widget = pn.widgets.Tabulator(self.start_end_point_df, name="DataFrame", show_index=False, widths=280)
+        self.df_widget = pn.widgets.Tabulator(
+            self.start_end_point_df,
+            name="DataFrame",
+            show_index=False,
+            widths=280,
+            titles={"Peak Start time": "Peak Start Time (s)", "Peak End time": "Peak End Time (s)"},
+        )
 
         self.auc_units = pn.widgets.Select(
-            name="AUC Units (str)",
+            name="AUC Units",
             options=["samples", "seconds"],
             value="samples",
             width=260,
@@ -632,7 +639,7 @@ class ParameterForm:
             contents=[
                 pn.Column(
                     _table_heading(
-                        label="Peak and area windows",
+                        label="Peak and Area Windows",
                         description=(
                             "Each row is one window that peak amplitude and area are measured over, in "
                             "seconds relative to the event. Every window must lie inside the PSTH window. "
@@ -661,7 +668,7 @@ class ParameterForm:
         self.comparison_df_widget.on_click(self._remove_comparison_row, column="remove")
 
         self.add_comparison_button = pn.widgets.Button(
-            name="+ Add comparison", button_type="default", width=180, align="start"
+            name="+ Add Comparison", button_type="default", width=180, align="start"
         )
         self.add_comparison_button.on_click(self._add_comparison_row)
 
@@ -674,7 +681,7 @@ class ParameterForm:
                 self.psthBootstrapResamples,
                 pn.Column(
                     _table_heading(
-                        label="Event comparisons",
+                        label="Event Comparisons",
                         description=(
                             "Each row names a pair of events to compare against each other, for example "
                             "rewarded versus unrewarded nose pokes. Every event is tested against zero "
@@ -751,7 +758,7 @@ class ParameterForm:
             self.significance_param_wd,
         )
 
-        self.source_mode_row = pn.Row(pn.pane.Markdown("**Data Source:**"), self.source_mode)
+        self.source_mode_row = pn.Row(pn.pane.Markdown("Data Source"), self.source_mode)
         self.input_folder_selection_widget = pn.Column(
             self.session_selector_header,
             self.files_1,
@@ -1246,7 +1253,7 @@ class ParameterForm:
             sizing_mode="stretch_width",
         )
         self.group_folders_selector = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="Group output directories", sizing_mode="stretch_width"
+            self.folder_path, root_directory="/", name="Group Output Directories", sizing_mode="stretch_width"
         )
 
         self.group_analysis_wd_1 = pn.Column(

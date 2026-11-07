@@ -58,3 +58,39 @@ class TestStepStatus:
         status.set_opened()
 
         assert re.fullmatch(r"✓ Opened at \d\d:\d\d", message_text(status))
+
+
+class TestProgressGradient:
+    def test_an_empty_bar_starts_at_the_violet_end_of_the_logo_gradient(self, status):
+        (stylesheet,) = status.progress.stylesheets
+
+        assert "linear-gradient(90deg, #6E56CF, #1F7FC4, #14A39A, #5DB45C)" in stylesheet
+        assert "background-size: 10000.00% 100%" in stylesheet
+
+    def test_the_gradient_spans_the_track_as_the_bar_fills(self, status):
+        # At 60%, the filled part is 60% of the track, so the gradient is drawn 100 / 60 times as wide.
+        status.progress.value = 60
+
+        (stylesheet,) = status.progress.stylesheets
+        assert "background-size: 166.67% 100%" in stylesheet
+
+    def test_a_full_bar_shows_the_whole_gradient(self, status):
+        status.progress.value = 100
+
+        (stylesheet,) = status.progress.stylesheets
+        assert "background-size: 100.00% 100%" in stylesheet
+
+    def test_the_gradient_follows_the_fraction_done_when_the_maximum_is_not_100(self, status):
+        # A step counts its own work units: 3 of 5 is 60% done, the same gradient as 60 of 100.
+        status.progress.max = 5
+        status.progress.value = 3
+
+        (stylesheet,) = status.progress.stylesheets
+        assert "background-size: 166.67% 100%" in stylesheet
+
+    def test_changing_only_the_maximum_repaints_the_gradient(self, status):
+        status.progress.value = 3
+        status.progress.max = 6
+
+        (stylesheet,) = status.progress.stylesheets
+        assert "background-size: 200.00% 100%" in stylesheet

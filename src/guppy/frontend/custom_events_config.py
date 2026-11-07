@@ -29,7 +29,7 @@ class CustomEventsConfig:
     """Panel widget for pasting one or more named custom events for a session.
 
     Renders a header, a growable list of event rows (each with a name field and
-    a paste box for timestamps), an "Add event" button, an "Overwrite existing"
+    a paste box for timestamps), an "Add Event" button, an "Overwrite existing"
     checkbox, a "Save" button, and an alert pane. The widget only collects user
     input and displays alerts; writing the CSV files is the orchestration
     layer's responsibility.
@@ -40,7 +40,7 @@ class CustomEventsConfig:
 
         self.instructions = pn.pane.Markdown(_INSTRUCTIONS, width=600)
         self.event_rows = pn.Column()
-        self.add_event = pn.widgets.Button(name="Add event", button_type="default", width=600)
+        self.add_event = pn.widgets.Button(name="Add Event", button_type="default", width=600)
         self.overwrite = pn.widgets.Checkbox(name="Overwrite existing events with the same name", value=False)
         self.save = pn.widgets.Button(name="Save", button_type="primary", width=600)
         self.alert = pn.pane.Alert("#### No alerts !!", alert_type="primary", width=600)
@@ -64,9 +64,9 @@ class CustomEventsConfig:
         ----------
         event : object, optional
             Unused click-event argument so this can be wired directly to the
-            "Add event" button.
+            "Add Event" button.
         """
-        name_input = pn.widgets.TextInput(name="Event name", placeholder="e.g. movement_onset", width=200)
+        name_input = pn.widgets.TextInput(name="Event Name", placeholder="e.g. movement_onset", width=200)
         timestamps_input = pn.widgets.TextAreaInput(
             name="Timestamps (one per row, seconds)", placeholder="0.0\n1.5\n2.3", height=150, width=380
         )

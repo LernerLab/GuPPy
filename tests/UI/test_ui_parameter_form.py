@@ -14,7 +14,7 @@ def _ensure_parameter_selection_card_expanded(page):
     """
     title = page.get_by_text("Parameter Selection").first
     expect(title).to_be_visible()
-    body_probe = page.get_by_text("# of cores (int)").first
+    body_probe = page.get_by_text("Number of Cores").first
     if not body_probe.is_visible():
         title.scroll_into_view_if_needed()
         title.click()
@@ -63,14 +63,14 @@ def test_isosbestic_control_select_shows_true_and_false_options(page, live_serve
 def test_eliminate_first_few_seconds_input_displays_default_value(page, live_server_url):
     page.goto(live_server_url)
     _ensure_parameter_selection_card_expanded(page)
-    expect(page.get_by_text("Eliminate first few seconds (int)").first).to_be_visible()
+    expect(page.get_by_text("Eliminate First Few Seconds (s)").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_tabulator_peak_start_time_column_header_visible(page, live_server_url):
     page.goto(live_server_url)
     _ensure_parameter_selection_card_expanded(page)
-    expect(page.get_by_text("Peak Start time").first).to_be_visible()
+    expect(page.get_by_text("Peak Start Time (s)").first).to_be_visible()
 
 
 @pytest.mark.ui
@@ -80,7 +80,7 @@ def test_output_folder_selection_card_shows_its_contents(page, live_server_url):
     page.goto(live_server_url)
     expect(page.get_by_text("Output Folder Selection").first).to_be_visible()
     page.get_by_text("Output Folder Selection").first.click()
-    expect(page.get_by_text("Run name(s) for all sessions").first).to_be_visible()
+    expect(page.get_by_text("Run Names for All Sessions").first).to_be_visible()
     expect(page.get_by_text("Selected files").first).to_be_visible()
 
 

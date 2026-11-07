@@ -12,11 +12,12 @@ import logging
 import holoviews as hv
 import numpy as np
 
+from .palette import SIGNAL
 from .shading import shade_trace
 
 logger = logging.getLogger(__name__)
 
-BAR_COLOR = "#1f77b4"
+BAR_COLOR = SIGNAL
 
 
 def build_bin_bars(

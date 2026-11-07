@@ -462,7 +462,7 @@ def build_store_labeling_template(
         if on_saved is not None:
             on_saved()
 
-    # on clicking the NPM "Confirm NPM configuration" button, following function is executed
+    # on clicking the NPM "Confirm NPM Configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
         npm_time_unit, npm_timestamp_column_name = store_labeling_instructions.get_timestamp_configuration()
 

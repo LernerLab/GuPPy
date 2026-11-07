@@ -22,11 +22,13 @@ from .store_labeling import orchestrate_store_labeling_page
 from .tonic_analysis import orchestrate_tonic_analysis
 from .transients_view import open_transients_view
 from .visualize import visualizeResults
+from ..frontend.header import guppy_header_template
 from ..frontend.input_parameters import ParameterForm
 from ..frontend.page_area import PageArea
 from ..frontend.sidebar import Sidebar
 from ..utils import page_links
 from ..utils.progress import StepProgress, _current_step
+from ..visualization.palette import apply_plot_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +66,17 @@ def build_homepage(
     # runs that clobber the shared progress file and output directories.
     step_running = {"active": False}
 
-    template = pn.template.BootstrapTemplate(title="GuPPy: Guided Photometry Analysis in Python")
+    apply_plot_defaults()
+    template = guppy_header_template(
+        page_name="Guided Photometry Analysis in Python", title="GuPPy: Guided Photometry Analysis in Python"
+    )
     # Right-aligned in the header bar so the running version is visible without scrolling
     # the long sidebar, and is not mistaken for another pipeline step.
     template.header.append(
         pn.pane.Markdown(
             f"GuPPy {version('guppy-neuro')}",
-            styles={"color": "white", "margin-left": "auto", "margin-right": "1em"},
+            styles={"margin-left": "auto", "margin-right": "1em"},
+            css_classes=["small"],
         )
     )
     parameter_form = ParameterForm(

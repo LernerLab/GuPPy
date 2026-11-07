@@ -70,7 +70,7 @@ class CovariateCorrelationView:
         self.covariate_series = read_covariate_series(filepath)
 
         first_site = self.sites[0]
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=first_site, width=220)
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=first_site, width=220)
         self.metric_select = pn.widgets.Select(name="Metric", options=self._metric_options(first_site), width=260)
         self.covariate_select = pn.widgets.Select(
             name="Covariate", options=self._covariate_options(first_site), width=220

@@ -48,19 +48,19 @@ class Sidebar:
 
     def setup_markdown(self) -> None:
         """Create step-label ``Markdown`` panes and store them as instance attributes."""
-        self.mark_down_import_events = pn.pane.Markdown("""**Import Custom Events (optional)**""", width=300)
-        self.mark_down_label_stores = pn.pane.Markdown("""**Step 1 : Label Stores**""", width=300)
-        self.mark_down_read = pn.pane.Markdown("""**Step 2 : Read Raw Data**""", width=300)
-        self.mark_down_preprocess = pn.pane.Markdown("""**Step 3 : Preprocess**""", width=300)
-        self.mark_down_select_windows = pn.pane.Markdown("""**Select Artifact Windows (optional)**""", width=300)
-        self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts (optional)**""", width=300)
-        self.mark_down_tonic_analysis = pn.pane.Markdown("""**Tonic Analysis (optional)**""", width=300)
-        self.mark_down_psth = pn.pane.Markdown("""**Step 4 : PSTH Computation**""", width=300)
-        self.mark_down_label_groups = pn.pane.Markdown("""**Label Groups (optional)**""", width=300)
-        self.mark_down_group_analysis = pn.pane.Markdown("""**Group Analysis (optional)**""", width=300)
-        self.mark_down_visualization = pn.pane.Markdown("""**Step 5 : Visualization**""", width=300)
-        self.mark_down_metadata = pn.pane.Markdown("""**Step 6 : Input Metadata**""", width=300)
-        self.mark_down_export_nwb = pn.pane.Markdown("""**Step 7 : Export to NWB**""", width=300)
+        self.mark_down_import_events = pn.pane.Markdown("""**Import Custom Events** (optional)""", width=300)
+        self.mark_down_label_stores = pn.pane.Markdown("""**Step 1: Label Stores**""", width=300)
+        self.mark_down_read = pn.pane.Markdown("""**Step 2: Read Raw Data**""", width=300)
+        self.mark_down_preprocess = pn.pane.Markdown("""**Step 3: Preprocess**""", width=300)
+        self.mark_down_select_windows = pn.pane.Markdown("""**Select Artifact Windows** (optional)""", width=300)
+        self.mark_down_remove_artifacts = pn.pane.Markdown("""**Remove Artifacts** (optional)""", width=300)
+        self.mark_down_tonic_analysis = pn.pane.Markdown("""**Tonic Analysis** (optional)""", width=300)
+        self.mark_down_psth = pn.pane.Markdown("""**Step 4: PSTH Computation**""", width=300)
+        self.mark_down_label_groups = pn.pane.Markdown("""**Label Groups** (optional)""", width=300)
+        self.mark_down_group_analysis = pn.pane.Markdown("""**Group Analysis** (optional)""", width=300)
+        self.mark_down_visualization = pn.pane.Markdown("""**Step 5: Visualization**""", width=300)
+        self.mark_down_metadata = pn.pane.Markdown("""**Step 6: Input Metadata**""", width=300)
+        self.mark_down_export_nwb = pn.pane.Markdown("""**Step 7: Export to NWB**""", width=300)
 
     def setup_buttons(self) -> None:
         """Create pipeline-step action buttons and store them as instance attributes."""

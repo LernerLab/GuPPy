@@ -76,7 +76,7 @@ class TestBuildPreprocessViewPage:
 
     def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
         page = build_preprocess_view_page(run_folders=[str(run_folder)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run Folder"]
         assert run_folder_selectors == []
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
@@ -86,7 +86,7 @@ class TestBuildPreprocessViewPage:
             folder.mkdir(parents=True)
             _write_site(folder, "DMS")
         page = build_preprocess_view_page(run_folders=[str(folder_a), str(folder_b)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run Folder"]
         assert len(run_folder_selectors) == 1
         assert set(run_folder_selectors[0].options.values()) == {str(folder_a), str(folder_b)}
 

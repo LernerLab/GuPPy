@@ -68,7 +68,7 @@ class TestVisualizationDashboard:
     def test_metric_selector_leads_the_psth_display_settings(self, dashboard):
         display_settings = dashboard._psth_tab[1]
 
-        assert display_settings.title == "Display settings (all plots)"
+        assert display_settings.title == "Display Settings (all plots)"
         assert display_settings[0][0] is metric_selectors(dashboard._psth_tab)[0]
 
     def test_metric_selector_follows_the_heatmap_event_selector(self, dashboard):
@@ -192,7 +192,7 @@ class TestVisualizationDashboard:
         # dynamic number on top, so assert these two static pickers are present
         # rather than a fixed total count.
         picker_names = {picker.name for picker in dashboard._psth_tab.select(pn.widgets.ColorPicker)}
-        assert {"Trace color", "Mean color"} <= picker_names
+        assert {"Trace Color", "Mean Color"} <= picker_names
 
     def test_per_event_color_pickers_card_is_collapsed(self, dashboard):
         card = dashboard._per_event_color_pickers()

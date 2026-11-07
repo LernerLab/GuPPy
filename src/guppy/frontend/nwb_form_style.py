@@ -10,11 +10,23 @@ and small helpers that build the styled chrome, so the selector stays readable.
 
 import panel as pn
 
+from .typography import (
+    BODY_SIZE,
+    HEADING_SIZE,
+    MONOSPACE_FAMILY,
+    REGULAR,
+    SECONDARY_INK,
+    SEMIBOLD,
+    SMALL_SIZE,
+    title_case,
+)
+from .typography import INK as TYPE_INK
+
 # ----------------------------------------------------------------------------------------------------------------------
 # Tokens (cool, lightly tinted neutrals + one blue accent; no pure black/white)
 # ----------------------------------------------------------------------------------------------------------------------
-INK = "#1E2A36"  # primary text: dark cool slate
-INK_SOFT = "#5B6B7B"  # secondary text / field labels
+INK = TYPE_INK  # primary text
+INK_SOFT = SECONDARY_INK  # secondary text
 INK_FAINT = "#9AA7B4"  # placeholders / muted
 ACCENT = "#2D6CDF"  # primary actions, focus, required mark
 ACCENT_DARK = "#2156BC"  # hover/active
@@ -35,11 +47,9 @@ _FOCUS_RING = "0 0 0 3px rgba(45,108,223,.16)"
 # ----------------------------------------------------------------------------------------------------------------------
 INPUT_STYLESHEET = f"""
 :host label {{
-  color: {INK_SOFT};
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .02em;
-  text-transform: none;
+  color: {INK};
+  font-size: {BODY_SIZE};
+  font-weight: {REGULAR};
   margin-bottom: 5px;
 }}
 :host .bk-input {{
@@ -67,18 +77,17 @@ REQUIRED_STYLESHEET = f"""
 :host label::after {{
   content: " *";
   color: {DANGER};
-  font-weight: 700;
+  font-weight: {SEMIBOLD};
 }}
 """
 
-_BTN_BASE = """
-:host .bk-btn {
+_BTN_BASE = f"""
+:host .bk-btn {{
   border-radius: 8px;
-  font-weight: 600;
-  letter-spacing: .01em;
+  font-weight: {REGULAR};
   padding: 9px 17px;
   transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease;
-}
+}}
 """
 
 BUTTON_ACCENT = (
@@ -114,7 +123,6 @@ BUTTON_GHOST = (
   background: {SURFACE} !important;
   border: 1px solid {BORDER} !important;
   color: {INK_SOFT} !important;
-  font-weight: 500;
   padding: 7px 14px;
 }}
 :host .bk-btn:hover {{ background: {SURFACE_INSET} !important; color: {INK} !important; border-color: {BORDER_STRONG} !important; }}
@@ -154,9 +162,8 @@ SECTION_CARD = f"""
 }}
 :host .card-title, :host .card-title * {{
   color: {INK} !important;
-  font-weight: 600 !important;
-  font-size: 15px !important;
-  letter-spacing: .01em;
+  font-weight: {SEMIBOLD} !important;
+  font-size: {HEADING_SIZE} !important;
 }}
 :host .card-button, :host .card-header svg {{ color: #7A8896 !important; fill: #7A8896 !important; }}
 :host > div {{ padding-left: 26px; padding-right: 26px; }}
@@ -181,10 +188,9 @@ CATEGORY_CARD = f"""
 }}
 :host(:hover) .card-header {{ background: #EEF3F8 !important; }}
 :host .card-title, :host .card-title * {{
-  color: #34435A !important;
-  font-weight: 600 !important;
-  font-size: 13.5px !important;
-  letter-spacing: .005em;
+  color: {INK} !important;
+  font-weight: {SEMIBOLD} !important;
+  font-size: {BODY_SIZE} !important;
 }}
 :host .card-button, :host .card-header svg {{ color: #8A97A4 !important; fill: #8A97A4 !important; }}
 :host > div {{ padding-left: 18px; padding-right: 18px; }}
@@ -208,8 +214,8 @@ INSTANCE_CARD = f"""
 }}
 :host .card-title, :host .card-title * {{
   color: {INK} !important;
-  font-weight: 600 !important;
-  font-size: 13px !important;
+  font-weight: {SEMIBOLD} !important;
+  font-size: {BODY_SIZE} !important;
 }}
 :host .card-button, :host .card-header svg {{ color: #9AA7B4 !important; fill: #9AA7B4 !important; }}
 :host > div {{ padding-left: 18px; padding-right: 18px; }}
@@ -229,13 +235,13 @@ body {{ background: {PAGE} !important; }}
 
 # Radio group (age / date-of-birth selector): tighten and tint.
 RADIO_STYLESHEET = f"""
-:host label {{ color: {INK_SOFT}; font-weight: 500; font-size: 13px; }}
+:host label {{ color: {INK}; font-weight: {REGULAR}; font-size: {BODY_SIZE}; }}
 :host input[type="radio"] {{ accent-color: {ACCENT}; }}
 """
 
 # Alert panes (success / danger): flatter, rounded, tinted.
 ALERT_STYLESHEET = f"""
-:host .alert {{ border-radius: 10px; border: 1px solid {BORDER}; font-size: 13px; }}
+:host .alert {{ border-radius: 10px; border: 1px solid {BORDER}; font-size: {BODY_SIZE}; }}
 :host .alert-success {{ background: #ECFDF3; border-color: #ABEFC6; color: #1E7B43; }}
 :host .alert-danger {{ background: #FEF3F2; border-color: #FECDCA; color: #B42318; }}
 """
@@ -258,19 +264,18 @@ _ACRONYMS = {
     "doi": "DOI",
 }
 
+# Keys that end in "_in_<unit>" carry that unit, which the label shows in parentheses.
+_UNITS = {"nm", "um", "mm", "nl", "w"}
+
 
 def humanize(name: str) -> str:
-    """Turn a snake_case metadata key into a readable field label (units/acronyms preserved)."""
+    """Turn a snake_case metadata key into a Title Case field label, with a trailing unit in parentheses."""
     words = name.split("_")
-    out = []
-    for index, word in enumerate(words):
-        if word in _ACRONYMS:
-            out.append(_ACRONYMS[word])
-        elif index == 0:
-            out.append(word.capitalize())
-        else:
-            out.append(word)
-    return " ".join(out)
+    unit = ""
+    if len(words) > 2 and words[-2] == "in" and words[-1] in _UNITS:
+        unit = f" ({_ACRONYMS[words[-1]]})"
+        words = words[:-2]
+    return title_case(" ".join(_ACRONYMS.get(word, word) for word in words)) + unit
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -284,8 +289,8 @@ def page_header(title: str, subtitle: str) -> pn.pane.Markdown:
     """A page-top title block: name + one-line subtitle over a thin accent rule."""
     html = (
         f"<div style='padding:4px 0 2px 0;'>"
-        f"<div style='font-size:21px;font-weight:700;color:{INK};letter-spacing:-.01em;'>{title}</div>"
-        f"<div style='font-size:13.5px;color:{INK_SOFT};margin-top:3px;'>{subtitle}</div>"
+        f"<div style='font-size:{HEADING_SIZE};font-weight:{SEMIBOLD};color:{INK};'>{title}</div>"
+        f"<div style='font-size:{BODY_SIZE};color:{INK};margin-top:3px;'>{subtitle}</div>"
         f"<div style='height:3px;width:46px;background:{ACCENT};border-radius:3px;margin-top:12px;'></div>"
         f"</div>"
     )
@@ -293,15 +298,15 @@ def page_header(title: str, subtitle: str) -> pn.pane.Markdown:
 
 
 def section_label(text: str, note: str = "") -> pn.pane.Markdown:
-    """A small uppercase tracked section label, optional trailing note, with a hairline rule."""
+    """A section label with an optional trailing note, over a hairline rule."""
     note_html = (
-        f"<span style='font-weight:500;text-transform:none;letter-spacing:0;color:{INK_FAINT};font-size:12px;margin-left:10px;'>{note}</span>"
+        f"<span style='font-weight:{REGULAR};color:{INK_SOFT};font-size:{SMALL_SIZE};margin-left:10px;'>{note}</span>"
         if note
         else ""
     )
     html = (
         f"<div style='display:flex;align-items:baseline;border-bottom:1px solid {BORDER};padding-bottom:7px;margin:6px 0 2px 0;'>"
-        f"<span style='font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:{INK_SOFT};'>{text}</span>"
+        f"<span style='font-size:{BODY_SIZE};font-weight:{SEMIBOLD};color:{INK};'>{text}</span>"
         f"{note_html}</div>"
     )
     return _markdown(html)
@@ -310,21 +315,20 @@ def section_label(text: str, note: str = "") -> pn.pane.Markdown:
 def subgroup_label(text: str) -> pn.pane.Markdown:
     """A quieter label that groups several device categories (e.g. Hardware / Biology)."""
     html = (
-        f"<div style='font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;"
-        f"color:{INK_FAINT};margin:14px 2px 2px 2px;'>{text}</div>"
+        f"<div style='font-size:{BODY_SIZE};font-weight:{SEMIBOLD};color:{INK};margin:14px 2px 2px 2px;'>{text}</div>"
     )
     return _markdown(html)
 
 
 def help_note(text: str) -> pn.pane.Markdown:
     """Muted helper text under a heading."""
-    return _markdown(f"<div style='font-size:13px;color:{INK_SOFT};line-height:1.5;'>{text}</div>")
+    return _markdown(f"<div style='font-size:{SMALL_SIZE};color:{INK_SOFT};line-height:1.45;'>{text}</div>")
 
 
 def intro_note(html: str) -> pn.pane.Markdown:
     """A short page-top instruction paragraph (slightly more present than help_note)."""
     return _markdown(
-        f"<div style='font-size:13.5px;color:{INK};line-height:1.65;max-width:780px;margin:2px 0 4px 0;'>{html}</div>"
+        f"<div style='font-size:{BODY_SIZE};color:{INK};line-height:1.45;max-width:780px;margin:2px 0 4px 0;'>{html}</div>"
     )
 
 
@@ -334,9 +338,9 @@ def channel_role_chip(role: str, store_name: str) -> pn.pane.Markdown:
     role_bg = ACCENT_SOFT if role == "signal" else "#EEF2F6"
     html = (
         f"<div style='display:flex;align-items:center;gap:10px;'>"
-        f"<span style='font-size:12px;font-weight:600;color:{role_color};background:{role_bg};"
+        f"<span style='font-size:{SMALL_SIZE};font-weight:{SEMIBOLD};color:{role_color};background:{role_bg};"
         f"padding:2px 11px;border-radius:20px;text-transform:capitalize;'>{role}</span>"
-        f"<span style='font-size:12px;color:{INK_FAINT};font-family:ui-monospace,SFMono-Regular,Menlo,monospace;'>{store_name}</span>"
+        f"<span style='font-size:{SMALL_SIZE};color:{INK_SOFT};font-family:{MONOSPACE_FAMILY};'>{store_name}</span>"
         f"</div>"
     )
     return _markdown(html)

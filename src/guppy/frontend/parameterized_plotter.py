@@ -25,6 +25,7 @@ from ..analysis.io_utils import (
     recording_sites_for_output_directory,
 )
 from ..utils.utils import read_Df
+from ..visualization.palette import SIGNAL
 
 pn.extension()
 
@@ -40,6 +41,9 @@ PSTH_METRICS = ("z_score", "dff")
 
 # Metric name on disk -> how it is written in menus and on plot axes.
 METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
+
+# Vertical room, in pixels, a heat map row needs before its trial number can be labeled.
+TRIAL_TICK_SPACING = 18
 
 
 # remove unnecessary column names
@@ -120,8 +124,8 @@ class ParameterizedPlotter(param.Parameterized):
 
     filepath = param.Path(default=None)
     # create different options and selectors
-    event_selector = param.ObjectSelector(default=None)
-    event_selector_heatmap = param.ObjectSelector(default=None)
+    event_selector = param.ObjectSelector(default=None, label="Event Selector")
+    event_selector_heatmap = param.ObjectSelector(default=None, label="Event Selector")
     selector_for_multipe_events_plot = param.ListSelector(default=None)
     columns_dict = param.Dict(default=None)
     df_new = param.DataFrame(default=None)
@@ -137,15 +141,17 @@ class ParameterizedPlotter(param.Parameterized):
     save_options_overlay = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_trials = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_heatmap = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
-    color_map = param.ObjectSelector(default="plasma")
-    trace_color = param.Color(default="#0000ff")
-    mean_color = param.Color(default="#000000")
+    color_map = param.ObjectSelector(default="plasma", label="Color Map")
+    trace_color = param.Color(default=SIGNAL, label="Trace Color")
+    mean_color = param.Color(default="#000000", label="Mean Color")
     # When True, hide the minor tick marks between axis numbers on the PSTH line plots
     # for a cleaner look. Ticks are shown by default; the user opts in to hide them.
     hide_minor_ticks = param.Boolean(default=False)
     # Categorical palette used to colour the per-event curves in the comparison plot.
     overlay_palette = param.ObjectSelector(
-        default="Category10", objects=["Category10", "Category20", "Colorblind", "Dark2", "Set1"]
+        default="GuPPy",
+        objects=["GuPPy", "Category10", "Category20", "Colorblind", "Dark2", "Set1"],
+        label="Overlay Palette",
     )
     # Per-event colour overrides for the comparison plot, keyed by the selection label
     # (the entries of ``selector_for_multipe_events_plot``). Only events the user has
@@ -941,6 +947,9 @@ class ParameterizedPlotter(param.Parameterized):
             event_ts_for_each_event = np.arange(1, z_score.shape[0] + 1)
             yticks = list(event_ts_for_each_event)
 
+        # Label every trial only while the rows leave room for a tick label; past that, every nth trial.
+        yticks = yticks[:: max(1, math.ceil(TRIAL_TICK_SPACING * len(yticks) / int(self.height_heatmap)))]
+
         # Auto-fit the colour scale to the current selection on first render (or
         # after a selection change reset it above). ``trial_numbers`` is captured
         # before the single-trial duplication below so the Y range and ticks reflect
@@ -953,7 +962,6 @@ class ParameterizedPlotter(param.Parameterized):
         # Always span the full cell edges so the first and last trial rows render at
         # full height; recomputed every render so no stale/zoomed range can clip them.
         ylim = (float(trial_numbers.min()) - 0.5, float(trial_numbers.max()) + 0.5)
-        font_size = {"labels": 16, "yticks": 6}
 
         # A single-trial heatmap (e.g. a group average with only one contributing
         # session) cannot be datashaded (datashade needs >=2 rows to infer cell
@@ -971,7 +979,6 @@ class ParameterizedPlotter(param.Parameterized):
             **self._heatmap_size(),
             ylabel="Trials",
             xlabel="Time (s)",
-            fontsize=font_size,
             yticks=yticks,
             invert_yaxis=True,
             xlim=self.heatmap_X,

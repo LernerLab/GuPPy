@@ -9,7 +9,7 @@ from guppy.visualization.preprocessing import (
     make_spans_pipe,
     set_drag_gesture,
 )
-from guppy_test_data import resolve_plot
+from guppy_test_data import inked_color, resolve_plot
 
 
 def image_extent(image):
@@ -99,6 +99,59 @@ class TestBuildControlSignalFit:
         shaded_signal, shaded_fit, _ = fit_overlay.values()
         assert image_extent(shaded_signal) == (0.0, 10.0, 4.0, 14.0)
         assert image_extent(shaded_fit) == (0.0, 20.0, 4.0, 24.0)
+
+    def test_control_is_blue_and_signal_is_green(self, panel_extension, timestamps, control, signal_trace, fit):
+        layout = build_control_signal_fit(
+            x=timestamps,
+            control=control,
+            signal=signal_trace,
+            fit=fit,
+            titles=["control", "signal", "fit"],
+            suptitle="session",
+            spans=make_spans_pipe(windows=[]),
+        )
+        control_overlay, signal_overlay, fit_overlay = (resolve_plot(plot) for plot in layout.values())
+        control_image, _ = control_overlay.values()
+        signal_image, _ = signal_overlay.values()
+        shaded_signal, shaded_fit, _ = fit_overlay.values()
+
+        # The fitted control is derived from the control, so it takes the control's blue.
+        assert [inked_color(image) for image in (control_image, signal_image, shaded_signal, shaded_fit)] == [
+            "#1F6FD1",
+            "#3A9E5C",
+            "#3A9E5C",
+            "#1F6FD1",
+        ]
+
+    def test_windows_without_a_color_are_shaded_red(self, panel_extension, timestamps, control, signal_trace, fit):
+        layout = build_control_signal_fit(
+            x=timestamps,
+            control=control,
+            signal=signal_trace,
+            fit=fit,
+            titles=["control", "signal", "fit"],
+            suptitle="session",
+            spans=make_spans_pipe(windows=[(1.0, 2.0)]),
+        )
+        _, spans = resolve_plot(layout.values()[0]).values()
+
+        assert hv.Store.lookup_options("bokeh", spans, "style").kwargs["color"] == "#D62728"
+
+    def test_windows_carrying_a_color_are_each_shaded_in_it(
+        self, panel_extension, timestamps, control, signal_trace, fit
+    ):
+        layout = build_control_signal_fit(
+            x=timestamps,
+            control=control,
+            signal=signal_trace,
+            fit=fit,
+            titles=["control", "signal", "fit"],
+            suptitle="session",
+            spans=make_spans_pipe(windows=[(0.0, 1.0, "#6E56CF"), (2.0, 3.0, "#1F7FC4")]),
+        )
+        _, spans = resolve_plot(layout.values()[0]).values()
+
+        assert list(spans.dimension_values("color")) == ["#6E56CF", "#1F7FC4"]
 
     def test_extra_traces_stack_below_the_fit(self, panel_extension, timestamps, control, signal_trace, fit):
         layout = build_control_signal_fit(
@@ -236,7 +289,7 @@ class TestBuildMarkableTrace:
 
     @pytest.fixture
     def build(self, panel_extension):
-        def build(on_x_select=lambda start, end: None, overlay=None, hooks=None):
+        def build(on_x_select=lambda start, end: None, overlay=None, hooks=None, color="#3A9E5C"):
             x = np.arange(0.0, 50.0, 0.1)
             return build_markable_trace(
                 x=x,
@@ -246,6 +299,7 @@ class TestBuildMarkableTrace:
                 spans=make_spans_pipe(windows=[(1.0, 2.0)]),
                 on_x_select=on_x_select,
                 hooks=hooks,
+                color=color,
             )
 
         return build
@@ -295,6 +349,11 @@ class TestBuildMarkableTrace:
 
         assert type(toolbar.active_drag).__name__ == "BoxSelectTool"
         assert type(toolbar.active_scroll).__name__ == "WheelZoomTool"
+
+    def test_the_trace_is_drawn_in_the_color_it_is_given(self, build):
+        (image,) = [item for item in resolve_plot(build(color="#1F6FD1")).values() if isinstance(item, hv.RGB)]
+
+        assert inked_color(image) == "#1F6FD1"
 
     def test_overlay_is_drawn_over_the_trace(self, build):
         x = np.arange(0.0, 50.0, 0.1)

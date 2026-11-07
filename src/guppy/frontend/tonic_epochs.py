@@ -30,6 +30,7 @@ from ..analysis.tonic import (
     compute_tonic_means,
     validate_tonic_epochs,
 )
+from ..visualization.palette import EPOCH_COLORS, REFERENCE_LINE
 from ..visualization.preprocessing import build_stacked_traces, make_spans_pipe
 
 pn.extension(notifications=True)
@@ -54,9 +55,7 @@ _INSTRUCTIONS = (
 _NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will not appear in the results._"
 
 # Bar hues for the results view: the baseline epoch is the reference the others read against.
-_EPOCH_BAR_COLOR = "#1f77b4"
-_BASELINE_BAR_COLOR = "#ff7f0e"
-_ZERO_LINE_COLOR = "#666666"
+_ZERO_LINE_COLOR = REFERENCE_LINE
 
 _BASELINE_HINT = (
     "Bars show each epoch's **change from the baseline epoch**, which sits at zero by "
@@ -96,6 +95,11 @@ def _saved_epoch_windows(filepath: str, site: str) -> list[tuple[str, float, flo
     if epochs.empty:
         return []
     return [(str(row["label"]), float(row["start"]), float(row["end"])) for _, row in epochs.iterrows()]
+
+
+def epoch_color(index: int) -> str:
+    """Return the color of the epoch at ``index`` in a site's list of epochs, for its window and its bar."""
+    return EPOCH_COLORS[index % len(EPOCH_COLORS)]
 
 
 class TonicEpochRow:
@@ -172,12 +176,12 @@ class TonicEpochConfig:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.add_row_button = pn.widgets.Button(name="Add epoch", button_type="default", icon="plus")
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
+        self.add_row_button = pn.widgets.Button(name="Add Epoch", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
-        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.sites[0]))
+        self.spans_pipe = make_spans_pipe(windows=self.colored_windows_for(self.sites[0]))
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.rows_container = pn.Column()
         self._render_rows()
@@ -233,6 +237,14 @@ class TonicEpochConfig:
         """The ``(start, end)`` bounds of one recording site's fully-entered windows."""
         return [row.window for row in self.site_to_rows[site] if row.window is not None]
 
+    def colored_windows_for(self, site: str) -> list[tuple[float, float, str]]:
+        """The ``(start, end, color)`` of one recording site's fully-entered windows, colored by row."""
+        return [
+            (*row.window, epoch_color(index))
+            for index, row in enumerate(self.site_to_rows[site])
+            if row.window is not None
+        ]
+
     def set_epochs(self, site: str, epochs: list[tuple[str, float, float]]) -> None:
         """Replace one recording site's epoch windows."""
         self.site_to_rows[site] = [self._build_row(site, label, start, end) for label, start, end in epochs]
@@ -242,7 +254,7 @@ class TonicEpochConfig:
 
     def refresh_spans(self) -> None:
         """Repaint the shaded spans from the current rows, leaving the traces untouched."""
-        self.spans_pipe.send(self.windows_for(self.site_select.value))
+        self.spans_pipe.send(self.colored_windows_for(self.site_select.value))
 
     def add_epoch_row(self) -> None:
         """Append a blank epoch window to the selected site."""
@@ -304,7 +316,7 @@ class TonicEpochConfig:
         self._render_rows()
         # A new site means new traces, so the layout is rebuilt; give it a fresh pipe
         # so the discarded plot stops receiving updates.
-        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.site_select.value))
+        self.spans_pipe = make_spans_pipe(windows=self.colored_windows_for(self.site_select.value))
         self.plot_pane.object = self._make_plot()
 
     def _make_plot(self) -> object:
@@ -374,10 +386,10 @@ class TonicResultsView:
         self.label = label
         self.sites = _tonic_result_sites(filepath)
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
         means = self._means(self.sites[0])
         self.baseline_select = pn.widgets.Select(
-            name="Baseline epoch", options=list(means.index), value=list(means.index)[0]
+            name="Baseline Epoch", options=list(means.index), value=list(means.index)[0]
         )
         self.bars_pane = pn.pane.HoloViews(self._make_bars(), sizing_mode="stretch_width")
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
@@ -387,7 +399,7 @@ class TonicResultsView:
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
-            f"## Tonic / basal analysis — {self.label}",
+            f"## Tonic / Basal Analysis — {self.label}",
             pn.Row(self.site_select, self.baseline_select),
             self.bars_pane,
             pn.pane.Markdown(_BASELINE_HINT),
@@ -412,7 +424,7 @@ class TonicResultsView:
         table = self._means_with_diff()
         baseline = self.baseline_select.value
         epochs = list(table.index)
-        colors = [_BASELINE_BAR_COLOR if epoch == baseline else _EPOCH_BAR_COLOR for epoch in epochs]
+        colors = [epoch_color(index) for index in range(len(epochs))]
 
         panels = []
         for column, label in (("diff_zscore", "Δ mean z-score"), ("diff_dff", "Δ mean ΔF/F")):
@@ -455,7 +467,10 @@ class TonicResultsView:
         # rather than driven by edits; it is retained so the spans layer keeps its source.
         epochs = read_tonic_epochs(self.filepath, site)
         self.spans_pipe = make_spans_pipe(
-            windows=[(float(row["start"]), float(row["end"])) for _, row in epochs.iterrows()]
+            windows=[
+                (float(row["start"]), float(row["end"]), epoch_color(index))
+                for index, (_, row) in enumerate(epochs.iterrows())
+            ]
         )
         return build_stacked_traces(
             x=timestamps,

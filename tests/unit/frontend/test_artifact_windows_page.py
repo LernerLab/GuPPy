@@ -18,6 +18,7 @@ from guppy.frontend.artifact_windows_page import (
     build_artifact_window_page,
 )
 from guppy.utils._hdf5_io import write_hdf5
+from guppy_test_data import inked_color, resolve_plot
 
 # The keep-window span is widened by one sample, so it runs from -1.0 to 11.0.
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
@@ -418,11 +419,11 @@ class TestBuildArtifactWindowPage:
 
     def test_page_offers_an_add_control(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add period"]
+        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add Period"]
 
     def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run Folder"]
         assert run_folder_selectors == []
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
@@ -432,7 +433,7 @@ class TestBuildArtifactWindowPage:
             folder.mkdir()
             _write_site(folder, "DMS")
         page = build_artifact_window_page(run_folders=[str(folder_a), str(folder_b)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run Folder"]
         assert len(run_folder_selectors) == 1
 
 
@@ -605,6 +606,28 @@ class TestTraceSelection:
         selector.trace_select.value = CONTROL_TRACE
 
         assert rendered_figure(selector).title.text.endswith("— control_DMS")
+
+    def test_the_control_is_drawn_blue_and_the_signal_green(self, panel_extension, tmp_path):
+        # A flat trace shades to an empty image, so these traces rise across the recording.
+        run_folder = tmp_path / "rising_output_1"
+        run_folder.mkdir()
+        rising = np.arange(TIMESTAMPS.shape[0], dtype=float)
+        write_hdf5(TIMESTAMPS, "timeCorrection_DMS", str(run_folder), "timestampNew")
+        for name, offset in (("control_DMS", 0.0), ("signal_DMS", 10.0), ("cntrl_sig_fit_DMS", 20.0)):
+            write_hdf5(rising + offset, name, str(run_folder), "data")
+        selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), label="output_1")
+
+        def shown_trace_color():
+            (image,) = [
+                item for item in resolve_plot(selector.marking_pane.object).values() if isinstance(item, hv.RGB)
+            ]
+            return inked_color(image)
+
+        selector.trace_select.value = CONTROL_TRACE
+        control_color = shown_trace_color()
+        selector.trace_select.value = SIGNAL_TRACE
+
+        assert (control_color, shown_trace_color()) == ("#1F6FD1", "#3A9E5C")
 
     def test_the_fit_trace_draws_the_fit_over_the_signal(self, selector):
         selector.trace_select.value = FIT_TRACE

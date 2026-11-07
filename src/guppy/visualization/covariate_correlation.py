@@ -12,12 +12,12 @@ import holoviews as hv
 import numpy as np
 
 from .binned_metrics import build_bin_bars
-from .shading import FIT_COLOR
+from .palette import COVARIATE, SIGNAL
 
 logger = logging.getLogger(__name__)
 
-COVARIATE_COLOR = "#9467bd"
-POINT_COLOR = "#1f77b4"
+COVARIATE_COLOR = COVARIATE
+POINT_COLOR = SIGNAL
 
 
 def build_covariate_panel(
@@ -128,7 +128,7 @@ def build_covariate_scatter(
         _least_squares_line(covariate_values=covariate_values, metric_values=metric_values),
         covariate_label,
         metric_label,
-    ).opts(color=FIT_COLOR, line_width=1.5, alpha=0.8)
+    ).opts(color=COVARIATE_COLOR, line_width=1.5, alpha=0.8)
 
     return (fit_line * points).opts(
         responsive=True,

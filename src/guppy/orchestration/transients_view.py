@@ -13,6 +13,6 @@ def open_transients_view(session_folders: list, inputParameters: dict) -> None:
     """Offer the transient peaks page for the selected runs."""
     run_folders = resolve_run_folders(session_folders, inputParameters)
     page_links.offer_page(
-        name="Transient peaks",
+        name="Transient Peaks",
         content=build_peaks_view_page(run_folders, inputParameters["selectForTransientsComputation"]),
     )

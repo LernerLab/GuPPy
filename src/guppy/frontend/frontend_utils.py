@@ -70,7 +70,7 @@ SECONDARY_BUTTON_STYLESHEET = """
     background-color: #6c757d !important;
     border-color: #6c757d !important;
     color: #ffffff !important;
-    font-weight: 500 !important;
+    font-weight: 400 !important;
 }
 .bk-btn:hover {
     background-color: #5c636a !important;
