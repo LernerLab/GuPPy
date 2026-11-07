@@ -75,7 +75,8 @@ def build_homepage(
     template.header.append(
         pn.pane.Markdown(
             f"GuPPy {version('guppy-neuro')}",
-            styles={"color": "#6C757D", "margin-left": "auto", "margin-right": "1em"},
+            styles={"margin-left": "auto", "margin-right": "1em"},
+            css_classes=["small"],
         )
     )
     parameter_form = ParameterForm(

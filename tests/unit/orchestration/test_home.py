@@ -71,7 +71,7 @@ class TestBranding:
     def test_header_names_the_app_beside_the_wordmark(self, homepage):
         wordmark = homepage.header.objects[0].object
 
-        assert ">GuPPy</span>" in wordmark
+        assert 'alt="GuPPy"' in wordmark
         assert ">Guided Photometry Analysis in Python</span>" in wordmark
 
 

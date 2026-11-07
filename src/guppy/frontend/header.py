@@ -1,8 +1,11 @@
 """The GuPPy header: a white bar with the GuPPy mark, the wordmark in the logo's gradient, and a rainbow rule."""
 
+import base64
 from pathlib import Path
 
 import panel as pn
+
+from .typography import INK, TITLE_SIZE, GuppyTypeDesign
 
 ASSETS_DIRECTORY = Path(__file__).parent.parent / "assets"
 
@@ -11,7 +14,6 @@ LOGO_GRADIENT = "linear-gradient(90deg, #6E56CF, #1F7FC4, #14A39A, #5DB45C)"
 
 HEADER_BACKGROUND = "#FFFFFF"
 HEADER_TEXT_COLOR = "#212529"
-_SUBTITLE_COLOR = "#495057"
 _TOGGLE_ICON = (
     "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E"
     "%3Cpath stroke='%23495057' stroke-width='2' stroke-linecap='round' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E\")"
@@ -38,7 +40,7 @@ HEADER_CSS = f"""
 
 
 def wordmark(*, page_name: str) -> pn.pane.HTML:
-    """Return the header's wordmark: "GuPPy" in the logo's gradient, followed by the page's name.
+    """Return the header's wordmark: the logo's own "GuPPy" lettering, followed by the page's name.
 
     Parameters
     ----------
@@ -50,10 +52,11 @@ def wordmark(*, page_name: str) -> pn.pane.HTML:
     panel.pane.HTML
         The wordmark, for the template's header.
     """
+    lettering = base64.b64encode((ASSETS_DIRECTORY / "GuppyWordmark.png").read_bytes()).decode("ascii")
     return pn.pane.HTML(
-        f'<span style="font-weight: 800; font-size: 24px; background: {LOGO_GRADIENT}; '
-        f'-webkit-background-clip: text; background-clip: text; color: transparent;">GuPPy</span>'
-        f'<span style="font-size: 16px; color: {_SUBTITLE_COLOR}; margin-left: 12px;">{page_name}</span>',
+        f'<span style="display: flex; align-items: center; gap: 14px;">'
+        f'<img src="data:image/png;base64,{lettering}" alt="GuPPy" style="height: 26px;">'
+        f'<span style="font-size: {TITLE_SIZE}; font-weight: 400; color: {INK};">{page_name}</span></span>',
         margin=(0, 4),
         align="center",
     )
@@ -80,6 +83,7 @@ def guppy_header_template(*, page_name: str, title: str) -> pn.template.Bootstra
         favicon=str(ASSETS_DIRECTORY / "favicon.png"),
         header_background=HEADER_BACKGROUND,
         header_color=HEADER_TEXT_COLOR,
+        design=GuppyTypeDesign,
     )
     template.config.raw_css = [*template.config.raw_css, HEADER_CSS]
     template.header.append(wordmark(page_name=page_name))

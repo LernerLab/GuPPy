@@ -6,9 +6,9 @@ import panel as pn
 
 from .header import LOGO_GRADIENT
 
-_TEXT_STYLE = "font-size: 13px;"
-_NOT_RUN_COLOR = "#8a96a3"
-_RUNNING_COLOR = "#55616f"
+_TEXT_STYLE = "font-size: 12px;"
+_NOT_RUN_COLOR = "#6C757D"
+_RUNNING_COLOR = "#6C757D"
 _DONE_COLOR = "#1e7e34"
 _FAILED_COLOR = "#c0392b"
 

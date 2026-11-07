@@ -59,25 +59,25 @@ def test_open_visualization_gui_button_visible(page, live_server_url):
 @pytest.mark.ui
 def test_step_1_label_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_text("Step 1 : Label Stores").first).to_be_visible()
+    expect(page.get_by_text("Step 1: Label Stores").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_step_2_label_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_text("Step 2 : Read Raw Data").first).to_be_visible()
+    expect(page.get_by_text("Step 2: Read Raw Data").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_step_4_label_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_text("Step 4 : PSTH Computation").first).to_be_visible()
+    expect(page.get_by_text("Step 4: PSTH Computation").first).to_be_visible()
 
 
 @pytest.mark.ui
 def test_step_3_label_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_text("Step 3 : Preprocess").first).to_be_visible()
+    expect(page.get_by_text("Step 3: Preprocess").first).to_be_visible()
 
 
 @pytest.mark.ui

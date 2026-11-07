@@ -49,7 +49,7 @@ class TestSidebar:
 
     def test_preprocess_step_no_longer_claims_to_remove_artifacts(self, sidebar):
         assert sidebar.preprocess.name == "Preprocess"
-        assert sidebar.mark_down_preprocess.object == "**Step 3 : Preprocess**"
+        assert sidebar.mark_down_preprocess.object == "**Step 3: Preprocess**"
 
     def test_every_step_has_a_status(self, sidebar):
         assert list(sidebar.statuses) == list(STEP_NAMES)

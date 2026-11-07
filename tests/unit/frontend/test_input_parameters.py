@@ -1403,7 +1403,8 @@ class TestTitledBox:
             width=960,
         )
 
-        assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
+        assert box.objects[1].object == "Read by Step 3 and Group Analysis"
+        assert box.objects[1].css_classes == ["small"]
 
     def test_contents_follow_the_heading(self, panel_extension):
         widget = pn.widgets.IntInput(name="Cores", value=2, width=150)
@@ -1479,7 +1480,7 @@ class TestParameterSections:
             "### Parallel Execution",
             "### Control Channel Fitting",
             "### Signal Filtering",
-            "### Z-score Normalization",
+            "### Z-Score Normalization",
             "### PSTH Computation",
             "### Peak and AUC Measurement",
             "### Transient Detection",

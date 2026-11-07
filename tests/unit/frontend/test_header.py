@@ -26,7 +26,7 @@ class TestGuppyHeaderTemplate:
     def test_header_shows_the_wordmark_and_page_name(self, template):
         (wordmark,) = template.header.objects
 
-        assert ">GuPPy</span>" in wordmark.object
+        assert 'alt="GuPPy"' in wordmark.object
         assert ">Label Stores — mouse_01</span>" in wordmark.object
 
     def test_header_has_the_rainbow_rule(self, template):
