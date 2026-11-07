@@ -58,7 +58,7 @@ def scanPortsAndFind(start_port: int = 5000, end_port: int = 5200, host: str = "
     return port
 
 
-# Width of the DANDI panels' widgets inside the 1000px Input Folder Selection card.
+# Width of the DANDI panels' widgets inside the Input Folder Selection card.
 DANDI_PANEL_WIDTH = 950
 
 # Panel's default button type renders as pale grey on white, which reads as page background

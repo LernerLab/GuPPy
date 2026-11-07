@@ -68,8 +68,8 @@ OUTPUT_DIR = Path(__file__).parent / "_static" / "images"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 VIEWPORT = {"width": 1280, "height": 900}
-# The homepage's cards are 1000px wide and sit beside a ~350px sidebar, so the shots that
-# have to show a whole card render wider than the default viewport.
+# The homepage's cards stretch to the page beside a ~350px sidebar, so the shots that show
+# a whole card render wider than the default viewport to leave the card room for its prose.
 WIDE_VIEWPORT = {"width": 1450, "height": 900}
 SAMPLE_DATA_DIR = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_1"
 
@@ -163,8 +163,8 @@ def screenshot_sidebar(
 def screenshot_homepage(page: Page) -> None:
     """Screenshot 1: the GuPPy homepage, as a first launch shows it.
 
-    Rendered wide enough that the 1000px cards clear the sidebar without being cut off,
-    which the default viewport is too narrow for once a card carries prose.
+    Rendered wider than the default viewport, which leaves the cards beside the sidebar too
+    narrow for their prose.
     """
     template = build_homepage()
     url = _serve(template)
@@ -401,7 +401,7 @@ def screenshot_covariate_label_stores(page: Page) -> None:
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "covariate_label_stores.png",
-        clip={"x": 0, "y": 0, "width": 660, "height": 1090},
+        clip={"x": 0, "y": 0, "width": 1280, "height": 1090},
     )
     print("Saved covariate_label_stores.png")
 
@@ -533,8 +533,7 @@ def screenshot_parameters(page: Page, tmp_path: Path) -> None:
         output_root_folder=str(tmp_path),
     )
     url = _serve(template)
-    # Wide enough that the 1000px card clears the sidebar without being cut off on the
-    # right, tall enough that the card lays out without scrolling.
+    # Tall enough that the card lays out without scrolling.
     page.set_viewport_size({"width": WIDE_VIEWPORT["width"], "height": 2000})
     page.goto(url)
     # The Parameter Selection card is collapsed by default; expand it so the
@@ -543,9 +542,11 @@ def screenshot_parameters(page: Page, tmp_path: Path) -> None:
     page.get_by_text("Parallel Execution").first.wait_for()
     page.wait_for_timeout(1500)
     card_top = page.get_by_text("Parameter Selection").first.bounding_box()
+    # The card stretches to the right edge of the page, so the clip runs there too.
+    left = card_top["x"] - 32
     page.screenshot(
         path=OUTPUT_DIR / "02_parameters.png",
-        clip={"x": card_top["x"] - 32, "y": card_top["y"] + 45, "width": 1030, "height": 900},
+        clip={"x": left, "y": card_top["y"] + 45, "width": WIDE_VIEWPORT["width"] - left, "height": 900},
     )
     print("Saved 02_parameters.png")
     page.set_viewport_size(VIEWPORT)
@@ -874,6 +875,8 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         template.main.append(form.output_folder_selection)
         url = _serve(template)
 
+        # The card stretches to the page, so the viewport sets how wide it renders.
+        page.set_viewport_size({"width": 1060, "height": VIEWPORT["height"]})
         page.goto(url)
         page.get_by_text("Existing runs (steps 2–5)").first.wait_for()
         page.wait_for_timeout(1500)
@@ -882,6 +885,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
             clip={"x": 0, "y": 0, "width": 1060, "height": 660},
         )
         print("Saved compare_parameters_existing_runs.png")
+        page.set_viewport_size(VIEWPORT)
 
         pn.state.kill_all_servers()
     finally:

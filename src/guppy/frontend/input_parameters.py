@@ -33,8 +33,6 @@ logger = logging.getLogger(__name__)
 
 SAME_ROOT_LABEL = "Output root folder is the same as the input root folder"
 
-# Width of each parameter section inside the 1000px Individual Analysis card.
-SECTION_WIDTH = 960
 # White against the card's WhiteSmoke, with a border, so the sections read as
 # distinct blocks rather than merging into the card behind them.
 SECTION_STYLES = {
@@ -84,7 +82,7 @@ def _blank_comparison_rows(count: int) -> pd.DataFrame:
     return pd.DataFrame({"Event A": [""] * count, "Event B": [""] * count})
 
 
-def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.WidgetBox:
+def _titled_box(*, title: str, read_by: str, contents: list) -> pn.WidgetBox:
     """Build one parameter section, headed by its title and the steps that consume it.
 
     Parameters
@@ -95,23 +93,23 @@ def _titled_box(*, title: str, read_by: str, contents: list, width: int) -> pn.W
         The pipeline steps whose workers read the section's parameters, phrased to
         follow "Read by" (e.g. ``"Step 3"``).
     contents : list
-        Panel objects to lay out under the heading.
-    width : int
-        Fixed width of the returned box, in pixels.
+        Panel objects to lay out under the heading, in one row that wraps onto as many
+        lines as the width of the page needs.
 
     Returns
     -------
     panel.WidgetBox
-        The assembled section.
+        The assembled section, stretched to the width of its container.
     """
-    heading = pn.pane.Markdown(f"### {title}", width=width - 40, styles={"margin-bottom": "0"})
+    heading = pn.pane.Markdown(f"### {title}", sizing_mode="stretch_width", styles={"margin-bottom": "0"})
     read_by_note = pn.pane.Markdown(
         f"Read by {read_by}",
-        width=width - 40,
+        sizing_mode="stretch_width",
         styles={"margin-top": "0"},
         css_classes=["small"],
     )
-    return pn.WidgetBox(heading, read_by_note, *contents, width=width, styles=SECTION_STYLES)
+    controls = pn.FlexBox(*contents, sizing_mode="stretch_width")
+    return pn.WidgetBox(heading, read_by_note, controls, sizing_mode="stretch_width", styles=SECTION_STYLES)
 
 
 def _table_heading(*, label: str, description: str, width: int) -> pn.Row:
@@ -253,27 +251,29 @@ class ParameterForm:
             "The two folders a project keeps for the life of its analyses. Set them once and "
             "GuPPy remembers them for next time; `guppy --input-root <path> --output-root "
             "<path>` sets them at launch.",
-            width=950,
+            sizing_mode="stretch_width",
         )
         self.input_root_header = pn.pane.Markdown(
             "**Input Root Folder.** Pick the folder your session folders live under. GuPPy "
             "mirrors each session's path below it into the output root folder, so "
             "`<input root>/subject1/session1` writes its runs to "
             "`<output root>/subject1/session1`.",
-            width=950,
+            sizing_mode="stretch_width",
         )
         self.input_root_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
             name="Input root folder",
-            width=950,
+            sizing_mode="stretch_width",
         )
 
         self.session_selector_header = pn.pane.Markdown(
             "**Session Folders.** Pick the sessions to analyze. Each one must sit under the " "input root folder.",
-            width=950,
+            sizing_mode="stretch_width",
         )
-        self.files_1 = pn.widgets.FileSelector(self.folder_path, root_directory="/", name="session_folders", width=950)
+        self.files_1 = pn.widgets.FileSelector(
+            self.folder_path, root_directory="/", name="session_folders", sizing_mode="stretch_width"
+        )
 
         self.dandi_file_panel = DandiFilePanel(
             styles=self.styles,
@@ -367,19 +367,19 @@ class ParameterForm:
             "Ticking this writes each run inside the session folder it came from, which keeps a "
             "session self-contained but means GuPPy writes into your raw data. Leaving it clear "
             "keeps raw and derived data apart, which is recommended.",
-            width=950,
+            sizing_mode="stretch_width",
         )
         self.output_location_header = pn.pane.Markdown(
             "**Output Root Folder.** Pick the folder the mirrored output tree is written into. "
             "A session's runs land in `<output root>/<session path under the input root>/"
             "output_<run name>`, so nothing is written into your session folders.",
-            width=950,
+            sizing_mode="stretch_width",
         )
         self.output_root_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
             name="Output root folder",
-            width=950,
+            sizing_mode="stretch_width",
         )
 
         self.outputs_selector_header = pn.pane.Markdown(
@@ -387,7 +387,7 @@ class ParameterForm:
             "selected session. Naming a run below selects it in every session that has it; the "
             "tree underneath shows the result and can be adjusted session by session. To create "
             "a new run, use the Label Stores GUI in Step 1.",
-            width=950,
+            sizing_mode="stretch_width",
         )
         self.run_names_for_all_sessions = pn.widgets.MultiChoice(
             name="Run Names for All Sessions",
@@ -401,7 +401,7 @@ class ParameterForm:
             root_directory="/",
             file_pattern="*output_*",
             name="Existing Runs (Steps 2–5)",
-            width=950,
+            sizing_mode="stretch_width",
         )
 
         self.computePsth = pn.widgets.Select(
@@ -591,22 +591,23 @@ class ParameterForm:
         self.zscore_param_wd = _titled_box(
             title="Z-Score Normalization",
             read_by="Step 3",
-            contents=[
-                pn.Row(self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end),
-            ],
-            width=SECTION_WIDTH,
+            contents=[self.z_score_computation, self.baseline_wd_strt, self.baseline_wd_end],
         )
 
         self.psth_param_wd = _titled_box(
             title="PSTH Computation",
             read_by="Step 4 and Group Analysis",
             contents=[
-                pn.Row(self.computePsth, self.nSecPrev, self.nSecPost),
-                pn.Row(self.computeCorr),
-                pn.Row(self.timeInterval, self.use_time_or_trials, self.bin_psth_trials),
-                pn.Row(self.baselineCorrectionStart, self.baselineCorrectionEnd),
+                self.computePsth,
+                self.nSecPrev,
+                self.nSecPost,
+                self.computeCorr,
+                self.timeInterval,
+                self.use_time_or_trials,
+                self.bin_psth_trials,
+                self.baselineCorrectionStart,
+                self.baselineCorrectionEnd,
             ],
-            width=SECTION_WIDTH,
         )
 
         self.start_end_point_df = pd.DataFrame(
@@ -636,19 +637,20 @@ class ParameterForm:
             title="Peak and AUC Measurement",
             read_by="Step 4",
             contents=[
-                _table_heading(
-                    label="Peak and Area Windows",
-                    description=(
-                        "Each row is one window that peak amplitude and area are measured over, in "
-                        "seconds relative to the event. Every window must lie inside the PSTH window. "
-                        "The table commits an edit only once you click another cell."
+                pn.Column(
+                    _table_heading(
+                        label="Peak and Area Windows",
+                        description=(
+                            "Each row is one window that peak amplitude and area are measured over, in "
+                            "seconds relative to the event. Every window must lie inside the PSTH window. "
+                            "The table commits an edit only once you click another cell."
+                        ),
+                        width=260,
                     ),
-                    width=260,
+                    self.df_widget,
                 ),
-                self.df_widget,
                 self.auc_units,
             ],
-            width=SECTION_WIDTH,
         )
 
         # One blank row to start, grown by the Add button rather than a fixed block of
@@ -674,69 +676,72 @@ class ParameterForm:
             title="Significance Testing",
             read_by="Step 4 and Group Analysis",
             contents=[
-                pn.Row(self.computePsthSignificance, self.psthSignificanceAlpha, self.psthBootstrapResamples),
-                _table_heading(
-                    label="Event Comparisons",
-                    description=(
-                        "Each row names a pair of events to compare against each other, for example "
-                        "rewarded versus unrewarded nose pokes. Every event is tested against zero "
-                        "automatically, so leave this blank to run only those tests. Each pair is "
-                        "compared within every recording site and metric, using the labels assigned in "
-                        "Step 1. Comparisons run inside one output folder: in a session run folder the "
-                        "trials are resampled, in a group folder the session averages are."
+                self.computePsthSignificance,
+                self.psthSignificanceAlpha,
+                self.psthBootstrapResamples,
+                pn.Column(
+                    _table_heading(
+                        label="Event Comparisons",
+                        description=(
+                            "Each row names a pair of events to compare against each other, for example "
+                            "rewarded versus unrewarded nose pokes. Every event is tested against zero "
+                            "automatically, so leave this blank to run only those tests. Each pair is "
+                            "compared within every recording site and metric, using the labels assigned in "
+                            "Step 1. Comparisons run inside one output folder: in a session run folder the "
+                            "trials are resampled, in a group folder the session averages are."
+                        ),
+                        width=200,
                     ),
-                    width=200,
+                    self.comparison_df_widget,
+                    self.add_comparison_button,
                 ),
-                self.comparison_df_widget,
-                self.add_comparison_button,
             ],
-            width=SECTION_WIDTH,
         )
 
         self.execution_param_wd = _titled_box(
             title="Parallel Execution",
             read_by="Steps 2 and 4 and Group Analysis",
             contents=[self.numberOfCores],
-            width=SECTION_WIDTH,
         )
 
         self.control_fit_param_wd = _titled_box(
             title="Control Channel Fitting",
             read_by="Step 3",
             contents=[
-                pn.Row(self.isosbestic_control, self.control_fit_method),
-                pn.Row(self.photobleaching_detrend, self.control_fit_window_mode),
-                pn.Row(self.control_fit_window_strt, self.control_fit_window_end),
-                pn.Row(self.pair_timestamps_channel),
+                self.isosbestic_control,
+                self.control_fit_method,
+                self.photobleaching_detrend,
+                self.control_fit_window_mode,
+                self.control_fit_window_strt,
+                self.control_fit_window_end,
+                self.pair_timestamps_channel,
             ],
-            width=SECTION_WIDTH,
         )
 
         self.filtering_param_wd = _titled_box(
             title="Signal Filtering",
             read_by="Step 3 and Group Analysis",
-            contents=[pn.Row(self.timeForLightsTurnOn, self.moving_avg_filter)],
-            width=SECTION_WIDTH,
+            contents=[self.timeForLightsTurnOn, self.moving_avg_filter],
         )
 
         self.transients_param_wd = _titled_box(
             title="Transient Detection",
             read_by="Steps 4 and 5 and Group Analysis",
             contents=[
-                pn.Row(self.transients, self.useTransientsAsEvents),
-                pn.Row(self.transient_detection_method, self.transient_minimum_rise),
-                pn.Row(self.moving_wd, self.highAmpFilt, self.transientsThresh),
+                self.transients,
+                self.useTransientsAsEvents,
+                self.transient_detection_method,
+                self.transient_minimum_rise,
+                self.moving_wd,
+                self.highAmpFilt,
+                self.transientsThresh,
             ],
-            width=SECTION_WIDTH,
         )
 
         self.binned_metrics_param_wd = _titled_box(
             title="Metric Binning",
             read_by="Step 4",
-            contents=[
-                pn.Row(self.computeBinnedMetrics, self.binnedMetricsWidth),
-            ],
-            width=SECTION_WIDTH,
+            contents=[self.computeBinnedMetrics, self.binnedMetricsWidth],
         )
 
         # One column, ordered by the step that reads each section, so the card reads
@@ -774,14 +779,14 @@ class ParameterForm:
             self.root_folder_selection_widget,
             title="Root Folder Selection",
             styles=self.styles,
-            width=1000,
+            sizing_mode="stretch_width",
         )
 
         self.input_folder_selection = pn.Card(
             self.input_folder_selection_widget,
             title="Input Folder Selection",
             styles=self.styles,
-            width=1000,
+            sizing_mode="stretch_width",
         )
 
         self.output_folder_selection_widget = pn.Column(
@@ -793,13 +798,13 @@ class ParameterForm:
             self.output_folder_selection_widget,
             title="Output Folder Selection",
             styles=self.styles,
-            width=1000,
+            sizing_mode="stretch_width",
             collapsed=True,
         )
 
         self.widget = pn.Column(self.individual_parameters)
         self.individual = pn.Card(
-            self.widget, title="Parameter Selection", styles=self.styles, width=1000, collapsed=True
+            self.widget, title="Parameter Selection", styles=self.styles, sizing_mode="stretch_width", collapsed=True
         )
 
     def _on_source_mode_change(self, event: object) -> None:
@@ -1245,22 +1250,22 @@ class ParameterForm:
             "**Existing groups:** pick the `<name>_group` directories to work with. The Group "
             "Analysis step averages into them, and Step 5 opens them — the same selection serves "
             "both, so you choose it once. To define a new group, use the Label Groups step.",
-            width=950,
+            sizing_mode="stretch_width",
         )
         self.group_folders_selector = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="Group output directories", width=950
+            self.folder_path, root_directory="/", name="Group output directories", sizing_mode="stretch_width"
         )
 
         self.group_analysis_wd_1 = pn.Column(
             self.mark_down_2,
             self.group_folders_selector,
-            width=980,
+            sizing_mode="stretch_width",
         )
         self.group = pn.Card(
             self.group_analysis_wd_1,
             title="Group Output Folder Selection",
             styles=self.styles,
-            width=1000,
+            sizing_mode="stretch_width",
             collapsed=True,
         )
 

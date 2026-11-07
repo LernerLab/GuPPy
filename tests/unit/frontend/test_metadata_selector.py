@@ -5,6 +5,7 @@ values can be set in Python and its button callbacks fired synchronously
 (``button.clicks += 1``), so the form logic is tested directly without a browser.
 """
 
+import panel as pn
 import pytest
 
 from guppy.frontend.metadata_selector import MetadataSelector, _as_float, _read_widget
@@ -62,6 +63,22 @@ class TestMetadataSelector:
     @pytest.fixture
     def selector(self, panel_extension) -> MetadataSelector:
         return MetadataSelector(session_label="Photo (run1)", channels=CHANNELS, initial_metadata={})
+
+    # -- Layout --------------------------------------------------------------------------------------------------------
+    def test_the_form_has_no_width_cap(self, selector):
+        assert selector.widget.sizing_mode == "stretch_width"
+        assert selector.widget.max_width is None
+
+    def test_each_channel_flows_its_fields_through_one_row(self, selector):
+        # One wrapping row per channel, so a wide page fits all nine fields on fewer lines.
+        channel_card = next(
+            card for card in selector.widget if getattr(card, "title", None) == "Fiber-photometry channels"
+        )
+        instance_cards = [instance for site_card in channel_card for instance in site_card]
+
+        for instance_card, record in zip(instance_cards, selector.channel_records, strict=True):
+            (fields,) = [item for item in instance_card if isinstance(item, pn.FlexBox)]
+            assert list(fields) == list(record["fields"].values())
 
     # -- Experimenter repeater -----------------------------------------------------------------------------------------
     def test_starts_with_one_blank_experimenter(self, selector):

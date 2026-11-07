@@ -442,20 +442,33 @@ class ParameterizedPlotter(param.Parameterized):
         else:
             getattr(notifications, level)(message)
 
-    def _render_download(self, plot: object, save_format: str, *, nothing_selected_message: str) -> BytesIO:
-        """Render ``plot`` for a browser download, reporting problems as notifications.
+    def _render_download(
+        self, build_plot: Callable[[], object], save_format: str, *, nothing_selected_message: str
+    ) -> BytesIO:
+        """Render a freshly built plot for a browser download, reporting problems as notifications.
 
         Returns an empty buffer (so the download simply yields nothing) when there
         is no plot to save or the Chrome render fails; either way the reason is
         surfaced to the user instead of failing silently.
+
+        Parameters
+        ----------
+        build_plot : callable
+            Builds the plot to save. It runs while exporting, so the plot takes the
+            saved-figure size instead of the width of the page.
+        save_format : str
+            Either ``"png"`` or ``"svg"``.
+        nothing_selected_message : str
+            Warning shown when ``build_plot`` returns nothing to save.
         """
-        if plot is None:
-            self._notify("warning", nothing_selected_message)
-            return BytesIO()
-        # Guard the render so _range_sync_hook ignores the off-screen export figure
+        # Guard the build and render so _range_sync_hook ignores the off-screen export figure
         # and leaves the live figure (and its number-box controls) intact.
         self._exporting = True
         try:
+            plot = build_plot()
+            if plot is None:
+                self._notify("warning", nothing_selected_message)
+                return BytesIO()
             return self._render_to_bytes(plot, save_format)
         except Exception as error:
             self._notify("error", f"Could not save plot: {error}")
@@ -463,22 +476,34 @@ class ParameterizedPlotter(param.Parameterized):
         finally:
             self._exporting = False
 
+    def _psth_size(self) -> dict[str, object]:
+        """Size a PSTH plot: the full width of its card on screen, the saved width when exporting."""
+        if self._exporting:
+            return {"width": int(self.Width_Plot), "height": int(self.Height_Plot)}
+        return {"responsive": True, "height": int(self.Height_Plot)}
+
+    def _heatmap_size(self) -> dict[str, object]:
+        """Size the heatmap: the full width of its card on screen, the saved width when exporting."""
+        if self._exporting:
+            return {"width": int(self.width_heatmap), "height": int(self.height_heatmap)}
+        return {"responsive": True, "height": int(self.height_heatmap)}
+
     # The download_* methods back the "Save As…" FileDownload buttons. Each
     # re-renders its plot so the download reflects the current zoom/pan/limits
     # rather than the element cached at the last reactive render (the live range
     # params are deliberately not allowed to re-trigger those renders).
     def download_heatmap(self) -> BytesIO:
         """Return the current heatmap view as an image buffer for browser download."""
-        return self._render_download(self.heatmap(), self.save_options_heatmap, nothing_selected_message="")
+        return self._render_download(self.heatmap, self.save_options_heatmap, nothing_selected_message="")
 
     def download_cont(self) -> BytesIO:
         """Return the current single-event PSTH view as an image buffer for browser download."""
-        return self._render_download(self.contPlot(), self.save_options_cont, nothing_selected_message="")
+        return self._render_download(self.contPlot, self.save_options_cont, nothing_selected_message="")
 
     def download_overlay(self) -> BytesIO:
         """Return the current multi-event comparison view as an image buffer for browser download."""
         return self._render_download(
-            self.update_selector(),
+            self.update_selector,
             self.save_options_overlay,
             nothing_selected_message="No events selected — nothing to save.",
         )
@@ -486,7 +511,7 @@ class ParameterizedPlotter(param.Parameterized):
     def download_trials(self) -> BytesIO:
         """Return the current selected-trials view as an image buffer for browser download."""
         return self._render_download(
-            self.plot_specific_trials(),
+            self.plot_specific_trials,
             self.save_options_trials,
             nothing_selected_message="No trials selected — nothing to save.",
         )
@@ -605,8 +630,7 @@ class ParameterizedPlotter(param.Parameterized):
             overlay = hv.NdOverlay(
                 {
                     curve_column: hv.Curve((df_curve["timestamps"], df_curve[curve_column]), kdims=["Time (s)"]).opts(
-                        width=int(self.Width_Plot),
-                        height=int(self.Height_Plot),
+                        **self._psth_size(),
                         xlim=self.overlay_X,
                         ylim=self.overlay_Y,
                     )
@@ -694,8 +718,7 @@ class ParameterizedPlotter(param.Parameterized):
             mean_curve = hv.Curve((x_points, y_points))
             image = (trials_image * mean_curve).opts(
                 opts.Curve(
-                    width=int(self.Width_Plot),
-                    height=int(self.Height_Plot),
+                    **self._psth_size(),
                     line_width=4,
                     color=self.trace_color,
                     xlim=self.cont_X,
@@ -729,8 +752,7 @@ class ParameterizedPlotter(param.Parameterized):
                 self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
             ropts_curve = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
+                **self._psth_size(),
                 xlim=self.cont_X,
                 ylim=self.cont_Y,
                 color=self.trace_color,
@@ -738,8 +760,7 @@ class ParameterizedPlotter(param.Parameterized):
                 ylabel=self.Y_Label,
             )
             ropts_spread = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
+                **self._psth_size(),
                 fill_alpha=0.3,
                 fill_color=self.trace_color,
                 line_width=0,
@@ -763,8 +784,7 @@ class ParameterizedPlotter(param.Parameterized):
                 self.cont_Y = (np.nanmin(ypoints) - 0.5, np.nanmax(ypoints) + 0.5)
 
             ropts_curve = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
+                **self._psth_size(),
                 xlim=self.cont_X,
                 ylim=self.cont_Y,
                 color=self.trace_color,
@@ -825,8 +845,7 @@ class ParameterizedPlotter(param.Parameterized):
         show_trials = ("just trials" in self.select_trials_checkbox) or not show_mean
 
         axis_opts = dict(
-            width=int(self.Width_Plot),
-            height=int(self.Height_Plot),
+            **self._psth_size(),
             xlim=self.trials_X,
             ylim=self.trials_Y,
             xlabel="Time (s)",
@@ -850,8 +869,7 @@ class ParameterizedPlotter(param.Parameterized):
             mean_curve_color = self.mean_color if show_trials else self.trace_color
             ropts_curve = dict(color=mean_curve_color, **axis_opts)
             ropts_spread = dict(
-                width=int(self.Width_Plot),
-                height=int(self.Height_Plot),
+                **self._psth_size(),
                 fill_alpha=0.3,
                 fill_color=mean_curve_color,
                 line_width=0,
@@ -899,8 +917,6 @@ class ParameterizedPlotter(param.Parameterized):
         selection = (self.event_selector_heatmap, tuple(self.heatmap_y))
         self._reset_y_on_selection_change("heatmap_clim", "heatmap_clim", selection)
 
-        height = self.height_heatmap
-        width = self.width_heatmap
         df_hm = self.df_new[self.event_selector_heatmap]
         columns = list(df_hm.columns)
         regex = re.compile("bin_err_*")
@@ -953,8 +969,7 @@ class ParameterizedPlotter(param.Parameterized):
             event_ts_for_each_event = np.array([1, 2])
 
         ropts = dict(
-            width=int(width),
-            height=int(height),
+            **self._heatmap_size(),
             ylabel="Trials",
             xlabel="Time (s)",
             fontsize=font_size,
@@ -978,9 +993,7 @@ class ParameterizedPlotter(param.Parameterized):
             cnorm="linear",
             clims=clim,
         ).opts(**ropts)
-        image = ((dummy_image * dynspread_image).opts(opts.QuadMesh(width=int(width), height=int(height)))).opts(
-            shared_axes=False
-        )
+        image = ((dummy_image * dynspread_image).opts(opts.QuadMesh(**self._heatmap_size()))).opts(shared_axes=False)
         image = image.opts(
             hooks=[
                 self._range_sync_hook("heatmap", "heatmap_X"),
