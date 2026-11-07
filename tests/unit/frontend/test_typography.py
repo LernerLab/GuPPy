@@ -1,14 +1,19 @@
+import base64
+
 from panel.viewable import Viewable
 
 from guppy.frontend.typography import (
     BODY_SIZE,
     COMPONENT_CSS,
+    FONTS_DIRECTORY,
     HEADING_SIZE,
     REGULAR,
     SEMIBOLD,
     SMALL_SIZE,
+    TEXT_FAMILY,
     TITLE_SIZE,
     GuppyTypeDesign,
+    font_face_css,
 )
 
 
@@ -38,3 +43,28 @@ class TestComponentCss:
 class TestGuppyTypeDesign:
     def test_adds_the_type_stylesheet_to_every_component(self):
         assert GuppyTypeDesign.modifiers[Viewable]["stylesheets"][1] == COMPONENT_CSS
+
+
+class TestInter:
+    def test_text_is_set_in_inter_first(self):
+        assert TEXT_FAMILY.startswith('"Inter", ')
+
+    def test_regular_and_semibold_ship_with_their_license(self):
+        assert sorted(path.name for path in FONTS_DIRECTORY.iterdir()) == [
+            "Inter-LICENSE.txt",
+            "Inter-Regular.woff2",
+            "Inter-SemiBold.woff2",
+        ]
+
+    def test_font_faces_embed_both_weights(self):
+        css = font_face_css()
+        regular = base64.b64encode((FONTS_DIRECTORY / "Inter-Regular.woff2").read_bytes()).decode("ascii")
+        semibold = base64.b64encode((FONTS_DIRECTORY / "Inter-SemiBold.woff2").read_bytes()).decode("ascii")
+
+        assert css.count("@font-face") == 2
+        assert f'font-weight: 400; font-display: block; src: url("data:font/woff2;base64,{regular}")' in css
+        assert f'font-weight: 600; font-display: block; src: url("data:font/woff2;base64,{semibold}")' in css
+
+    def test_tabular_figures_apply_to_table_cells_only(self):
+        assert ".tabulator-cell {\n  font-variant-numeric: tabular-nums;\n}" in COMPONENT_CSS
+        assert COMPONENT_CSS.count("tabular-nums") == 1

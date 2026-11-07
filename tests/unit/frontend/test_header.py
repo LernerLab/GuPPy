@@ -4,6 +4,7 @@ import pytest
 
 import guppy
 from guppy.frontend.header import HEADER_CSS, LOGO_GRADIENT, guppy_header_template
+from guppy.frontend.typography import GuppyTypeDesign, font_face_css
 
 
 @pytest.fixture
@@ -28,6 +29,10 @@ class TestGuppyHeaderTemplate:
 
         assert 'alt="GuPPy"' in wordmark.object
         assert ">Label Stores — mouse_01</span>" in wordmark.object
+
+    def test_page_loads_inter_and_applies_the_type_design(self, template):
+        assert font_face_css() in template.config.raw_css
+        assert template.design is GuppyTypeDesign
 
     def test_header_has_the_rainbow_rule(self, template):
         assert HEADER_CSS in template.config.raw_css

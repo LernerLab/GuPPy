@@ -5,7 +5,7 @@ from pathlib import Path
 
 import panel as pn
 
-from .typography import INK, TITLE_SIZE, GuppyTypeDesign
+from .typography import INK, TITLE_SIZE, GuppyTypeDesign, font_face_css
 
 ASSETS_DIRECTORY = Path(__file__).parent.parent / "assets"
 
@@ -85,6 +85,6 @@ def guppy_header_template(*, page_name: str, title: str) -> pn.template.Bootstra
         header_color=HEADER_TEXT_COLOR,
         design=GuppyTypeDesign,
     )
-    template.config.raw_css = [*template.config.raw_css, HEADER_CSS]
+    template.config.raw_css = [*template.config.raw_css, font_face_css(), HEADER_CSS]
     template.header.append(wordmark(page_name=page_name))
     return template

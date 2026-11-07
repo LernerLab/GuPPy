@@ -1,16 +1,21 @@
-"""GuPPy's type system: one text family, one monospace for literals, four sizes and two weights.
+"""GuPPy's type system: Inter for text, one monospace for literals, four sizes and two weights.
 
 Panel renders every component in its own shadow root, which page-level CSS cannot reach, so the
-rules ride on a design whose stylesheet Panel adds to every component.
+rules ride on a design whose stylesheet Panel adds to every component. Font faces are the exception:
+declared once on the page, they apply inside every shadow root.
 """
 
+import base64
+from pathlib import Path
 from typing import ClassVar
 
 from panel.theme.base import Inherit
 from panel.theme.bootstrap import Bootstrap
 from panel.viewable import Viewable
 
-TEXT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+FONTS_DIRECTORY = Path(__file__).parent.parent / "assets" / "fonts"
+
+TEXT_FAMILY = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
 MONOSPACE_FAMILY = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
 
 TITLE_SIZE = "20px"
@@ -48,7 +53,7 @@ input, select, textarea, option, button, .bk-input, .bk-btn, .bk-tab, label, .ta
 label {{
   font-weight: {REGULAR};
 }}
-input, .tabulator-cell {{
+.tabulator-cell {{
   font-variant-numeric: tabular-nums;
 }}
 .tabulator .tabulator-header .tabulator-col .tabulator-col-title {{
@@ -98,3 +103,21 @@ class GuppyTypeDesign(Bootstrap):
     """Bootstrap with GuPPy's type system applied inside every component."""
 
     modifiers: ClassVar[dict] = {Viewable: {"stylesheets": [Inherit, COMPONENT_CSS]}}
+
+
+def font_face_css() -> str:
+    """Return the page CSS that declares Inter's regular and semibold faces, embedded so they work offline.
+
+    Returns
+    -------
+    str
+        ``@font-face`` rules for the page's ``raw_css``.
+    """
+    rules = []
+    for weight, file_name in ((REGULAR, "Inter-Regular.woff2"), (SEMIBOLD, "Inter-SemiBold.woff2")):
+        data = base64.b64encode((FONTS_DIRECTORY / file_name).read_bytes()).decode("ascii")
+        rules.append(
+            f'@font-face {{ font-family: "Inter"; font-style: normal; font-weight: {weight}; font-display: block; '
+            f'src: url("data:font/woff2;base64,{data}") format("woff2"); }}'
+        )
+    return "\n".join(rules)
