@@ -29,6 +29,9 @@ SEMIBOLD = 600
 INK = "#212529"
 SECONDARY_INK = "#6C757D"
 
+# Monospace looks larger than the text face at the same size, so literals are set a little smaller.
+MONOSPACE_SCALE = "0.93em"
+
 # The class a component opts into to be set as help or status text.
 SMALL_CLASS = "small"
 
@@ -53,8 +56,11 @@ input, select, textarea, option, button, .bk-input, .bk-btn, .bk-tab, label, .ta
 label {{
   font-weight: {REGULAR};
 }}
-.tabulator-cell {{
+.tabulator-cell, table.panel-df td {{
   font-variant-numeric: tabular-nums;
+}}
+table.panel-df {{
+  font-size: {BODY_SIZE};
 }}
 .tabulator .tabulator-header .tabulator-col .tabulator-col-title {{
   font-size: {BODY_SIZE};
@@ -67,7 +73,7 @@ b, strong, th {{
   font-weight: {SEMIBOLD};
 }}
 h1, h2 {{
-  font-size: {TITLE_SIZE};
+  font-size: {HEADING_SIZE};
   font-weight: {SEMIBOLD};
   line-height: 1.25;
 }}
@@ -83,10 +89,9 @@ h4, h5, h6 {{
 p {{
   font-size: {BODY_SIZE};
 }}
-/* Monospace looks larger than the text face at the same size, so it is set a little smaller. */
 code, pre, kbd {{
   font-family: {MONOSPACE_FAMILY};
-  font-size: 0.93em;
+  font-size: {MONOSPACE_SCALE};
 }}
 .card-header, :host(.card-title) h3 {{
   font-size: {HEADING_SIZE};

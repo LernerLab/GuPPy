@@ -56,6 +56,22 @@ class TestStoreLabelingConfig:
             dropdowns["PrtN_2"],
         ]
 
+    def test_store_id_is_set_as_a_monospace_literal(self, panel_extension, show_config_button):
+        config, _, _, _ = build_config(show_config_button, ["Dv1A"])
+
+        store_label = config.config_widgets[1][0][0]
+        assert store_label.object == (
+            '<span style=\'font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", '
+            "monospace; font-size: 0.93em;'>Dv1A</span>"
+        )
+
+    def test_instructions_are_small_text(self, panel_extension, show_config_button):
+        config, _, _, _ = build_config(show_config_button, ["Dv1A"])
+
+        instructions = config.config_widgets[-1]
+        assert instructions.object == "Click Show Selected Configuration to apply your selections."
+        assert instructions.css_classes == ["small"]
+
     def test_single_store_id_dropdown_in_dict(self, panel_extension, show_config_button):
         _, dropdowns, _, _ = build_config(show_config_button, ["Dv1A"])
         assert "Dv1A_0" in dropdowns

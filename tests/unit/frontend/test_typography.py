@@ -66,5 +66,5 @@ class TestInter:
         assert f'font-weight: 600; font-display: block; src: url("data:font/woff2;base64,{semibold}")' in css
 
     def test_tabular_figures_apply_to_table_cells_only(self):
-        assert ".tabulator-cell {\n  font-variant-numeric: tabular-nums;\n}" in COMPONENT_CSS
+        assert ".tabulator-cell, table.panel-df td {\n  font-variant-numeric: tabular-nums;\n}" in COMPONENT_CSS
         assert COMPONENT_CSS.count("tabular-nums") == 1

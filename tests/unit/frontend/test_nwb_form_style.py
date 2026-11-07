@@ -47,3 +47,23 @@ class TestChromeBuilders:
         control = style.channel_role_chip("control", "Dv1A")
         assert "control" in control.object
         assert "Dv1A" in control.object
+
+
+class TestTypeScale:
+    def test_field_labels_are_14px_regular(self):
+        assert "  font-size: 14px;\n  font-weight: 400;" in style.INPUT_STYLESHEET
+
+    def test_page_header_title_is_16px_semibold_over_a_14px_subtitle(self):
+        html = style.page_header("NWB metadata", "Photo (run1)").object
+
+        assert "font-size:16px;font-weight:600;" in html
+        assert "font-size:14px;" in html
+
+    def test_section_label_is_14px_semibold_without_uppercase(self):
+        html = style.section_label("Session").object
+
+        assert "font-size:14px;font-weight:600;" in html
+        assert "uppercase" not in html
+
+    def test_help_note_is_12px_in_the_secondary_gray(self):
+        assert "font-size:12px;color:#6C757D;" in style.help_note("Load any saved YAML.").object

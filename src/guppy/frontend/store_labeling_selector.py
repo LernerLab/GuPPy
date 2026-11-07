@@ -6,6 +6,7 @@ import panel as pn
 
 from . import nwb_form_style as style
 from .store_labeling_config import StoreLabelingConfig
+from .typography import BODY_SIZE
 
 pn.extension(notifications=True)
 
@@ -76,7 +77,7 @@ class StoreLabelingSelector:
             value="create_new_file",
             inline=True,
             stylesheets=[
-                f":host label {{ color: {style.INK}; font-size: 13px; }} "
+                f":host label {{ color: {style.INK}; font-size: {BODY_SIZE}; }} "
                 f':host input[type="radio"] {{ accent-color: {style.ACCENT}; }}'
             ],
         )

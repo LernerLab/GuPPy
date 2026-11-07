@@ -2,6 +2,8 @@ import logging
 
 import panel as pn
 
+from .typography import MONOSPACE_FAMILY, MONOSPACE_SCALE, SMALL_CLASS
+
 pn.extension()
 
 logger = logging.getLogger(__name__)
@@ -98,8 +100,8 @@ class StoreLabelingConfig:
         self.config_widgets.append(show_config_button)
         self.config_widgets.append(
             pn.pane.Markdown(
-                "*Click 'Show Selected Configuration' to apply your selections.*",
-                styles={"font-size": "12px", "color": "gray"},
+                "Click Show Selected Configuration to apply your selections.",
+                css_classes=[SMALL_CLASS],
             )
         )
 
@@ -207,7 +209,10 @@ class StoreLabelingConfig:
         store_id_to_store_labels : dict
             Previously saved assignments used to pre-populate the widgets.
         """
-        label = pn.pane.Markdown(f"**{store_id}:**", margin=(5, 10, 0, 10))
+        label = pn.pane.Markdown(
+            f"<span style='font-family: {MONOSPACE_FAMILY}; font-size: {MONOSPACE_SCALE};'>{store_id}</span>",
+            margin=(5, 10, 0, 10),
+        )
 
         # Pre-populate from cache if available; otherwise start blank
         options = ["", "control", "signal", "event TTLs", "behavioral covariate"]
@@ -243,9 +248,7 @@ class StoreLabelingConfig:
             self._control_desired_recording_site[widget_key] = default_name
 
         initial_help_text = self._get_help_text(default_type)
-        help_pane = pn.pane.Markdown(
-            initial_help_text, styles={"color": "gray", "font-size": "12px"}, height=20, margin=(0, 0, 0, 0)
-        )
+        help_pane = pn.pane.Markdown(initial_help_text, css_classes=[SMALL_CLASS], height=20, margin=(0, 0, 0, 0))
         self._dropdown_help_map[dropdown] = help_pane
         dropdown.param.watch(self._on_dropdown_value_change, "value")
 
