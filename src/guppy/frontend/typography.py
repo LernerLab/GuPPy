@@ -126,3 +126,62 @@ def font_face_css() -> str:
             f'src: url("data:font/woff2;base64,{data}") format("woff2"); }}'
         )
     return "\n".join(rules)
+
+
+# Words Title Case leaves in lowercase unless they open or close the name (Chicago style).
+_MINOR_WORDS = {
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "but",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "nor",
+    "of",
+    "on",
+    "or",
+    "per",
+    "the",
+    "to",
+    "via",
+    "vs",
+    "with",
+}
+
+
+def title_case(text: str) -> str:
+    """Return a name in Title Case, leaving minor words lowercase and words that carry capitals as written.
+
+    Words inside parentheses, such as units and qualifiers, are left as written.
+
+    Parameters
+    ----------
+    text : str
+        A name such as ``"Optical fiber models"``.
+
+    Returns
+    -------
+    str
+        The name in Title Case, such as ``"Optical Fiber Models"``.
+    """
+    words = text.split(" ")
+    cased = []
+    in_parentheses = False
+    for index, word in enumerate(words):
+        if word.startswith("("):
+            in_parentheses = True
+        is_inner = 0 < index < len(words) - 1
+        if in_parentheses or word[1:] != word[1:].lower():
+            cased.append(word)
+        elif word.lower() in _MINOR_WORDS and is_inner:
+            cased.append(word.lower())
+        else:
+            cased.append("-".join(part[:1].upper() + part[1:] for part in word.split("-")))
+        if word.endswith(")"):
+            in_parentheses = False
+    return " ".join(cased)

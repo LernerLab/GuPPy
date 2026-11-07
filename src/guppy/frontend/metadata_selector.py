@@ -16,6 +16,7 @@ import logging
 import panel as pn
 
 from . import nwb_form_style as style
+from .typography import title_case
 from ..utils.nwb_metadata import (
     CATEGORIES,
     CHANNEL_LINKS,
@@ -140,12 +141,12 @@ class MetadataSelector:
             },
         )
         self.build_config = pn.widgets.Button(
-            name="Build & preview YAML",
+            name="Build & Preview YAML",
             sizing_mode="stretch_width",
             stylesheets=[style.BUTTON_OUTLINE],
         )
         self.save = pn.widgets.Button(
-            name="Save metadata",
+            name="Save Metadata",
             sizing_mode="stretch_width",
             stylesheets=[style.BUTTON_ACCENT],
         )
@@ -162,7 +163,7 @@ class MetadataSelector:
                 "can't express something, then Save."
             ),
             self.code_editor,
-            title="Advanced — raw YAML",
+            title="Advanced — Raw YAML",
             collapsed=True,
             sizing_mode="stretch_width",
             stylesheets=[style.SECTION_CARD],
@@ -183,10 +184,10 @@ class MetadataSelector:
         )
 
         self.widget = pn.Column(
-            style.page_header("NWB metadata", session_label),
+            style.page_header("NWB Metadata", session_label),
             style.intro_note(
                 "Provide the metadata needed to export this session to NWB. Define each piece of hardware and "
-                "biology once under <strong>Optical hardware</strong> and <strong>Biological reagents</strong>, link "
+                "biology once under <strong>Optical Hardware</strong> and <strong>Biological Reagents</strong>, link "
                 "them to each channel under <strong>Fiber-photometry channels</strong>, then "
                 "<strong>Build &amp; preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
                 "fixed by your <code>storesList.csv</code>."
@@ -226,7 +227,7 @@ class MetadataSelector:
             )
 
         self.session_description = pn.widgets.TextAreaInput(
-            name="Session description",
+            name="Session Description",
             value=scalars.get("session_description", ""),
             description=_SCALAR_DOCS["session_description"],
             sizing_mode="stretch_width",
@@ -241,7 +242,7 @@ class MetadataSelector:
         # Experimenter repeater.
         self.experimenter_box = _fields()
         self.experimenter_inputs: list[pn.widgets.TextInput] = []
-        add_experimenter = pn.widgets.Button(name="Add experimenter", width=180, stylesheets=[style.BUTTON_GHOST])
+        add_experimenter = pn.widgets.Button(name="Add Experimenter", width=180, stylesheets=[style.BUTTON_GHOST])
         add_experimenter.on_click(lambda event: self._add_experimenter(""))
         for name in scalars.get("experimenter") or [""]:
             self._add_experimenter(name)
@@ -267,13 +268,13 @@ class MetadataSelector:
             stylesheets=_sheets(False),
         )
         self.date_of_birth = pn.widgets.TextInput(
-            name="Date of birth (ISO 8601)",
+            name="Date of Birth (ISO 8601)",
             value=scalars.get("date_of_birth", ""),
             width=270,
             stylesheets=_sheets(False),
         )
         self.age_or_dob = pn.widgets.RadioBoxGroup(
-            name="Specify subject by",
+            name="Specify Subject By",
             options=["Age", "Date of birth"],
             value="Date of birth" if scalars.get("date_of_birth") else "Age",
             inline=True,
@@ -293,7 +294,7 @@ class MetadataSelector:
             _fields(self.subject_id, self.sex, self.species, self.genotype, self.strain),
             self.age_or_dob,
             pn.Row(self.age, self.date_of_birth),
-            title="Core NWB metadata",
+            title="Core NWB Metadata",
             collapsed=False,
             sizing_mode="stretch_width",
             stylesheets=[style.SECTION_CARD],
@@ -332,7 +333,7 @@ class MetadataSelector:
         hardware = [key for key in CATEGORIES if key not in _BIOLOGY_CATEGORIES]
         biology = [key for key in CATEGORIES if key in _BIOLOGY_CATEGORIES]
         groups = []
-        for group_name, keys in (("Optical hardware", hardware), ("Biological reagents", biology)):
+        for group_name, keys in (("Optical Hardware", hardware), ("Biological Reagents", biology)):
             category_cards = [self._build_category_card(key, devices.get(key, [])) for key in keys]
             groups.append(
                 pn.Card(
@@ -349,7 +350,7 @@ class MetadataSelector:
     def _build_category_card(self, key: str, entries: list[dict]) -> pn.Card:
         category = CATEGORIES[key]
         add_button = pn.widgets.Button(
-            name=f"Add {category.singular}",
+            name=f"Add {title_case(category.singular)}",
             width=240,
             stylesheets=[style.BUTTON_OUTLINE],
         )
@@ -357,7 +358,7 @@ class MetadataSelector:
         card = pn.Card(
             self.device_containers[key],
             add_button,
-            title=category.label,
+            title=title_case(category.label),
             collapsed=True,
             sizing_mode="stretch_width",
             stylesheets=[style.CATEGORY_CARD],
@@ -375,7 +376,7 @@ class MetadataSelector:
         if card is None:
             return
         count = len(self.device_entry_records[key])
-        card.title = f"{CATEGORIES[key].label}  ·  {count}" if count else CATEGORIES[key].label
+        card.title = f"{title_case(CATEGORIES[key].label)}  ·  {count}" if count else title_case(CATEGORIES[key].label)
 
     def _add_device(self, category_key: str, entry: dict) -> None:
         fields: list[tuple[FieldSpec, object]] = []  # (spec, widget or list-row)
@@ -383,7 +384,7 @@ class MetadataSelector:
         name_widget = None
         for spec in field_specs(category_key):
             if spec.target == "insertion" and len(rows) == 1:
-                rows.extend([style.subgroup_label("Fiber insertion (optional)"), _fields()])
+                rows.extend([style.subgroup_label("Fiber Insertion (optional)"), _fields()])
             widget = self._make_field_widget(spec, entry)
             fields.append((spec, widget))
             rows[-1].append(widget)
@@ -503,13 +504,13 @@ class MetadataSelector:
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
             excitation = pn.widgets.FloatInput(
-                name="Excitation wavelength in nm",
+                name="Excitation Wavelength (nm)",
                 value=_as_float(saved.get("excitation_wavelength_in_nm")),
                 width=184,
                 stylesheets=_sheets(True),
             )
             emission = pn.widgets.FloatInput(
-                name="Emission wavelength in nm",
+                name="Emission Wavelength (nm)",
                 value=_as_float(saved.get("emission_wavelength_in_nm")),
                 width=184,
                 stylesheets=_sheets(True),
@@ -553,7 +554,7 @@ class MetadataSelector:
         ]
         return pn.Card(
             *recording_site_cards,
-            title="Fiber-photometry channels",
+            title="Fiber-Photometry Channels",
             collapsed=False,
             sizing_mode="stretch_width",
             stylesheets=[style.SECTION_CARD],

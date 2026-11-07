@@ -241,12 +241,12 @@ class ArtifactWindowSelector:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
         self.trace_select = pn.widgets.Select(
             name="Trace", options=self._trace_options(self.sites[0]), value=SIGNAL_TRACE, width=200
         )
         self.mode_toggle = pn.widgets.RadioButtonGroup(
-            name="Drag gesture",
+            name="Drag Gesture",
             options=INTERACTION_MODES,
             value=MARK_MODE,
             button_type="primary",
@@ -256,13 +256,13 @@ class ArtifactWindowSelector:
         )
         self.runs_with_windows = _runs_with_saved_windows(filepath)
         self.copy_from_select = pn.widgets.Select(
-            name="Copy windows from run", options=list(self.runs_with_windows), width=200
+            name="Copy Windows from Run", options=list(self.runs_with_windows), width=200
         )
         self.copy_from_button = pn.widgets.Button(name="Load", button_type="default", icon="copy", align="end")
-        self.add_row_button = pn.widgets.Button(name="Add period", button_type="default", icon="plus")
+        self.add_row_button = pn.widgets.Button(name="Add Period", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.method_select = pn.widgets.Select(
-            name="Removal method", options=ARTIFACT_REMOVAL_METHODS, value=ARTIFACT_REMOVAL_METHODS[0], width=200
+            name="Removal Method", options=ARTIFACT_REMOVAL_METHODS, value=ARTIFACT_REMOVAL_METHODS[0], width=200
         )
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 

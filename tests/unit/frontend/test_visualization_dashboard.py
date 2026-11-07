@@ -68,7 +68,7 @@ class TestVisualizationDashboard:
     def test_metric_selector_leads_the_psth_display_settings(self, dashboard):
         display_settings = dashboard._psth_tab[1]
 
-        assert display_settings.title == "Display settings (all plots)"
+        assert display_settings.title == "Display Settings (all plots)"
         assert display_settings[0][0] is metric_selectors(dashboard._psth_tab)[0]
 
     def test_metric_selector_follows_the_heatmap_event_selector(self, dashboard):

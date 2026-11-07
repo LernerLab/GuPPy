@@ -51,7 +51,7 @@ def test_page_title_contains_label_stores_gui(page, store_labeling_server_url):
 @pytest.mark.ui
 def test_stores_to_repeat_checkbox_visible(page, store_labeling_server_url):
     page.goto(store_labeling_server_url)
-    expect(page.get_by_text("Stores to repeat").first).to_be_visible()
+    expect(page.get_by_text("Stores to Repeat").first).to_be_visible()
 
 
 @pytest.mark.ui

@@ -72,7 +72,7 @@ class TestMetadataSelector:
     def test_each_channel_flows_its_fields_through_one_row(self, selector):
         # One wrapping row per channel, so a wide page fits all nine fields on fewer lines.
         channel_card = next(
-            card for card in selector.widget if getattr(card, "title", None) == "Fiber-photometry channels"
+            card for card in selector.widget if getattr(card, "title", None) == "Fiber-Photometry Channels"
         )
         instance_cards = [instance for site_card in channel_card for instance in site_card]
 
@@ -172,7 +172,7 @@ class TestMetadataSelector:
         record = selector.device_entry_records["optical_fiber_model"][0]
         selector._remove_device("optical_fiber_model", record)
         assert selector.device_entry_records["optical_fiber_model"] == []
-        assert selector.category_cards["optical_fiber_model"].title == "Optical fiber models"
+        assert selector.category_cards["optical_fiber_model"].title == "Optical Fiber Models"
 
     def test_device_name_change_retitles_card(self, selector):
         selector._add_device("optical_fiber_model", {"name": "old"})

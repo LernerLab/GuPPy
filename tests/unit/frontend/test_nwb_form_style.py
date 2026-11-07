@@ -6,24 +6,25 @@ from guppy.frontend import nwb_form_style as style
 
 
 class TestHumanize:
-    def test_capitalizes_first_word_only(self):
-        assert style.humanize("optical_fiber") == "Optical fiber"
-        assert style.humanize("numerical_aperture") == "Numerical aperture"
+    def test_title_cases_each_word(self):
+        assert style.humanize("optical_fiber") == "Optical Fiber"
+        assert style.humanize("numerical_aperture") == "Numerical Aperture"
 
-    def test_preserves_units_and_acronyms_mid_label(self):
-        assert style.humanize("excitation_wavelength_in_nm") == "Excitation wavelength in nm"
+    def test_moves_a_trailing_unit_into_parentheses(self):
+        assert style.humanize("excitation_wavelength_in_nm") == "Excitation Wavelength (nm)"
+        assert style.humanize("core_diameter_in_um") == "Core Diameter (µm)"
 
     def test_acronym_as_first_word(self):
-        # The acronym map wins over first-word capitalization.
-        assert style.humanize("ap_in_mm") == "AP in mm"
+        # The acronym map wins over capitalization.
+        assert style.humanize("ap_in_mm") == "AP (mm)"
         assert style.humanize("id") == "ID"
 
 
 class TestChromeBuilders:
     def test_page_header_includes_title_and_subtitle(self):
-        pane = style.page_header("NWB metadata", "Photo (run1)")
+        pane = style.page_header("NWB Metadata", "Photo (run1)")
         assert isinstance(pane, pn.pane.Markdown)
-        assert "NWB metadata" in pane.object
+        assert "NWB Metadata" in pane.object
         assert "Photo (run1)" in pane.object
 
     def test_section_label_with_and_without_note(self):
@@ -54,7 +55,7 @@ class TestTypeScale:
         assert "  font-size: 14px;\n  font-weight: 400;" in style.INPUT_STYLESHEET
 
     def test_page_header_title_is_16px_semibold_over_a_14px_subtitle(self):
-        html = style.page_header("NWB metadata", "Photo (run1)").object
+        html = style.page_header("NWB Metadata", "Photo (run1)").object
 
         assert "font-size:16px;font-weight:600;" in html
         assert "font-size:14px;" in html

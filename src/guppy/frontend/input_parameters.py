@@ -263,7 +263,7 @@ class ParameterForm:
         self.input_root_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
-            name="Input root folder",
+            name="Input Root Folder",
             sizing_mode="stretch_width",
         )
 
@@ -378,7 +378,7 @@ class ParameterForm:
         self.output_root_selector = pn.widgets.FileSelector(
             self.folder_path,
             root_directory="/",
-            name="Output root folder",
+            name="Output Root Folder",
             sizing_mode="stretch_width",
         )
 
@@ -1253,7 +1253,7 @@ class ParameterForm:
             sizing_mode="stretch_width",
         )
         self.group_folders_selector = pn.widgets.FileSelector(
-            self.folder_path, root_directory="/", name="Group output directories", sizing_mode="stretch_width"
+            self.folder_path, root_directory="/", name="Group Output Directories", sizing_mode="stretch_width"
         )
 
         self.group_analysis_wd_1 = pn.Column(

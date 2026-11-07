@@ -68,7 +68,7 @@ group — run **Group Analysis** afterwards to compute the averages.
             width=620,
         )
         self.mode_button = pn.widgets.MenuButton(
-            name="create a new group or edit an existing one?  ",
+            name="Create a New Group or Edit an Existing One?",
             items=[CREATE_NEW_GROUP, EDIT_EXISTING_GROUP],
             button_type="default",
             split=True,
@@ -77,40 +77,40 @@ group — run **Group Analysis** afterwards to compute the averages.
         self._current_mode = CREATE_NEW_GROUP
 
         self.edit_markdown = pn.pane.Markdown(
-            "### 2 · Which group are you editing?\n\n"
+            "### 2 · Which Group Are You Editing?\n\n"
             "Browse to the `<name>_group` directory whose members you want to change. Its recorded "
             "members load into the browser on the left, ready to adjust.",
             width=620,
         )
         self.group_to_edit_selector = pn.widgets.FileSelector(
-            self.edit_start_path, root_directory="/", name="Group directory to edit", width=620
+            self.edit_start_path, root_directory="/", name="Group Directory to Edit", width=620
         )
 
         self.destination_markdown = pn.pane.Markdown(
-            "### 2 · Where does the group go?\n\n"
+            "### 2 · Where Does the Group Go?\n\n"
             "Name the group and pick **one** directory to write it into. The group is created at "
             "`<directory below>/<name>_group/`.",
             width=620,
         )
-        self.group_name = pn.widgets.TextInput(name="Group name", value="", placeholder="e.g. saline", width=620)
+        self.group_name = pn.widgets.TextInput(name="Group Name", value="", placeholder="e.g. saline", width=620)
         self.destination_selector = pn.widgets.FileSelector(
-            self.start_path, root_directory="/", name="Destination directory for the new group", width=620
+            self.start_path, root_directory="/", name="Destination Directory for the New Group", width=620
         )
 
         self.members_markdown = pn.pane.Markdown(
-            "### 1 · What goes into the group?\n\n"
+            "### 1 · What Goes into the Group?\n\n"
             "Pick the **output run directories** to average — the `<session>_output_<run>` folders "
             "*inside* each session, not the session folders themselves. Each must already have "
             "Step-4 results.",
             width=620,
         )
         self.members_selector = pn.widgets.FileSelector(
-            self.start_path, root_directory="/", name="Member runs to average", width=620
+            self.start_path, root_directory="/", name="Member Runs to Average", width=620
         )
 
-        self.save = pn.widgets.Button(name="Save group definition", button_type="primary", width=1300)
+        self.save = pn.widgets.Button(name="Save Group Definition", button_type="primary", width=1300)
         self.alert = pn.pane.Alert("", alert_type="danger", visible=False, width=1300)
-        self.path = pn.widgets.TextInput(name="Group directory", width=1300, disabled=True)
+        self.path = pn.widgets.TextInput(name="Group Directory", width=1300, disabled=True)
 
         self.destination_column = pn.Column(
             self.destination_markdown,

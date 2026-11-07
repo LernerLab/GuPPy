@@ -14,6 +14,7 @@ from guppy.frontend.typography import (
     TITLE_SIZE,
     GuppyTypeDesign,
     font_face_css,
+    title_case,
 )
 
 
@@ -68,3 +69,23 @@ class TestInter:
     def test_tabular_figures_apply_to_table_cells_only(self):
         assert ".tabulator-cell, table.panel-df td {\n  font-variant-numeric: tabular-nums;\n}" in COMPONENT_CSS
         assert COMPONENT_CSS.count("tabular-nums") == 1
+
+
+class TestTitleCase:
+    def test_capitalizes_each_word(self):
+        assert title_case("Optical fiber models") == "Optical Fiber Models"
+
+    def test_keeps_minor_words_lowercase_inside_the_name(self):
+        assert title_case("Member runs to average") == "Member Runs to Average"
+
+    def test_capitalizes_a_minor_word_at_either_end(self):
+        assert title_case("Control for") == "Control For"
+
+    def test_capitalizes_each_part_of_a_hyphenated_word(self):
+        assert title_case("Fiber-photometry channels") == "Fiber-Photometry Channels"
+
+    def test_keeps_words_that_carry_capitals(self):
+        assert title_case("Core NWB metadata") == "Core NWB Metadata"
+
+    def test_leaves_parentheses_as_written(self):
+        assert title_case("Display settings (all plots)") == "Display Settings (all plots)"

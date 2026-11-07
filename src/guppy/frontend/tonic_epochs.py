@@ -176,8 +176,8 @@ class TonicEpochConfig:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.add_row_button = pn.widgets.Button(name="Add epoch", button_type="default", icon="plus")
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
+        self.add_row_button = pn.widgets.Button(name="Add Epoch", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
@@ -386,10 +386,10 @@ class TonicResultsView:
         self.label = label
         self.sites = _tonic_result_sites(filepath)
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
         means = self._means(self.sites[0])
         self.baseline_select = pn.widgets.Select(
-            name="Baseline epoch", options=list(means.index), value=list(means.index)[0]
+            name="Baseline Epoch", options=list(means.index), value=list(means.index)[0]
         )
         self.bars_pane = pn.pane.HoloViews(self._make_bars(), sizing_mode="stretch_width")
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
@@ -399,7 +399,7 @@ class TonicResultsView:
         self.baseline_select.param.watch(self._refresh, "value")
 
         self.widget = pn.Column(
-            f"## Tonic / basal analysis — {self.label}",
+            f"## Tonic / Basal Analysis — {self.label}",
             pn.Row(self.site_select, self.baseline_select),
             self.bars_pane,
             pn.pane.Markdown(_BASELINE_HINT),

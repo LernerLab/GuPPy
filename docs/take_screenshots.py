@@ -562,7 +562,7 @@ def screenshot_label_groups_page(page: Page) -> None:
     # The page lays out two 640px columns side by side, so it needs a wide viewport.
     page.set_viewport_size({"width": 1600, "height": 1300})
     page.goto(url)
-    page.get_by_text("Group name").first.wait_for()
+    page.get_by_text("Group Name").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "label_groups_page.png",
@@ -977,7 +977,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
         mirror_root,
         root_directory=mirror_root,
         file_pattern="*.nwb",
-        name="NWB assets",
+        name="NWB Assets",
         value=[str(Path(mirror_root) / DANDI_DEMO_SUBJECT / DANDI_DEMO_ASSET)],
         width=950,
     )
@@ -1074,7 +1074,7 @@ def screenshot_input_metadata(page: Page) -> None:
     url = _serve(_metadata_template())
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
     page.goto(url)
-    page.get_by_text("NWB metadata").first.wait_for()
+    page.get_by_text("NWB Metadata").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "input_metadata.png",
@@ -1102,9 +1102,9 @@ def screenshot_input_metadata_channels(page: Page) -> None:
     url = _serve(_metadata_template())
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
     page.goto(url)
-    page.get_by_text("NWB metadata").first.wait_for()
+    page.get_by_text("NWB Metadata").first.wait_for()
     page.wait_for_timeout(1500)
-    card = page.locator(".card").filter(has_text="Fiber-photometry channels").first
+    card = page.locator(".card").filter(has_text="Fiber-Photometry Channels").first
     card.wait_for(timeout=15000)
     card.screenshot(path=OUTPUT_DIR / "input_metadata_channels.png", timeout=30000)
     print("Saved input_metadata_channels.png")

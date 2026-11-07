@@ -44,7 +44,7 @@ class StoreLabelingSelector:
             name="Number of times you want the above store (list)", value=[], type=list
         )
 
-        self.repeat_stores = pn.widgets.Checkbox(name="Stores to repeat", value=False)
+        self.repeat_stores = pn.widgets.Checkbox(name="Stores to Repeat", value=False)
         self.repeat_store_wd = pn.WidgetBox("", sizing_mode="stretch_width")
 
         self.repeat_stores.link(self.repeat_store_wd, callbacks={"value": self.callback})
@@ -60,20 +60,20 @@ class StoreLabelingSelector:
             """
 **Choose where to save these store labels:**
 
-- **Create new run** — save into a new output folder named after **Run name**.
-- **Overwrite existing run** — replace the output folder picked in **Run to overwrite**.
+- **Create New Run** — save into a new output folder named after **Run Name**.
+- **Overwrite Existing Run** — replace the output folder picked in **Run to Overwrite**.
             """,
             sizing_mode="stretch_width",
         )
 
-        self.run_name = pn.widgets.TextInput(name="Run name", value="", sizing_mode="stretch_width")
+        self.run_name = pn.widgets.TextInput(name="Run Name", value="", sizing_mode="stretch_width")
 
         self.select_location = pn.widgets.Select(
-            name="Run to overwrite", options=[], sizing_mode="stretch_width", visible=False
+            name="Run to Overwrite", options=[], sizing_mode="stretch_width", visible=False
         )
 
         self.overwrite_mode = pn.widgets.RadioBoxGroup(
-            options={"Create new run": "create_new_file", "Overwrite existing run": "over_write_file"},
+            options={"Create New Run": "create_new_file", "Overwrite Existing Run": "over_write_file"},
             value="create_new_file",
             inline=True,
             stylesheets=[

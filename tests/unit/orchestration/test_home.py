@@ -454,7 +454,7 @@ RESULTS_HANDLERS = [
         "open_artifact_view",
         "Artifact Removal",
     ),
-    ("onclickpsth", "run_psth_step", "psth_computation", "open_transients_view", "Transient peaks"),
+    ("onclickpsth", "run_psth_step", "psth_computation", "open_transients_view", "Transient Peaks"),
 ]
 
 

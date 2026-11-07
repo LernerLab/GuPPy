@@ -18,6 +18,7 @@ from .typography import (
     SECONDARY_INK,
     SEMIBOLD,
     SMALL_SIZE,
+    title_case,
 )
 from .typography import INK as TYPE_INK
 
@@ -263,19 +264,18 @@ _ACRONYMS = {
     "doi": "DOI",
 }
 
+# Keys that end in "_in_<unit>" carry that unit, which the label shows in parentheses.
+_UNITS = {"nm", "um", "mm", "nl", "w"}
+
 
 def humanize(name: str) -> str:
-    """Turn a snake_case metadata key into a readable field label (units/acronyms preserved)."""
+    """Turn a snake_case metadata key into a Title Case field label, with a trailing unit in parentheses."""
     words = name.split("_")
-    out = []
-    for index, word in enumerate(words):
-        if word in _ACRONYMS:
-            out.append(_ACRONYMS[word])
-        elif index == 0:
-            out.append(word.capitalize())
-        else:
-            out.append(word)
-    return " ".join(out)
+    unit = ""
+    if len(words) > 2 and words[-2] == "in" and words[-1] in _UNITS:
+        unit = f" ({_ACRONYMS[words[-1]]})"
+        words = words[:-2]
+    return title_case(" ".join(_ACRONYMS.get(word, word) for word in words)) + unit
 
 
 # ----------------------------------------------------------------------------------------------------------------------

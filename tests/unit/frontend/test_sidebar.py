@@ -125,7 +125,7 @@ class TestShowResults:
     def test_starts_hidden(self, sidebar, name):
         button = sidebar.results_buttons[name]
         assert button is sidebar.statuses[name].results_button
-        assert button.name == "View results →"
+        assert button.name == "View Results →"
         assert button.visible is False
 
     def test_a_click_calls_what_opens_the_results(self, sidebar):

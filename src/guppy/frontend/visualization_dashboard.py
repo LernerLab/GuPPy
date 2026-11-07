@@ -242,7 +242,7 @@ class VisualizationDashboard:
 
         Holds one ``ColorPicker`` per currently-selected event (each seeded with the
         event's effective color -- its override, else its palette color) inside a
-        fixed-height scrollable column, plus a "Reset to palette" button that clears
+        fixed-height scrollable column, plus a "Reset to Palette" button that clears
         all overrides. The picker list is rebuilt whenever the event selection or the
         palette changes so it always matches the events being plotted.
         """
@@ -266,7 +266,7 @@ class VisualizationDashboard:
                 rows.append(pn.Row(picker, label))
             pickers.objects = rows
 
-        reset = pn.widgets.Button(name="Reset to palette", width=150)
+        reset = pn.widgets.Button(name="Reset to Palette", width=150)
 
         def on_reset(event: object) -> None:
             plotter.overlay_color_overrides = {}
@@ -367,7 +367,7 @@ class VisualizationDashboard:
         # always clear which control belongs to which plot.
         shared_settings = pn.Card(
             _controls(self._metric_control(), width_plot, height_plot, hide_minor_ticks),
-            title="Display settings (all plots)",
+            title="Display Settings (all plots)",
             collapsed=False,
             sizing_mode="stretch_width",
         )
@@ -377,11 +377,11 @@ class VisualizationDashboard:
                 event_selector,
                 y_selector,
                 trace_color,
-                _labeled(label="Axis limits", content=cont_limits),
+                _labeled(label="Axis Limits", content=cont_limits),
                 save_cont,
             ),
             _plot(self.plotter.contPlot),
-            title="1 · Single-event PSTH (mean, one trial, or all trials)",
+            title="1 · Single-Event PSTH (mean, one trial, or all trials)",
             collapsed=False,
             sizing_mode="stretch_width",
         )
@@ -391,11 +391,11 @@ class VisualizationDashboard:
                 _labeled(label="Tick events to overlay their mean traces:", content=parameters),
                 overlay_palette,
                 per_event_colors,
-                _labeled(label="Axis limits", content=overlay_limits),
+                _labeled(label="Axis Limits", content=overlay_limits),
                 save_overlay,
             ),
             _plot(self.plotter.update_selector),
-            title="2 · Multi-event comparison",
+            title="2 · Multi-Event Comparison",
             collapsed=False,
             sizing_mode="stretch_width",
         )
@@ -408,11 +408,11 @@ class VisualizationDashboard:
                 psth_checkbox,
                 mean_color,
                 _labeled(label="Move trials into the right-hand column to plot them:", content=psth_y_parameters),
-                _labeled(label="Axis limits", content=trials_limits),
+                _labeled(label="Axis Limits", content=trials_limits),
                 save_trials,
             ),
             _plot(self.plotter.plot_specific_trials),
-            title="3 · Selected trials (of the section-1 event)",
+            title="3 · Selected Trials (of the section-1 event)",
             collapsed=False,
             sizing_mode="stretch_width",
         )
@@ -475,7 +475,7 @@ class VisualizationDashboard:
         # The Trials (Y) axis is intentionally not exposed: it always spans every trial
         # row at full height, computed fresh on each render.
         axis_limits = self._range_number_inputs(name="heatmap_X", label="X")
-        color_limits = self._range_number_inputs(name="heatmap_clim", label="Color scale")
+        color_limits = self._range_number_inputs(name="heatmap_clim", label="Color Scale")
 
         heatmap_card = pn.Card(
             _controls(
@@ -487,8 +487,8 @@ class VisualizationDashboard:
                 hide_minor_ticks_heatmap,
                 ticks_inside_heatmap,
                 hide_outer_border_heatmap,
-                _labeled(label="Axis limits", content=axis_limits),
-                _labeled(label="Color scale limits", content=color_limits),
+                _labeled(label="Axis Limits", content=axis_limits),
+                _labeled(label="Color Scale Limits", content=color_limits),
                 save_hm,
             ),
             pn.Row(_plot(self.plotter.heatmap), heatmap_y_parameters, sizing_mode="stretch_width"),

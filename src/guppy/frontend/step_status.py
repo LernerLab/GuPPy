@@ -61,7 +61,7 @@ class StepStatus:
             self.progress.param.watch(self._repaint_progress, ["value", "max"])
         self.results_button = (
             pn.widgets.Button(
-                name="View results →",
+                name="View Results →",
                 button_type="primary",
                 button_style="outline",
                 height=28,

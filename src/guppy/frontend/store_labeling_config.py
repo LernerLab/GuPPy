@@ -242,7 +242,7 @@ class StoreLabelingConfig:
         textbox.param.watch(lambda event: self._refresh_control_options(), "value")
 
         # Signal picker (used for control rows) — options filled by _refresh_control_options
-        control_ref = pn.widgets.Select(name="Control for", value="", options={NO_SIGNAL_OPTION: ""}, width=250)
+        control_ref = pn.widgets.Select(name="Control For", value="", options={NO_SIGNAL_OPTION: ""}, width=250)
         store_id_control_refs[widget_key] = control_ref
         if default_type == "control":
             self._control_desired_recording_site[widget_key] = default_name

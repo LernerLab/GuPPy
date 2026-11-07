@@ -22,4 +22,4 @@ def test_open_transients_view_offers_the_page_for_the_resolved_runs(panel_extens
         )
 
     assert calls == [(["/a/output_1"], "z_score")]
-    assert pages == [Page(name="Transient peaks", content=peaks_page)]
+    assert pages == [Page(name="Transient Peaks", content=peaks_page)]

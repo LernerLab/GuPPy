@@ -115,7 +115,7 @@ class PreprocessingReviewView:
         self.preprocessed_traces = preprocessed_traces
         self.sites = list(pair_traces.keys())
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.site_select.param.watch(self._refresh, "value")
 
@@ -177,7 +177,7 @@ def build_run_folder_page(
         return content
 
     options = {labels[str(folder)]: folder for folder in run_folders}
-    folder_select = pn.widgets.Select(name="Run folder", options=options, value=run_folders[0])
+    folder_select = pn.widgets.Select(name="Run Folder", options=options, value=run_folders[0])
 
     def _on_folder_change(event: object) -> None:
         content[:] = [build_folder_page(folder_select.value, labels[str(folder_select.value)])]

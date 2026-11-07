@@ -62,7 +62,7 @@ class BinnedMetricsView:
         self.filepath = filepath
         self.sites = binned_metrics_sites(filepath)
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0], width=220)
+        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0], width=220)
         self.metric_select = pn.widgets.Select(name="Metric", options=self._metric_options(self.sites[0]), width=220)
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
 

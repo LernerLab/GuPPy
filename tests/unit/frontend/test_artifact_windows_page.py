@@ -419,11 +419,11 @@ class TestBuildArtifactWindowPage:
 
     def test_page_offers_an_add_control(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add period"]
+        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add Period"]
 
     def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run Folder"]
         assert run_folder_selectors == []
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
@@ -433,7 +433,7 @@ class TestBuildArtifactWindowPage:
             folder.mkdir()
             _write_site(folder, "DMS")
         page = build_artifact_window_page(run_folders=[str(folder_a), str(folder_b)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run Folder"]
         assert len(run_folder_selectors) == 1
 
 
