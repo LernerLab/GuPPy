@@ -77,9 +77,15 @@ class TestPlotCard:
         card = plot_card(title="Title", note="Note.", fields=[leading], trailing_field=trailing)
 
         toolbar = card[0][1]
-        assert toolbar[0] is leading
-        assert isinstance(toolbar[1], pn.Spacer) and toolbar[1].sizing_mode == "stretch_width"
-        assert toolbar[2] is trailing
+        assert list(toolbar) == [leading, trailing]
+        assert trailing.styles["margin-left"] == "auto"
+
+    def test_toolbar_wraps_when_the_window_is_too_narrow(self, panel_extension):
+        card = plot_card(title="Title", note="Note.", fields=[toolbar_field("Event", pn.widgets.Select())])
+
+        toolbar = card[0][1]
+        assert isinstance(toolbar, pn.FlexBox)
+        assert toolbar.flex_wrap == "wrap"
 
     def test_rule_under_the_toolbar_only_when_a_body_follows(self, panel_extension):
         settings_only = plot_card(title="Title", note="Note.", fields=[])

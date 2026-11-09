@@ -107,9 +107,22 @@ def _plot_layout(
         if note
         else []
     )
-    trailing = [pn.Spacer(sizing_mode="stretch_width"), trailing_field] if trailing_field is not None else []
+    trailing = []
+    if trailing_field is not None:
+        # An auto left margin holds the field at the right end of whichever line it lands on.
+        trailing_field.styles = {**trailing_field.styles, "margin-left": "auto"}
+        trailing = [trailing_field]
     toolbar_styles = {"border-bottom": f"1px solid {_RULE_COLOR}", "padding-bottom": "12px"} if body else {}
-    toolbar = pn.Row(*fields, *trailing, sizing_mode="stretch_width", styles=toolbar_styles, margin=(4, 10, 8, 10))
+    # Fields wrap onto another line when the window is too narrow for one, never past its edge.
+    toolbar = pn.FlexBox(
+        *fields,
+        *trailing,
+        flex_wrap="wrap",
+        align_items="flex-start",
+        sizing_mode="stretch_width",
+        styles=toolbar_styles,
+        margin=(4, 10, 8, 10),
+    )
     return [*note_panes, toolbar, *body]
 
 

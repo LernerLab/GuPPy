@@ -182,7 +182,7 @@ class TestVisualizationDashboard:
         cards = [*dashboard._psth_tab, *dashboard._heatmap_tab]
 
         assert [card.sizing_mode for card in cards] == ["stretch_width"] * 6
-        assert [type(toolbar(card)) for card in cards] == [pn.Row] * 6
+        assert [type(toolbar(card)) for card in cards] == [pn.FlexBox] * 6
 
     def test_pickers_sit_beside_their_plots_at_the_plot_height(self, dashboard, plotter):
         # Height_Plot defaults to 300 and height_heatmap to 600; each picker leaves 30px for its label.
