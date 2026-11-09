@@ -21,14 +21,14 @@ _ROW_WIDTH = _NAME_WIDTH + _TIMESTAMPS_WIDTH + 60
 _INSTRUCTIONS = """
 ## Import Custom Events
 
-Add behavioral events you derived outside GuPPy (e.g. movement onsets or
-manually scored events). For each event, enter a **name** and paste its
-**timestamps** — one per row, in seconds — copied straight from a spreadsheet
-column. Click **Add Event** for more, then **Save**.
+Add behavioral events you derived outside GuPPy, such as movement onsets or
+events scored by hand. For each event, enter its name and paste its timestamps
+in seconds, one per row, as copied from a spreadsheet column. Click
+**Add Event** for another event, then **Save**.
 
-Each event is written into this session as ``<name>.csv`` and appears as a
-selectable store the next time you open the Label Stores GUI. This step is
-optional — leave it empty and just continue if you have no custom events.
+Each event is saved in this session as ``<name>.csv`` and is offered as a store
+on the Label Stores page. This step is optional: with no custom events, leave
+the table empty and go on to Label Stores.
 """
 
 
