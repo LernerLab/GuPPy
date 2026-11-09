@@ -2,7 +2,8 @@ import logging
 
 import panel as pn
 
-from .typography import BODY_SIZE, SECONDARY_INK, SEMIBOLD, SMALL_CLASS, SMALL_SIZE
+from .row_controls import column_heading
+from .typography import BODY_SIZE, SEMIBOLD, SMALL_CLASS
 
 pn.extension()
 
@@ -116,12 +117,11 @@ class StoreLabelingConfig:
 
     @staticmethod
     def _column_heading() -> pn.Row:
-        style = f"font-size: {SMALL_SIZE}; font-weight: {SEMIBOLD}; color: {SECONDARY_INK};"
         return pn.Row(
-            pn.pane.HTML(f"<div style='{style}'>Store</div>", width=_STORE_COLUMN_WIDTH),
-            pn.pane.HTML(f"<div style='{style}'>Type</div>", width=_TYPE_COLUMN_WIDTH),
+            column_heading(text="Store", width=_STORE_COLUMN_WIDTH),
+            column_heading(text="Type", width=_TYPE_COLUMN_WIDTH),
             pn.Row(
-                pn.pane.HTML(f"<div style='{style}'>Name or Signal</div>", margin=(5, 0, 5, 10)),
+                column_heading(text="Name or Signal", margin=(5, 0, 5, 10)),
                 pn.widgets.TooltipIcon(value=NAME_OR_SIGNAL_HELP, margin=(0, 10, 0, 0)),
                 width=_NAME_COLUMN_WIDTH + 20,
             ),

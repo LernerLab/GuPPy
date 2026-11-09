@@ -19,6 +19,7 @@ import pandas as pd
 import panel as pn
 
 from .artifact_removal import build_run_folder_page
+from .row_controls import column_heading, delete_row_button
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
 from ..analysis.standard_io import (
     read_tonic_epochs,
@@ -124,9 +125,7 @@ class TonicEpochRow:
         self.label_input = pn.widgets.TextInput(value=label, width=_LABEL_WIDTH)
         self.start_input = pn.widgets.FloatInput(value=start, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
         self.end_input = pn.widgets.FloatInput(value=end, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
-        self.remove_button = pn.widgets.Button(
-            icon="trash", button_type="light", width=40, height=38, description="Delete this epoch"
-        )
+        self.remove_button = delete_row_button(description="Delete this epoch")
 
         self.start_input.param.watch(lambda event: on_change(), "value")
         self.end_input.param.watch(lambda event: on_change(), "value")
@@ -192,7 +191,7 @@ class TonicEpochConfig:
         self.save_button.on_click(self._on_save)
 
         self.widget = pn.Column(
-            f"# Tonic Analysis — {self.label}",
+            f"# {self.label}",
             pn.pane.Markdown(_INSTRUCTIONS),
             self.site_select,
             self.plot_pane,
@@ -215,9 +214,9 @@ class TonicEpochConfig:
 
     def _column_header(self) -> pn.Row:
         return pn.Row(
-            pn.pane.HTML("<b>label</b>", width=_LABEL_WIDTH),
-            pn.pane.HTML("<b>start (s)</b>", width=_INPUT_WIDTH),
-            pn.pane.HTML("<b>end (s)</b>", width=_INPUT_WIDTH),
+            column_heading(text="Label", width=_LABEL_WIDTH),
+            column_heading(text="Start (s)", width=_INPUT_WIDTH),
+            column_heading(text="End (s)", width=_INPUT_WIDTH),
             pn.Spacer(width=40),
             margin=(0, 0, 2, 0),
         )

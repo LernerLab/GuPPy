@@ -85,6 +85,12 @@ class TestMetadataSelector:
         assert len(selector.experimenter_inputs) == 1
         assert selector.get_scalars()["experimenter"] == []
 
+    def test_each_experimenter_is_deleted_with_the_trash_button(self, selector):
+        (row,) = selector.experimenter_box
+        remove = row[1]
+        assert remove.icon == "trash"
+        assert remove.description == "Delete this experimenter"
+
     def test_add_and_read_experimenters_strips_blanks(self, selector):
         selector.experimenter_inputs[0].value = "Doe, Jane"
         selector._add_experimenter("Smith, Joe")

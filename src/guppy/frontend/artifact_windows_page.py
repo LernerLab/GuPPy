@@ -14,6 +14,7 @@ import numpy as np
 import panel as pn
 
 from .artifact_removal import build_run_folder_page, load_pair_traces
+from .row_controls import column_heading, delete_row_button
 from ..analysis.io_utils import fetchCoords
 from ..orchestration.save_parameters import record_artifact_provenance
 from ..utils.artifact_windows import (
@@ -73,11 +74,10 @@ _COPY_HELP = (
 _NO_WINDOWS_HINT = "_No artifact periods marked — the entire recording will be kept._"
 
 _METHOD_HELP = (
-    "How the marked periods are applied. **replace with NaN** (recommended) blanks them "
-    "while preserving the recording timeline. **concatenate** splices the kept segments "
-    "together; this re-times the kept samples onto a new timeline, breaks alignment to the "
-    "acquisition clock, is unsupported by NWB export, and is incompatible with "
-    "cross-correlation."
+    "How the marked periods are applied. Replace with NaN (recommended) blanks them and keeps the "
+    "recording's timeline. Concatenate splices the kept segments together, which moves them onto a "
+    "new timeline, breaks alignment with the acquisition clock, can't be exported to NWB, and "
+    "doesn't work with cross-correlation."
 )
 
 
@@ -201,9 +201,7 @@ class ArtifactWindowRow:
         low, high = span
         self.start_input = pn.widgets.FloatInput(value=start, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
         self.end_input = pn.widgets.FloatInput(value=end, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
-        self.remove_button = pn.widgets.Button(
-            icon="trash", button_type="light", width=40, height=38, description="Delete this period"
-        )
+        self.remove_button = delete_row_button(description="Delete this period")
 
         self.start_input.param.watch(lambda event: on_change(), "value")
         self.end_input.param.watch(lambda event: on_change(), "value")
@@ -262,7 +260,11 @@ class ArtifactWindowSelector:
         self.add_row_button = pn.widgets.Button(name="Add Period", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to All Recording Sites", button_type="default")
         self.method_select = pn.widgets.Select(
-            name="Removal Method", options=ARTIFACT_REMOVAL_METHODS, value="replace with NaN", width=200
+            name="Removal Method",
+            options=ARTIFACT_REMOVAL_METHODS,
+            value="replace with NaN",
+            width=200,
+            description=_METHOD_HELP,
         )
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
@@ -286,7 +288,7 @@ class ArtifactWindowSelector:
             else []
         )
         self.widget = pn.Column(
-            f"# Select Artifact Windows — {self.label}",
+            f"# {self.label}",
             pn.pane.Markdown(_INSTRUCTIONS),
             *copy_from_section,
             pn.Row(self.site_select, self.trace_select, self.mode_toggle),
@@ -294,7 +296,6 @@ class ArtifactWindowSelector:
             self.rows_container,
             pn.Row(self.add_row_button, self.apply_to_all_button),
             self.method_select,
-            pn.pane.Markdown(_METHOD_HELP),
             self.save_button,
             sizing_mode="stretch_width",
         )
@@ -310,8 +311,8 @@ class ArtifactWindowSelector:
 
     def _column_header(self) -> pn.Row:
         return pn.Row(
-            pn.pane.HTML("<b>start (s)</b>", width=_INPUT_WIDTH),
-            pn.pane.HTML("<b>end (s)</b>", width=_INPUT_WIDTH),
+            column_heading(text="Start (s)", width=_INPUT_WIDTH),
+            column_heading(text="End (s)", width=_INPUT_WIDTH),
             pn.Spacer(width=40),
             margin=(0, 0, 2, 0),
         )

@@ -16,6 +16,7 @@ import logging
 import panel as pn
 
 from . import nwb_form_style as style
+from .row_controls import delete_row_button
 from .typography import title_case
 from ..utils.nwb_metadata import (
     CATEGORIES,
@@ -309,7 +310,7 @@ class MetadataSelector:
             width=_FIELD_WIDTH,
             stylesheets=[style.INPUT_STYLESHEET],
         )
-        remove = pn.widgets.Button(name="✕", width=42, stylesheets=[style.BUTTON_CLOSE])
+        remove = delete_row_button(description="Delete this experimenter")
         remove.on_click(lambda event: self._remove_experimenter(row, text_input))
         row[:] = [text_input, remove]
         self.experimenter_inputs.append(text_input)

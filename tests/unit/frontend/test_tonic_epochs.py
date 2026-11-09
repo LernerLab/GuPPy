@@ -39,6 +39,19 @@ class TestTonicEpochConfig:
         config.site_select.value = "DMS"
         return config
 
+    def test_page_is_headed_by_the_run_alone(self, config):
+        assert config.widget[0].object == "# output_1"
+
+    def test_epochs_render_under_column_headings(self, config):
+        config.set_epochs("DMS", [("baseline", 1.0, 3.0)])
+
+        heading = config.rows_container.objects[0]
+        assert [item.object for item in heading[:3]] == [
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>Label</div>",
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>Start (s)</div>",
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>End (s)</div>",
+        ]
+
     def test_starts_with_no_epoch_windows(self, config, run_folder):
         assert config.epochs_for("DMS") == []
         assert config.epochs_for("DLS") == []

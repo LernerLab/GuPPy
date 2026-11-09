@@ -129,18 +129,6 @@ BUTTON_GHOST = (
 """
 )
 
-BUTTON_CLOSE = """
-:host .bk-btn {
-  background: transparent !important;
-  border: 1px solid #E2E8F0 !important;
-  color: #9AA7B4 !important;
-  border-radius: 8px;
-  padding: 7px 11px;
-  transition: all .15s ease;
-}
-:host .bk-btn:hover { background: #FEF2F2 !important; color: #D92D20 !important; border-color: #FCA5A5 !important; }
-"""
-
 # The card host itself IS the `.card` element, so its box (border/radius/shadow) is styled
 # via :host. Inside the shadow root the header is a <button class="card-header"> followed by
 # the body widgets as flat siblings (no body wrapper), so `:host > div` pads exactly the body

@@ -262,7 +262,29 @@ class TestClampingBoundsIntoTheRecording:
         rendered = selector.rows_container.objects
         # One header row plus one row per marked period.
         assert len(rendered) == 3
+        assert [heading.object for heading in rendered[0][:2]] == [
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>Start (s)</div>",
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>End (s)</div>",
+        ]
         assert [row.widget for row in selector.site_to_rows["DMS"]] == list(rendered[1:])
+
+    def test_page_is_headed_by_the_run_alone(self, selector):
+        assert selector.widget[0].object == "# output_1"
+
+    def test_removal_method_is_explained_in_its_tooltip(self, selector):
+        assert selector.method_select.description.startswith("How the marked periods are applied. Replace with NaN")
+        assert selector.method_select in selector.widget.objects
+        assert not any(
+            isinstance(item, pn.pane.Markdown) and "How the marked periods" in item.object
+            for item in selector.widget.objects
+        )
+
+    def test_each_period_is_deleted_with_the_trash_button(self, selector):
+        selector.set_windows("DMS", [(1.0, 2.0)])
+
+        (row,) = selector.site_to_rows["DMS"]
+        assert row.remove_button.icon == "trash"
+        assert row.remove_button.description == "Delete this period"
 
     def test_switching_site_shows_that_site_periods(self, selector):
         selector.set_windows("DMS", [(1.0, 2.0)])
