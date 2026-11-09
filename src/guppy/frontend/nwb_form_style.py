@@ -6,11 +6,11 @@ inline-styled HTML in Markdown panes, since inline styles reach inside Panel's s
 
 import panel as pn
 
+from .input_parameters import SECTION_STYLES
 from .typography import (
     BODY_SIZE,
     INK,
     MONOSPACE_FAMILY,
-    REGULAR,
     SECONDARY_INK,
     SEMIBOLD,
     SMALL_SIZE,
@@ -20,7 +20,9 @@ from ..visualization.palette import CONTROL, SIGNAL
 
 # Bootstrap's danger red, which the rest of the app's alerts use.
 REQUIRED_RED = "#DC3545"
-RULE = "#DEE2E6"
+
+# A card nested inside another card sits flat on it, since stacked shadows read as clutter.
+FLAT_CARD_STYLESHEET = ":host { box-shadow: none !important; }"
 
 # Appended to a required field: a red asterisk after its label.
 REQUIRED_STYLESHEET = f"""
@@ -89,19 +91,30 @@ def _markdown(html: str, **styles: str) -> pn.pane.Markdown:
     return pn.pane.Markdown(html, sizing_mode="stretch_width", styles=styles, margin=(0, 10))
 
 
-def section_label(text: str, note: str = "") -> pn.pane.Markdown:
-    """A section label with an optional trailing note, over a hairline rule."""
-    note_html = (
-        f"<span style='font-weight:{REGULAR};color:{SECONDARY_INK};font-size:{SMALL_SIZE};margin-left:10px;'>{note}</span>"
-        if note
-        else ""
-    )
-    html = (
-        f"<div style='display:flex;align-items:baseline;border-bottom:1px solid {RULE};padding-bottom:7px;margin:6px 0 2px 0;'>"
-        f"<span style='font-size:{BODY_SIZE};font-weight:{SEMIBOLD};color:{INK};'>{text}</span>"
-        f"{note_html}</div>"
-    )
-    return _markdown(html)
+def section_box(title: str, *contents: pn.viewable.Viewable, note: str = "") -> pn.WidgetBox:
+    """A white section headed by its title, the way the homepage groups its parameters.
+
+    Parameters
+    ----------
+    title : str
+        Heading for the section.
+    *contents : pn.viewable.Viewable
+        Widgets and layouts shown under the heading.
+    note : str, optional
+        Small gray text under the heading.
+
+    Returns
+    -------
+    panel.WidgetBox
+        The section, stretched to the width of its container.
+    """
+    heading = pn.pane.Markdown(f"### {title}", sizing_mode="stretch_width", styles={"margin-bottom": "0"})
+    header = [heading]
+    if note:
+        header.append(
+            pn.pane.Markdown(note, sizing_mode="stretch_width", styles={"margin-top": "0"}, css_classes=["small"])
+        )
+    return pn.WidgetBox(*header, *contents, sizing_mode="stretch_width", styles=SECTION_STYLES)
 
 
 def subgroup_label(text: str) -> pn.pane.Markdown:
@@ -134,4 +147,6 @@ def channel_role_chip(role: str, store_name: str) -> pn.pane.Markdown:
         f"<span style='font-size:{SMALL_SIZE};color:{SECONDARY_INK};font-family:{MONOSPACE_FAMILY};'>{store_name}</span>"
         f"</div>"
     )
-    return _markdown(html)
+    chip = _markdown(html)
+    chip.margin = (10, 10, 0, 10)
+    return chip

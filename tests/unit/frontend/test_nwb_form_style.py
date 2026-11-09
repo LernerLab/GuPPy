@@ -1,5 +1,7 @@
 """Unit tests for the NWB form styling helpers (label humanizing + HTML chrome builders)."""
 
+import panel as pn
+
 from guppy.frontend import nwb_form_style as style
 
 
@@ -30,13 +32,25 @@ class TestHumanize:
 
 
 class TestChromeBuilders:
-    def test_section_label_with_and_without_note(self):
-        with_note = style.section_label("Session", "last name first")
-        assert "Session" in with_note.object
-        assert "last name first" in with_note.object
-        # The no-note path renders the label without the trailing note span.
-        without_note = style.section_label("Subject")
-        assert "Subject" in without_note.object
+    def test_section_box_is_a_white_homepage_section(self):
+        field = pn.widgets.TextInput(name="Lab")
+        section = style.section_box("Session", field)
+
+        assert isinstance(section, pn.WidgetBox)
+        assert section.styles == {
+            "background": "White",
+            "border": "1px solid #C8CCD0",
+            "border-radius": "6px",
+            "margin-bottom": "12px",
+        }
+        assert section[0].object == "### Session"
+        assert section[1] is field
+
+    def test_section_box_puts_its_note_under_the_heading_in_small_text(self):
+        section = style.section_box("Experimenter", note="Last name first.")
+
+        assert section[1].object == "Last name first."
+        assert section[1].css_classes == ["small"]
 
     def test_subgroup_help_and_intro_notes_carry_text(self):
         assert "Hardware" in style.subgroup_label("Hardware").object
@@ -56,11 +70,5 @@ class TestChromeBuilders:
 
 
 class TestTypeScale:
-    def test_section_label_is_14px_semibold_without_uppercase(self):
-        html = style.section_label("Session").object
-
-        assert "font-size:14px;font-weight:600;" in html
-        assert "uppercase" not in html
-
     def test_help_note_is_12px_in_the_secondary_gray(self):
         assert "font-size:12px;color:#6C757D;" in style.help_note("Load any saved YAML.").object

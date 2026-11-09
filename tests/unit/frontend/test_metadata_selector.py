@@ -289,9 +289,11 @@ class TestMetadataSelector:
         core_card = selector.widget[3]
         assert core_card.title == "Core NWB Metadata"
         assert core_card.styles == {"background": "WhiteSmoke"}
+        assert [section[0].object for section in core_card] == ["### Session", "### Experimenter", "### Subject"]
         category_card = selector.category_cards["optical_fiber"]
         assert category_card.styles["background"] == "White"
         assert category_card.styles["border"] == "1px solid #C8CCD0"
+        assert category_card.stylesheets == [":host { box-shadow: none !important; }"]
 
     def test_enumerated_values_show_title_case_names(self, selector):
         selector._add_device("virus_injection", {"hemisphere": "left"})

@@ -132,6 +132,7 @@ class MetadataSelector:
             self.load_existing,
             sizing_mode="stretch_width",
             styles={**SECTION_STYLES, "padding": "8px 12px", "align-items": "center"},
+            margin=(5, 10),
         )
         self.build_config = pn.widgets.Button(
             name="Build & Preview YAML",
@@ -158,7 +159,6 @@ class MetadataSelector:
             collapsed=True,
             sizing_mode="stretch_width",
             styles=CARD_STYLES,
-            margin=(8, 0),
         )
         action_footer = pn.Column(
             self.alert,
@@ -166,6 +166,7 @@ class MetadataSelector:
             self.path,
             sizing_mode="stretch_width",
             styles={**SECTION_STYLES, "padding": "8px 12px"},
+            margin=(5, 10),
         )
 
         self.widget = pn.Column(
@@ -268,21 +269,24 @@ class MetadataSelector:
         self._sync_age_dob()
 
         return pn.Card(
-            style.section_label("Session"),
-            self.session_description,
-            _fields(self.identifier, self.session_start_time, self.lab, self.institution),
-            style.section_label("Experimenter", "last name first, e.g. Doe, Jane"),
-            self.experimenter_box,
-            add_experimenter,
-            style.section_label("Subject"),
-            _fields(self.subject_id, self.sex, self.species, self.genotype, self.strain),
-            self.age_or_dob,
-            pn.Row(self.age, self.date_of_birth),
+            style.section_box(
+                "Session",
+                self.session_description,
+                _fields(self.identifier, self.session_start_time, self.lab, self.institution),
+            ),
+            style.section_box(
+                "Experimenter", self.experimenter_box, add_experimenter, note="Last name first, e.g. Doe, Jane."
+            ),
+            style.section_box(
+                "Subject",
+                _fields(self.subject_id, self.sex, self.species, self.genotype, self.strain),
+                self.age_or_dob,
+                pn.Row(self.age, self.date_of_birth),
+            ),
             title="Core NWB Metadata",
             collapsed=False,
             sizing_mode="stretch_width",
             styles=CARD_STYLES,
-            margin=(8, 0),
         )
 
     def _add_experimenter(self, value: str) -> None:
@@ -325,7 +329,6 @@ class MetadataSelector:
                     collapsed=False,
                     sizing_mode="stretch_width",
                     styles=CARD_STYLES,
-                    margin=(8, 0),
                 )
             )
         return pn.Column(*groups, sizing_mode="stretch_width")
@@ -344,7 +347,7 @@ class MetadataSelector:
             collapsed=True,
             sizing_mode="stretch_width",
             styles=SECTION_STYLES,
-            margin=(4, 0),
+            stylesheets=[style.FLAT_CARD_STYLESHEET],
         )
         self.category_cards[key] = card
         for entry in entries:
@@ -381,8 +384,8 @@ class MetadataSelector:
             title=(name_widget.value or "(unnamed)"),
             collapsed=True,
             sizing_mode="stretch_width",
-            styles=CARD_STYLES,
-            margin=(4, 0),
+            styles=SECTION_STYLES,
+            stylesheets=[style.FLAT_CARD_STYLESHEET],
         )
         if name_widget is not None:
 
@@ -518,8 +521,8 @@ class MetadataSelector:
                 _fields(excitation, emission, *link_widgets),
                 hide_header=True,
                 sizing_mode="stretch_width",
-                styles=CARD_STYLES,
-                margin=(6, 0),
+                styles=SECTION_STYLES,
+                stylesheets=[style.FLAT_CARD_STYLESHEET],
             )
             recording_site_to_cards.setdefault(channel.recording_site, []).append(instance_card)
 
@@ -530,7 +533,7 @@ class MetadataSelector:
                 collapsed=False,
                 sizing_mode="stretch_width",
                 styles=SECTION_STYLES,
-                margin=(6, 0),
+                stylesheets=[style.FLAT_CARD_STYLESHEET],
             )
             for recording_site, instance_cards in recording_site_to_cards.items()
         ]
@@ -540,7 +543,6 @@ class MetadataSelector:
             collapsed=False,
             sizing_mode="stretch_width",
             styles=CARD_STYLES,
-            margin=(8, 0),
         )
 
     # ------------------------------------------------------------------------------------------------------------------
