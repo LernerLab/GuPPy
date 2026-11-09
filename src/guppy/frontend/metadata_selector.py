@@ -110,7 +110,7 @@ class MetadataSelector:
         self.device_containers: dict[str, pn.Column] = {
             key: pn.Column(sizing_mode="stretch_width") for key in CATEGORIES
         }
-        self.category_cards: dict[str, pn.Card] = {}
+        self.category_sections: dict[str, pn.WidgetBox] = {}
         self.channel_records: list[dict] = []
         # Link dropdowns whose options are device names; channel ones are fixed, device ones rebuild.
         # Each entry is (select, target_category, required); required links carry no empty option.
@@ -217,7 +217,9 @@ class MetadataSelector:
             value=scalars.get("session_description", ""),
             description=_SCALAR_DOCS["session_description"],
             sizing_mode="stretch_width",
-            height=70,
+            rows=2,
+            auto_grow=True,
+            resizable="height",
             stylesheets=_sheets(True),
         )
         self.identifier = text("identifier", placeholder="leave blank to auto-generate")
@@ -321,10 +323,10 @@ class MetadataSelector:
         biology = [key for key in CATEGORIES if key in _BIOLOGY_CATEGORIES]
         groups = []
         for group_name, keys in (("Optical Hardware", hardware), ("Biological Reagents", biology)):
-            category_cards = [self._build_category_card(key, devices.get(key, [])) for key in keys]
+            category_sections = [self._build_category_section(key, devices.get(key, [])) for key in keys]
             groups.append(
                 pn.Card(
-                    *category_cards,
+                    *category_sections,
                     title=group_name,
                     collapsed=False,
                     sizing_mode="stretch_width",
@@ -333,35 +335,28 @@ class MetadataSelector:
             )
         return pn.Column(*groups, sizing_mode="stretch_width")
 
-    def _build_category_card(self, key: str, entries: list[dict]) -> pn.Card:
+    def _build_category_section(self, key: str, entries: list[dict]) -> pn.WidgetBox:
         category = CATEGORIES[key]
         add_button = pn.widgets.Button(
             name=f"Add {title_case(category.singular)}",
             width=240,
         )
         add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self.refresh_link_options()))
-        card = pn.Card(
-            self.device_containers[key],
-            add_button,
-            title=title_case(category.label),
-            collapsed=True,
-            sizing_mode="stretch_width",
-            styles=SECTION_STYLES,
-            stylesheets=[style.FLAT_CARD_STYLESHEET],
-        )
-        self.category_cards[key] = card
+        section = style.section_box(title_case(category.label), self.device_containers[key], add_button)
+        self.category_sections[key] = section
         for entry in entries:
             self._add_device(key, entry)
         self._retitle_category(key)
-        return card
+        return section
 
     def _retitle_category(self, key: str) -> None:
-        """Show the live instance count on a category card so the library is scannable when collapsed."""
-        card = self.category_cards.get(key)
-        if card is None:
+        """Show the live instance count in a category's heading so the library is scannable."""
+        section = self.category_sections.get(key)
+        if section is None:
             return
         count = len(self.device_entry_records[key])
-        card.title = f"{title_case(CATEGORIES[key].label)}  ·  {count}" if count else title_case(CATEGORIES[key].label)
+        label = title_case(CATEGORIES[key].label)
+        section[0].object = f"### {label}  ·  {count}" if count else f"### {label}"
 
     def _add_device(self, category_key: str, entry: dict) -> None:
         fields: list[tuple[FieldSpec, object]] = []  # (spec, widget or list-row)
@@ -378,20 +373,25 @@ class MetadataSelector:
 
         remove = pn.widgets.Button(name="Remove", width=110)
         # Each instance is its own collapsible card, titled by its name so a category with many is navigable.
+        title = name_widget.value or "(unnamed)"
+        header = style.item_title(title)
         card = pn.Card(
             *rows,
             remove,
-            title=(name_widget.value or "(unnamed)"),
+            title=title,
+            header=header,
+            header_background=style.ITEM_HEADER_BACKGROUND,
+            active_header_background=style.ITEM_HEADER_BACKGROUND,
             collapsed=True,
             sizing_mode="stretch_width",
-            styles=SECTION_STYLES,
+            styles=style.ITEM_CARD_STYLES,
             stylesheets=[style.FLAT_CARD_STYLESHEET],
         )
         if name_widget is not None:
 
-            def _on_name_change(event: object, card: pn.Card = card) -> None:
+            def _on_name_change(event: object, card: pn.Card = card, header: pn.pane.HTML = header) -> None:
                 # Retitle the card and propagate the new name into every link dropdown that points here.
-                card.title = event.new or "(unnamed)"
+                card.title = header.object = event.new or "(unnamed)"
                 self.refresh_link_options()
 
             name_widget.param.watch(_on_name_change, "value")
@@ -521,24 +521,17 @@ class MetadataSelector:
                 _fields(excitation, emission, *link_widgets),
                 hide_header=True,
                 sizing_mode="stretch_width",
-                styles=SECTION_STYLES,
+                styles=style.ITEM_CARD_STYLES,
                 stylesheets=[style.FLAT_CARD_STYLESHEET],
             )
             recording_site_to_cards.setdefault(channel.recording_site, []).append(instance_card)
 
-        recording_site_cards = [
-            pn.Card(
-                *instance_cards,
-                title=recording_site.upper(),
-                collapsed=False,
-                sizing_mode="stretch_width",
-                styles=SECTION_STYLES,
-                stylesheets=[style.FLAT_CARD_STYLESHEET],
-            )
+        recording_site_sections = [
+            style.section_box(recording_site.upper(), *instance_cards)
             for recording_site, instance_cards in recording_site_to_cards.items()
         ]
         return pn.Card(
-            *recording_site_cards,
+            *recording_site_sections,
             title="Fiber-Photometry Channels",
             collapsed=False,
             sizing_mode="stretch_width",

@@ -11,6 +11,7 @@ from .typography import (
     BODY_SIZE,
     INK,
     MONOSPACE_FAMILY,
+    REGULAR,
     SECONDARY_INK,
     SEMIBOLD,
     SMALL_SIZE,
@@ -23,6 +24,11 @@ REQUIRED_RED = "#DC3545"
 
 # A card nested inside another card sits flat on it, since stacked shadows read as clutter.
 FLAT_CARD_STYLESHEET = ":host { box-shadow: none !important; }"
+
+# One device or channel inside a white section: a darker border than the section's, so a white
+# item still stands apart from the white around it, under a light gray header.
+ITEM_CARD_STYLES = {**SECTION_STYLES, "border": "1px solid #ADB5BD"}
+ITEM_HEADER_BACKGROUND = "#F1F3F5"
 
 # Appended to a required field: a red asterisk after its label.
 REQUIRED_STYLESHEET = f"""
@@ -114,7 +120,15 @@ def section_box(title: str, *contents: pn.viewable.Viewable, note: str = "") -> 
         header.append(
             pn.pane.Markdown(note, sizing_mode="stretch_width", styles={"margin-top": "0"}, css_classes=["small"])
         )
-    return pn.WidgetBox(*header, *contents, sizing_mode="stretch_width", styles=SECTION_STYLES)
+    # Room under the last row of fields, which otherwise sits on the section's bottom border.
+    return pn.WidgetBox(
+        *header, *contents, sizing_mode="stretch_width", styles={**SECTION_STYLES, "padding-bottom": "10px"}
+    )
+
+
+def item_title(text: str) -> pn.pane.HTML:
+    """The title of one device card, in body text so it ranks below its category's heading."""
+    return pn.pane.HTML(text, styles={"font-size": BODY_SIZE, "font-weight": str(REGULAR), "color": INK})
 
 
 def subgroup_label(text: str) -> pn.pane.Markdown:
