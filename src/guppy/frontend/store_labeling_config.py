@@ -11,9 +11,6 @@ logger = logging.getLogger(__name__)
 # Sentinel option shown in a control's "control for" dropdown before a signal is chosen.
 NO_SIGNAL_OPTION = "— select signal —"
 
-# Every store's tile shares one width, so the tiles wrap into even columns.
-_STORE_TILE_WIDTH = 430
-
 
 class StoreLabelingConfig:
     """Panel widget that renders a configuration row for each discovered store_id.
@@ -60,8 +57,8 @@ class StoreLabelingConfig:
         store_id_to_store_labels: dict[str, list[str]],
     ) -> None:
         self.config_widgets = []
-        # One store per tile, wrapping onto as many lines as the page width needs.
-        self.store_tiles = pn.FlexBox(sizing_mode="stretch_width")
+        # One store under another, so each store's Type and Name fields read on their own.
+        self.store_entries = pn.Column()
         self._dropdown_help_map = {}
         self._dropdown_to_key = {}
         # Per control-row widget_key → the signal recording site it was assigned to in a
@@ -85,7 +82,7 @@ class StoreLabelingConfig:
                 "## Label Stores\nSelect appropriate options for each store and provide a label as needed:"
             )
         )
-        self.config_widgets.append(self.store_tiles)
+        self.config_widgets.append(self.store_entries)
 
         for i, store_id in enumerate(store_ids):
             self.setup_store_id(
@@ -258,4 +255,4 @@ class StoreLabelingConfig:
 
         # Wrap dropdown in a column with a same-height spacer so it bottom-aligns with the inputs
         fields = pn.Row(pn.Column(pn.Spacer(height=20), dropdown), pn.Column(help_pane, textbox, control_ref))
-        self.store_tiles.append(pn.Column(label, fields, width=_STORE_TILE_WIDTH, margin=(5, 0)))
+        self.store_entries.append(pn.Column(label, fields, margin=(5, 0)))
