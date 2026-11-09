@@ -97,7 +97,7 @@ def test_heat_map_tab_visible(page, visualization_server_url):
 @pytest.mark.ui
 def test_trials_checkbox_options_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    expect(page.get_by_text("just trials").first).to_be_visible()
+    expect(page.get_by_text("Just Trials").first).to_be_visible()
 
 
 @pytest.mark.ui

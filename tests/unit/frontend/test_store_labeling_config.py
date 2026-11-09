@@ -53,7 +53,7 @@ class TestStoreLabelingConfig:
         store_entries = config.config_widgets[2]
         assert type(store_entries) is pn.Column
         assert [type(entry) for entry in store_entries] == [pn.Row, pn.Row, pn.Row]
-        assert [entry.width for entry in store_entries] == [630, 630, 630]
+        assert [entry.width for entry in store_entries] == [650, 650, 650]
         assert [entry[1] for entry in store_entries] == [
             dropdowns["Dv1A_0"],
             dropdowns["Dv2A_1"],
@@ -196,7 +196,13 @@ class TestStoreLabelingConfig:
     def test_behavioral_covariate_is_offered(self, panel_extension, show_config_button):
         _, dropdowns, _, _ = build_config(show_config_button, ["akinesia"])
 
-        assert dropdowns["akinesia_0"].options == ["", "control", "signal", "event TTLs", "behavioral covariate"]
+        assert dropdowns["akinesia_0"].options == {
+            "": "",
+            "Control": "control",
+            "Signal": "signal",
+            "Event TTLs": "event TTLs",
+            "Behavioral Covariate": "behavioral covariate",
+        }
 
     def test_covariate_row_shows_name_box_hides_signal_picker(self, panel_extension, show_config_button):
         _, dropdowns, textboxes, control_refs = build_config(show_config_button, ["akinesia"])

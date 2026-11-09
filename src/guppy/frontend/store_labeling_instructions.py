@@ -15,7 +15,7 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
-TIME_UNIT_OPTIONS = list(TIME_UNIT_DIVISORS)
+TIME_UNIT_OPTIONS = {unit.capitalize(): unit for unit in TIME_UNIT_DIVISORS}
 
 
 class StoreLabelingInstructions:

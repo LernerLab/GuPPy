@@ -13,7 +13,7 @@ NO_SIGNAL_OPTION = "— select signal —"
 
 # Column widths shared by the heading and every store's row, so the columns line up.
 _STORE_COLUMN_WIDTH = 140
-_TYPE_COLUMN_WIDTH = 170
+_TYPE_COLUMN_WIDTH = 190
 _NAME_COLUMN_WIDTH = 260
 # Each column also carries Panel's 10px margin on either side.
 _ROW_WIDTH = _STORE_COLUMN_WIDTH + _TYPE_COLUMN_WIDTH + _NAME_COLUMN_WIDTH + 6 * 10
@@ -234,7 +234,13 @@ class StoreLabelingConfig:
         )
 
         # Pre-populate from cache if available; otherwise start blank
-        options = ["", "control", "signal", "event TTLs", "behavioral covariate"]
+        options = {
+            "": "",
+            "Control": "control",
+            "Signal": "signal",
+            "Event TTLs": "event TTLs",
+            "Behavioral Covariate": "behavioral covariate",
+        }
         if store_id in store_id_to_store_labels and store_id_to_store_labels[store_id]:
             default_type, default_name = self._parse_cached_value(store_id_to_store_labels[store_id][0])
         else:

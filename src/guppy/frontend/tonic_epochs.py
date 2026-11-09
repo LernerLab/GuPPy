@@ -46,7 +46,7 @@ _INPUT_WIDTH = 110
 _INSTRUCTIONS = (
     "Define named epoch windows for each recording site: enter a label and the start and "
     "end time (seconds) of each window, and the shaded spans update to match. Use "
-    "**Apply to all recording sites** when the injection is systemic.\n\n"
+    "**Apply to All Recording Sites** when the injection is systemic.\n\n"
     "Click **Save** to compute and store each window's mean z-score and ΔF/F; the results "
     "appear on the Tonic tab of the visualization. Clearing a site's windows drops it from "
     "the results."
@@ -178,7 +178,7 @@ class TonicEpochConfig:
 
         self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
         self.add_row_button = pn.widgets.Button(name="Add Epoch", button_type="default", icon="plus")
-        self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
+        self.apply_to_all_button = pn.widgets.Button(name="Apply to All Recording Sites", button_type="default")
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
         self.spans_pipe = make_spans_pipe(windows=self.colored_windows_for(self.sites[0]))

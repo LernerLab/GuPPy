@@ -34,9 +34,9 @@ pn.extension(notifications=True)
 
 logger = logging.getLogger(__name__)
 
-ARTIFACT_REMOVAL_METHODS = ["replace with NaN", "concatenate"]
+ARTIFACT_REMOVAL_METHODS = {"Replace with NaN": "replace with NaN", "Concatenate": "concatenate"}
 
-MARK_MODE = "Mark artifacts"
+MARK_MODE = "Mark Artifacts"
 NAVIGATE_MODE = "Navigate"
 INTERACTION_MODES = [MARK_MODE, NAVIGATE_MODE]
 
@@ -55,7 +55,7 @@ _INSTRUCTIONS = (
     "nudged the rest of the way with the arrow keys. Everything outside the marked "
     "periods is kept — mark nothing to keep the entire recording.\n\n"
     "Switch to **Navigate** to drag the view around instead of marking; the scroll wheel "
-    "zooms in either mode, and switching back to **Mark artifacts** keeps wherever you "
+    "zooms in either mode, and switching back to **Mark Artifacts** keeps wherever you "
     "have zoomed to. The **Trace** selector chooses which of the site's three traces you "
     "mark on — the periods belong to the recording site, so it makes no difference which "
     "one you mark from.\n\n"
@@ -260,9 +260,9 @@ class ArtifactWindowSelector:
         )
         self.copy_from_button = pn.widgets.Button(name="Load", button_type="default", icon="copy", align="end")
         self.add_row_button = pn.widgets.Button(name="Add Period", button_type="default", icon="plus")
-        self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
+        self.apply_to_all_button = pn.widgets.Button(name="Apply to All Recording Sites", button_type="default")
         self.method_select = pn.widgets.Select(
-            name="Removal Method", options=ARTIFACT_REMOVAL_METHODS, value=ARTIFACT_REMOVAL_METHODS[0], width=200
+            name="Removal Method", options=ARTIFACT_REMOVAL_METHODS, value="replace with NaN", width=200
         )
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 

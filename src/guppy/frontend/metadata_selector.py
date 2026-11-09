@@ -275,7 +275,7 @@ class MetadataSelector:
         )
         self.age_or_dob = pn.widgets.RadioBoxGroup(
             name="Specify Subject By",
-            options=["Age", "Date of birth"],
+            options={"Age": "Age", "Date of Birth": "Date of birth"},
             value="Date of birth" if scalars.get("date_of_birth") else "Age",
             inline=True,
             stylesheets=[style.RADIO_STYLESHEET],

@@ -131,7 +131,9 @@ class ParameterizedPlotter(param.Parameterized):
     df_new = param.DataFrame(default=None)
     x_min = param.Number(default=None)
     x_max = param.Number(default=None)
-    select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
+    select_trials_checkbox = param.ListSelector(
+        default=["just trials"], objects={"Mean": "mean", "Just Trials": "just trials"}
+    )
     # Y-axis label for the PSTH plots: the metric whose results were loaded, not a
     # user choice. build_plotter sets it from the metric it read.
     Y_Label = param.String(default="z-score")

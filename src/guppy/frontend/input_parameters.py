@@ -309,7 +309,7 @@ class ParameterForm:
 
         self.pair_timestamps_channel = pn.widgets.Select(
             name="Timestamps for Each Control/Signal Pair",
-            options=["signal", "control"],
+            options={"Signal": "signal", "Control": "control"},
             value="signal",
             width=310,
             description="Which channel's sample times a control/signal pair is analyzed on, for systems that sample the two channels at different moments. 'signal' keeps the signal's own sample times; 'control' puts the pair on the control's, which reproduces Neurophotometrics results from GuPPy 1.3.0. The longer channel is trimmed to the length of the shorter.",
@@ -317,7 +317,7 @@ class ParameterForm:
 
         self.control_fit_window_mode = pn.widgets.Select(
             name="Control Fit Window",
-            options=["full trace", "baseline epoch"],
+            options={"Full Trace": "full trace", "Baseline Epoch": "baseline epoch"},
             value="full trace",
             width=310,
             description="Which part of the recording the fit is estimated from. 'full trace' uses the whole recording; 'baseline epoch' uses only the window set beside it and applies those coefficients throughout, for sessions where a sustained step change such as a drug injection would otherwise distort the fit.",
@@ -406,21 +406,21 @@ class ParameterForm:
 
         self.computePsth = pn.widgets.Select(
             name="Z-Score and/or \u0394F/F (PSTH)",
-            options=["z_score", "dff", "Both"],
+            options={"Z-Score": "z_score", "\u0394F/F": "dff", "Both": "Both"},
             width=320,
             description="Which metric Step 4 aligns events on. 'Both' writes a complete set of PSTH outputs for each metric.",
         )
 
         self.transients = pn.widgets.Select(
             name="Z-Score and/or \u0394F/F (Transients)",
-            options=["z_score", "dff", "Both"],
+            options={"Z-Score": "z_score", "\u0394F/F": "dff", "Both": "Both"},
             width=320,
             description="Which metric the transient detector runs on. 'Both' runs it on each metric in turn.",
         )
 
         self.transient_detection_method = pn.widgets.Select(
             name="Transient Detection Method",
-            options=["MAD threshold", "minimum rise"],
+            options={"MAD Threshold": "MAD threshold", "Minimum Rise": "minimum rise"},
             value="MAD threshold",
             width=320,
             description="How a peak qualifies as a transient. 'MAD threshold' counts peaks whose height above the local median exceeds a multiple of the local noise, re-estimated in each moving window. 'minimum rise' counts peaks that rise more than a fixed amount above the local minimum just before them.",
@@ -431,7 +431,7 @@ class ParameterForm:
             value=2.0,
             step=0.5,
             width=200,
-            description="Smallest rise above the preceding local minimum that counts as a transient, in the units of the metric the detector runs on: % \u0394F/F for dff, z-score units for z_score. Ignored when the detection method is 'MAD threshold'.",
+            description="Smallest rise above the preceding local minimum that counts as a transient, in the units of the metric the detector runs on: % \u0394F/F for \u0394F/F, z-score units for Z-Score. Ignored when the detection method is MAD Threshold.",
         )
 
         self.moving_wd = pn.widgets.IntInput(
@@ -479,7 +479,11 @@ class ParameterForm:
 
         self.z_score_computation = pn.widgets.Select(
             name="Z-Score Computation Method",
-            options=["standard z-score", "baseline z-score", "modified z-score"],
+            options={
+                "Standard Z-Score": "standard z-score",
+                "Baseline Z-Score": "baseline z-score",
+                "Modified Z-Score": "modified z-score",
+            },
             value="standard z-score",
             width=260,
             description="How each trace is normalized. The z-score explainer in the documentation covers what the three methods do and which one suits which recording.",
@@ -561,7 +565,7 @@ class ParameterForm:
 
         self.use_time_or_trials = pn.widgets.Select(
             name="Bin PSTH Trials By",
-            options=["Time (min)", "# of trials"],
+            options={"Time (min)": "Time (min)", "Number of Trials": "# of trials"},
             value="Time (min)",
             width=180,
             description="Whether PSTH trials are binned by elapsed time or by trial count.",
@@ -627,7 +631,7 @@ class ParameterForm:
 
         self.auc_units = pn.widgets.Select(
             name="AUC Units",
-            options=["samples", "seconds"],
+            options={"Samples": "samples", "Seconds": "seconds"},
             value="samples",
             width=260,
             description="'seconds' reports the area in z-score (or dF/F) times seconds, the unit commonly reported in the literature. 'samples' integrates with one-sample spacing instead, so the area also scales with the recording's sampling rate.",
