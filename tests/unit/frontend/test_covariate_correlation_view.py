@@ -197,4 +197,4 @@ class TestBuildCovariateCorrelationView:
     def test_renders_both_plots_when_covariates_exist(self, session):
         result = build_covariate_correlation_view(session)
 
-        assert sum(isinstance(pane, pn.pane.HoloViews) for pane in result) == 2
+        assert len(result.select(pn.pane.HoloViews)) == 2

@@ -19,6 +19,7 @@ import pandas as pd
 import panel as pn
 
 from .artifact_removal import build_run_folder_page
+from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
 from .row_controls import column_heading, delete_row_button
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
 from ..analysis.standard_io import (
@@ -385,10 +386,10 @@ class TonicResultsView:
         self.label = label
         self.sites = _tonic_result_sites(filepath)
 
-        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
         means = self._means(self.sites[0])
         self.baseline_select = pn.widgets.Select(
-            name="Baseline Epoch", options=list(means.index), value=list(means.index)[0]
+            options=list(means.index), value=list(means.index)[0], width=220, margin=CONTROL_MARGIN
         )
         self.bars_pane = pn.pane.HoloViews(self._make_bars(), sizing_mode="stretch_width")
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
@@ -397,14 +398,16 @@ class TonicResultsView:
         self.site_select.param.watch(self._on_site_change, "value")
         self.baseline_select.param.watch(self._refresh, "value")
 
-        self.widget = pn.Column(
-            pn.Row(self.site_select, self.baseline_select),
-            self.bars_pane,
-            pn.pane.Markdown(_BASELINE_HINT),
-            self.plot_pane,
-            self.table_pane,
-            sizing_mode="stretch_width",
+        card = plot_card(
+            title="Tonic Analysis",
+            note="Each epoch's mean signal, measured against the baseline epoch.",
+            fields=[
+                toolbar_field("Recording Site", self.site_select),
+                toolbar_field("Baseline Epoch", self.baseline_select),
+            ],
+            body=[self.bars_pane, pn.pane.Markdown(_BASELINE_HINT), self.plot_pane, self.table_pane],
         )
+        self.widget = pn.Column(card, sizing_mode="stretch_width")
 
     def _means(self, site: str) -> pd.DataFrame:
         return pd.read_hdf(Path(self.filepath) / ("tonic_" + site + ".h5"), key="df")

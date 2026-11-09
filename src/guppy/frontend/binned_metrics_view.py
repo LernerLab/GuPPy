@@ -13,6 +13,7 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
+from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
 from ..analysis.io_utils import read_hdf5
 from ..analysis.standard_io import read_binned_metrics_from_hdf5
 from ..visualization.binned_metrics import build_binned_metrics_panel
@@ -62,8 +63,10 @@ class BinnedMetricsView:
         self.filepath = filepath
         self.sites = binned_metrics_sites(filepath)
 
-        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0], width=220)
-        self.metric_select = pn.widgets.Select(name="Metric", options=self._metric_options(self.sites[0]), width=220)
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
+        self.metric_select = pn.widgets.Select(
+            options=self._metric_options(self.sites[0]), width=220, margin=CONTROL_MARGIN
+        )
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
 
         self.site_select.param.watch(self._on_site_change, "value")
@@ -106,7 +109,13 @@ class BinnedMetricsView:
     @property
     def widget(self) -> pn.Column:
         """The composed selectors and plot."""
-        return pn.Column(pn.Row(self.site_select, self.metric_select), self.plot_pane, sizing_mode="stretch_width")
+        card = plot_card(
+            title="Binned Metrics",
+            note="One metric per time bin, under the trace it was computed from.",
+            fields=[toolbar_field("Recording Site", self.site_select), toolbar_field("Metric", self.metric_select)],
+            body=[self.plot_pane],
+        )
+        return pn.Column(card, sizing_mode="stretch_width")
 
 
 def build_binned_metrics_view(filepath: str) -> pn.Column:

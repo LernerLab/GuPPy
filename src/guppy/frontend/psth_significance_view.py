@@ -16,6 +16,7 @@ from pathlib import Path
 import holoviews as hv
 import panel as pn
 
+from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
 from ..analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME, PSTH_SIGNIFICANCE_PREFIX
 from ..analysis.standard_io import read_psth_significance_from_hdf5
 from ..visualization.psth_significance import build_significance_panel
@@ -107,7 +108,7 @@ class PsthSignificanceView:
         self.comparisons = significance_comparisons(filepath)
 
         self.comparison_select = pn.widgets.Select(
-            name="Comparison", options=self.comparisons, value=self.comparisons[0], width=520
+            options=self.comparisons, value=self.comparisons[0], width=520, margin=CONTROL_MARGIN
         )
         self.caption = pn.pane.Markdown(self._make_caption(), width=520)
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
@@ -146,7 +147,13 @@ class PsthSignificanceView:
     @property
     def widget(self) -> pn.Column:
         """The composed selector, caption and plot."""
-        return pn.Column(self.comparison_select, self.caption, self.plot_pane, sizing_mode="stretch_width")
+        card = plot_card(
+            title="PSTH Significance",
+            note="Where a PSTH, or the difference of two, departs from zero.",
+            fields=[toolbar_field("Comparison", self.comparison_select)],
+            body=[self.caption, self.plot_pane],
+        )
+        return pn.Column(card, sizing_mode="stretch_width")
 
 
 def build_psth_significance_view(filepath: str) -> pn.Column:

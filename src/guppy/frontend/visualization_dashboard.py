@@ -6,44 +6,18 @@ import panel as pn
 from .binned_metrics_view import build_binned_metrics_view
 from .covariate_correlation_view import build_covariate_correlation_view
 from .parameterized_plotter import METRIC_LABELS, build_plotter
+from .plot_card import (
+    CHECKBOX_MARGIN,
+    CONTROL_MARGIN,
+    plot_card,
+    range_separator,
+    side_column,
+    toolbar_field,
+)
 from .psth_significance_view import build_psth_significance_view
 from .tonic_epochs import build_tonic_results_view
 
 pn.extension()
-
-
-def _controls(*controls: object) -> pn.FlexBox:
-    """Lay a card's controls out in one row that wraps onto as many lines as the page width needs.
-
-    Parameters
-    ----------
-    *controls : object
-        Panel objects to lay out, in reading order.
-
-    Returns
-    -------
-    panel.FlexBox
-        The controls, stretched to the width of the card.
-    """
-    return pn.FlexBox(*controls, sizing_mode="stretch_width")
-
-
-def _labeled(*, label: str, content: object) -> pn.Column:
-    """Keep a control group under its bold label, so the two wrap together.
-
-    Parameters
-    ----------
-    label : str
-        Text shown above the group.
-    content : object
-        The Panel object the label describes.
-
-    Returns
-    -------
-    panel.Column
-        The label above its content.
-    """
-    return pn.Column(pn.pane.Markdown(f"**{label}**", margin=(5, 10, 0, 10)), content)
 
 
 def _plot(plot_method: Callable[[], object]) -> pn.viewable.Viewable:
@@ -123,10 +97,11 @@ class VisualizationDashboard:
         every change, so the two stay in step without being linked.
         """
         select = pn.widgets.Select(
-            name="Metric",
+            name="",
             options={METRIC_LABELS[name]: name for name in self.available_metrics},
             value=self.metric,
             width=140,
+            margin=CONTROL_MARGIN,
         )
         select.param.watch(self._on_metric_change, "value")
         return select
@@ -153,10 +128,10 @@ class VisualizationDashboard:
         self._tabs[1] = ("Heat Map", self._heatmap_tab)
         self._tabs.loading = False
 
-    def _range_number_inputs(self, *, name: str, label: str) -> pn.Row:
-        """Return two-way-bound min/max number boxes for a plotter ``Range`` param.
+    def _range_number_inputs(self, *, name: str) -> pn.Row:
+        """Return two-way-bound low/high number boxes for a plotter ``Range`` param.
 
-        Editing a box writes ``(min, max)`` into ``plotter.<name>`` and moves the
+        Editing a box writes ``(low, high)`` into ``plotter.<name>`` and moves the
         live figure in place via ``move_figure_to_range``; conversely the plotter's
         range-sync hook writing into that same param (on a Bokeh zoom/pan) updates
         the boxes, so the numbers always reflect the plot's current axis range.
@@ -165,18 +140,21 @@ class VisualizationDashboard:
         ----------
         name : str
             Name of the ``param.Range`` on the plotter (e.g. ``"cont_X"``).
-        label : str
-            Prefix for the two box labels (e.g. ``"X"`` -> "X min"/"X max").
+
+        Returns
+        -------
+        panel.Row
+            The low box, then the high box.
         """
         plotter = self.plotter
         current = getattr(plotter, name)
         # format="0.00" keeps the displayed value to two decimals (the underlying
-        # float value is unrounded); width=110 leaves room for a couple of digits.
+        # float value is unrounded).
         minimum = pn.widgets.FloatInput(
-            name=f"{label} min", width=110, format="0.00", value=None if current is None else float(current[0])
+            width=88, format="0.00", margin=CONTROL_MARGIN, value=None if current is None else float(current[0])
         )
         maximum = pn.widgets.FloatInput(
-            name=f"{label} max", width=110, format="0.00", value=None if current is None else float(current[1])
+            width=88, format="0.00", margin=CONTROL_MARGIN, value=None if current is None else float(current[1])
         )
         # Guard so param->box updates don't echo back as box->param writes.
         state = {"syncing": False}
@@ -201,10 +179,23 @@ class VisualizationDashboard:
         plotter.param.watch(from_param, name)
         minimum.param.watch(to_param, "value")
         maximum.param.watch(to_param, "value")
-        return pn.Row(minimum, maximum, margin=(0, 15, 0, 0))
+        return pn.Row(minimum, maximum, margin=0)
 
-    def _save_controls(self, *, options_name: str, callback: Callable[[], BytesIO], base_name: str) -> pn.Row:
-        """Return a format selector + a "Save As…" download button for one plot.
+    def _range_field(self, *, name: str, label: str) -> pn.Column:
+        """Return a toolbar field holding a plotter ``Range`` as two boxes joined by a dash.
+
+        Parameters
+        ----------
+        name : str
+            Name of the ``param.Range`` on the plotter (e.g. ``"cont_X"``).
+        label : str
+            The field's label (e.g. "X Range").
+        """
+        minimum, maximum = self._range_number_inputs(name=name)
+        return toolbar_field(label, minimum, range_separator(), maximum)
+
+    def _save_controls(self, *, options_name: str, callback: Callable[[], BytesIO], base_name: str) -> pn.Column:
+        """Return the "Save Plot" toolbar field: a format selector and a "Save As…" download button.
 
         The button streams the freshly rendered plot to the browser, which prompts
         the user for a filename and location (the standard download flow). The
@@ -219,54 +210,51 @@ class VisualizationDashboard:
         base_name : str
             Default filename stem shown in the browser's save dialog.
         """
-        options = pn.Param(
-            getattr(self.plotter.param, options_name),
-            widgets={options_name: {"type": pn.widgets.Select, "width": 90, "name": "Format"}},
+        save_format = pn.widgets.Select.from_param(
+            getattr(self.plotter.param, options_name), name="", width=80, margin=CONTROL_MARGIN
         )
         download = pn.widgets.FileDownload(
             callback=callback,
             filename=f"{base_name}.{getattr(self.plotter, options_name)}",
             label="Save As…",
             button_type="default",
-            width=140,
+            width=110,
+            margin=CONTROL_MARGIN,
         )
 
         def _sync_extension(event: object) -> None:
             download.filename = f"{base_name}.{event.new}"
 
         self.plotter.param.watch(_sync_extension, options_name)
-        return pn.Row(options, pn.Column(pn.Spacer(height=25), download))
+        return toolbar_field("Save Plot", save_format, download)
 
-    def _per_event_color_pickers(self) -> pn.Card:
-        """Return a collapsed card of per-event color pickers for the comparison plot.
+    def _per_event_color_pickers(self) -> pn.FlexBox:
+        """Return the strip of per-event color pickers for the comparison plot, hidden until opened.
 
         Holds one ``ColorPicker`` per currently-selected event (each seeded with the
-        event's effective color -- its override, else its palette color) inside a
-        fixed-height scrollable column, plus a "Reset to Palette" button that clears
-        all overrides. The picker list is rebuilt whenever the event selection or the
-        palette changes so it always matches the events being plotted.
+        event's effective color -- its override, else its palette color), plus a
+        "Reset to Palette" button that clears all overrides. The pickers are rebuilt
+        whenever the event selection or the palette changes so they always match the
+        events being plotted.
         """
         plotter = self.plotter
-        # Roomy enough for long event names to sit on one line so only the vertical
-        # scrollbar ever appears; the swatch itself is kept small and square (below)
-        # and the name is a separate label, so the swatch is not stretched to fit.
-        pickers = pn.Column(scroll="y", height=250, width=520)
+        pickers = pn.FlexBox(margin=0)
 
         def rebuild(*events: object) -> None:
             effective_colors = plotter.overlay_effective_colors()
             rows = []
             for event, color in effective_colors.items():
-                picker = pn.widgets.ColorPicker(value=color, width=50)
+                picker = pn.widgets.ColorPicker(value=color, width=50, margin=CONTROL_MARGIN)
 
                 def to_override(picker_event: object, event: str = event) -> None:
                     plotter.overlay_color_overrides = {**plotter.overlay_color_overrides, event: picker_event.new}
 
                 picker.param.watch(to_override, "value")
-                label = pn.pane.Markdown(event, margin=(8, 0, 0, 6))
-                rows.append(pn.Row(picker, label))
+                label = pn.pane.Markdown(event, margin=(0, 16, 0, 0), align="center")
+                rows.append(pn.Row(picker, label, margin=(0, 0, 4, 0)))
             pickers.objects = rows
 
-        reset = pn.widgets.Button(name="Reset to Palette", width=150)
+        reset = pn.widgets.Button(name="Reset to Palette", button_type="light", width=150, margin=CONTROL_MARGIN)
 
         def on_reset(event: object) -> None:
             plotter.overlay_color_overrides = {}
@@ -276,149 +264,145 @@ class VisualizationDashboard:
         plotter.param.watch(rebuild, ["selector_for_multipe_events_plot", "overlay_palette"])
         rebuild()
 
-        return pn.Card(pickers, reset, title="Per-event colors (optional)", collapsed=True)
+        return pn.FlexBox(
+            pickers,
+            reset,
+            visible=False,
+            sizing_mode="stretch_width",
+            styles={"border-bottom": "1px solid #E9ECEF", "padding-bottom": "8px"},
+            margin=(0, 10, 8, 10),
+        )
+
+    def _side_picker_height(self, height_parameter: object, *, offset: int) -> object:
+        """Bind a picker's height to the plot height beside it, less ``offset`` for its label."""
+        return pn.bind(lambda height: int(height) - offset, height_parameter)
 
     def _build_psth_tab(self) -> pn.Column:
-        """Build the PSTH tab with controls and plot panels."""
-        psth_checkbox = pn.Param(
-            self.plotter.param.select_trials_checkbox,
-            widgets={
-                "select_trials_checkbox": {
-                    "type": pn.widgets.CheckBoxGroup,
-                    "inline": True,
-                    "name": "Select Mean and/or Just Trials",
-                }
-            },
+        """Build the PSTH tab: shared display settings, then one card per plot."""
+        plotter = self.plotter
+
+        hide_minor_ticks = pn.widgets.Checkbox.from_param(
+            plotter.param.hide_minor_ticks, name="Hide Minor Ticks", margin=CHECKBOX_MARGIN
         )
-        parameters = pn.Param(
-            self.plotter.param.selector_for_multipe_events_plot,
-            widgets={
-                "selector_for_multipe_events_plot": {"type": pn.widgets.CrossSelector, "width": 550, "align": "start"}
-            },
-        )
-        # A CrossSelector (like the multi-event picker) makes the chosen trials
-        # visually obvious in a dedicated "selected" column.
-        psth_y_parameters = pn.Param(
-            self.plotter.param.psth_y,
-            widgets={
-                "psth_y": {"type": pn.widgets.CrossSelector, "name": "Trials to Show", "width": 420, "align": "start"}
-            },
+        display_settings = plot_card(
+            title="Display Settings",
+            note="These apply to every plot on this tab.",
+            fields=[
+                toolbar_field("Metric", self._metric_control()),
+                toolbar_field(
+                    "Saved Width",
+                    pn.widgets.Select.from_param(plotter.param.Width_Plot, name="", width=90, margin=CONTROL_MARGIN),
+                ),
+                toolbar_field(
+                    "Height",
+                    pn.widgets.Select.from_param(plotter.param.Height_Plot, name="", width=90, margin=CONTROL_MARGIN),
+                ),
+                toolbar_field("Style", hide_minor_ticks),
+            ],
         )
 
-        event_selector = pn.Param(
-            self.plotter.param.event_selector, widgets={"event_selector": {"type": pn.widgets.Select, "width": 400}}
-        )
         # The x-axis is always "timestamps" (single option), so no x-selector is shown.
-        y_selector = pn.Param(
-            self.plotter.param.y, widgets={"y": {"type": pn.widgets.Select, "name": "View", "width": 180}}
+        single_event_plot = plot_card(
+            title="Single-Event PSTH",
+            note="The mean, one trial, or all trials of one event.",
+            fields=[
+                toolbar_field(
+                    "Event",
+                    pn.widgets.Select.from_param(
+                        plotter.param.event_selector, name="", width=260, margin=CONTROL_MARGIN
+                    ),
+                ),
+                toolbar_field(
+                    "View", pn.widgets.Select.from_param(plotter.param.y, name="", width=160, margin=CONTROL_MARGIN)
+                ),
+                toolbar_field(
+                    "Trace Color",
+                    pn.widgets.ColorPicker.from_param(
+                        plotter.param.trace_color, name="", width=56, margin=CONTROL_MARGIN
+                    ),
+                ),
+                self._range_field(name="cont_X", label="X Range"),
+                self._range_field(name="cont_Y", label="Y Range"),
+            ],
+            trailing_field=self._save_controls(
+                options_name="save_options_cont", callback=plotter.download_cont, base_name="psth"
+            ),
+            body=[_plot(plotter.contPlot)],
         )
 
-        width_plot = pn.Param(
-            self.plotter.param.Width_Plot,
-            widgets={"Width_Plot": {"type": pn.widgets.Select, "name": "Saved Width", "width": 90}},
-        )
-        height_plot = pn.Param(
-            self.plotter.param.Height_Plot,
-            widgets={"Height_Plot": {"type": pn.widgets.Select, "name": "Height", "width": 90}},
-        )
-        hide_minor_ticks = pn.Param(
-            self.plotter.param.hide_minor_ticks,
-            widgets={"hide_minor_ticks": {"type": pn.widgets.Checkbox, "name": "Hide minor tick marks"}},
-        )
-
-        trace_color = pn.Param(
-            self.plotter.param.trace_color, widgets={"trace_color": {"type": pn.widgets.ColorPicker, "width": 90}}
-        )
-        mean_color = pn.Param(
-            self.plotter.param.mean_color, widgets={"mean_color": {"type": pn.widgets.ColorPicker, "width": 90}}
-        )
-        overlay_palette = pn.Param(
-            self.plotter.param.overlay_palette,
-            widgets={"overlay_palette": {"type": pn.widgets.Select, "width": 150}},
+        # The pickers sit beside their plots, as tall as the plot, so each toolbar stays one line.
+        picker_height = self._side_picker_height(plotter.param.Height_Plot, offset=30)
+        event_picker = pn.widgets.CrossSelector.from_param(
+            plotter.param.selector_for_multipe_events_plot,
+            name="",
+            width=440,
+            height=picker_height,
+            margin=CONTROL_MARGIN,
         )
         per_event_colors = self._per_event_color_pickers()
-
-        # Independent save controls (format selector + button) for each plot.
-        save_cont = self._save_controls(
-            options_name="save_options_cont", callback=self.plotter.download_cont, base_name="psth"
-        )
-        save_overlay = self._save_controls(
-            options_name="save_options_overlay", callback=self.plotter.download_overlay, base_name="psth_comparison"
-        )
-        save_trials = self._save_controls(
-            options_name="save_options_trials", callback=self.plotter.download_trials, base_name="psth_trials"
-        )
-
-        # Each plot owns an independent axis-limit control that also snaps to Bokeh zoom/pan.
-        cont_limits = pn.Row(
-            self._range_number_inputs(name="cont_X", label="X"), self._range_number_inputs(name="cont_Y", label="Y")
-        )
-        overlay_limits = pn.Row(
-            self._range_number_inputs(name="overlay_X", label="X"),
-            self._range_number_inputs(name="overlay_Y", label="Y"),
-        )
-        trials_limits = pn.Row(
-            self._range_number_inputs(name="trials_X", label="X"),
-            self._range_number_inputs(name="trials_Y", label="Y"),
-        )
-
-        # Controls that affect every plot live in one shared card; each plot then
-        # gets its own card holding only the controls that drive it, so it is
-        # always clear which control belongs to which plot.
-        shared_settings = pn.Card(
-            _controls(self._metric_control(), width_plot, height_plot, hide_minor_ticks),
-            title="Display Settings (all plots)",
-            collapsed=False,
-            sizing_mode="stretch_width",
-        )
-
-        single_event_plot = pn.Card(
-            _controls(
-                event_selector,
-                y_selector,
-                trace_color,
-                _labeled(label="Axis Limits", content=cont_limits),
-                save_cont,
+        colors_toggle = pn.widgets.Toggle(name="Colors", button_type="light", width=90, margin=CONTROL_MARGIN)
+        colors_toggle.link(per_event_colors, value="visible")
+        comparison_plot = plot_card(
+            title="Multi-Event Comparison",
+            note="The mean trace of each chosen event, overlaid.",
+            fields=[
+                toolbar_field(
+                    "Palette",
+                    pn.widgets.Select.from_param(
+                        plotter.param.overlay_palette, name="", width=130, margin=CONTROL_MARGIN
+                    ),
+                    colors_toggle,
+                ),
+                self._range_field(name="overlay_X", label="X Range"),
+                self._range_field(name="overlay_Y", label="Y Range"),
+            ],
+            trailing_field=self._save_controls(
+                options_name="save_options_overlay", callback=plotter.download_overlay, base_name="psth_comparison"
             ),
-            _plot(self.plotter.contPlot),
-            title="1 · Single-Event PSTH (mean, one trial, or all trials)",
-            collapsed=False,
-            sizing_mode="stretch_width",
-        )
-
-        comparison_plot = pn.Card(
-            _controls(
-                _labeled(label="Tick events to overlay their mean traces:", content=parameters),
-                overlay_palette,
+            body=[
                 per_event_colors,
-                _labeled(label="Axis Limits", content=overlay_limits),
-                save_overlay,
-            ),
-            _plot(self.plotter.update_selector),
-            title="2 · Multi-Event Comparison",
-            collapsed=False,
-            sizing_mode="stretch_width",
+                pn.Row(
+                    _plot(plotter.update_selector), side_column("Events", event_picker), sizing_mode="stretch_width"
+                ),
+            ],
         )
 
-        selected_trials_plot = pn.Card(
-            pn.pane.Markdown(
-                "_Uses the event and trace color chosen in section 1. Mean color (below) colors the mean overlay._"
+        trial_picker = pn.widgets.CrossSelector.from_param(
+            plotter.param.psth_y, name="", width=440, height=picker_height, margin=CONTROL_MARGIN
+        )
+        selected_trials_plot = plot_card(
+            title="Selected Trials",
+            note="Trials of the Single-Event PSTH's event, in its trace color.",
+            fields=[
+                toolbar_field(
+                    "Show",
+                    pn.widgets.CheckBoxGroup.from_param(
+                        plotter.param.select_trials_checkbox, name="", inline=True, margin=CHECKBOX_MARGIN
+                    ),
+                ),
+                toolbar_field(
+                    "Mean Color",
+                    pn.widgets.ColorPicker.from_param(
+                        plotter.param.mean_color, name="", width=56, margin=CONTROL_MARGIN
+                    ),
+                ),
+                self._range_field(name="trials_X", label="X Range"),
+                self._range_field(name="trials_Y", label="Y Range"),
+            ],
+            trailing_field=self._save_controls(
+                options_name="save_options_trials", callback=plotter.download_trials, base_name="psth_trials"
             ),
-            _controls(
-                psth_checkbox,
-                mean_color,
-                _labeled(label="Move trials into the right-hand column to plot them:", content=psth_y_parameters),
-                _labeled(label="Axis Limits", content=trials_limits),
-                save_trials,
-            ),
-            _plot(self.plotter.plot_specific_trials),
-            title="3 · Selected Trials (of the section-1 event)",
-            collapsed=False,
-            sizing_mode="stretch_width",
+            body=[
+                pn.Row(
+                    _plot(plotter.plot_specific_trials),
+                    side_column("Trials", trial_picker),
+                    sizing_mode="stretch_width",
+                )
+            ],
         )
 
         return pn.Column(
-            shared_settings,
+            display_settings,
             single_event_plot,
             comparison_plot,
             selected_trials_plot,
@@ -426,77 +410,71 @@ class VisualizationDashboard:
         )
 
     def _build_heatmap_tab(self) -> pn.Column:
-        """Build the heatmap tab with controls and plot panels."""
-        heatmap_y_parameters = pn.Param(
-            self.plotter.param.heatmap_y,
-            widgets={
-                "heatmap_y": {"type": pn.widgets.MultiSelect, "name": "Trial # - Timestamps", "width": 200, "size": 30}
-            },
-        )
-        event_selector_heatmap = pn.Param(
-            self.plotter.param.event_selector_heatmap,
-            widgets={"event_selector_heatmap": {"type": pn.widgets.Select, "width": 150}},
-        )
-        color_map = pn.Param(
-            self.plotter.param.color_map, widgets={"color_map": {"type": pn.widgets.Select, "width": 150}}
-        )
-        width_heatmap = pn.Param(
-            self.plotter.param.width_heatmap,
-            widgets={"width_heatmap": {"type": pn.widgets.Select, "name": "Saved Width", "width": 150}},
-        )
-        height_heatmap = pn.Param(
-            self.plotter.param.height_heatmap,
-            widgets={"height_heatmap": {"type": pn.widgets.Select, "name": "Height", "width": 150}},
-        )
-        hide_minor_ticks_heatmap = pn.Param(
-            self.plotter.param.hide_minor_ticks_heatmap,
-            widgets={"hide_minor_ticks_heatmap": {"type": pn.widgets.Checkbox, "name": "Hide minor tick marks"}},
-        )
-        # Opt-in styling toggles (defaults keep Bokeh's standard look).
-        ticks_inside_heatmap = pn.Param(
-            self.plotter.param.ticks_inside_heatmap,
-            widgets={"ticks_inside_heatmap": {"type": pn.widgets.Checkbox, "name": "Ticks inside"}},
-        )
-        hide_outer_border_heatmap = pn.Param(
-            self.plotter.param.hide_outer_border_heatmap,
-            widgets={"hide_outer_border_heatmap": {"type": pn.widgets.Checkbox, "name": "Hide top/right border"}},
+        """Build the Heat Map tab: its display settings, then the heat map card."""
+        plotter = self.plotter
+
+        style_checkboxes = [
+            pn.widgets.Checkbox.from_param(getattr(plotter.param, parameter), name=name, margin=CHECKBOX_MARGIN)
+            for parameter, name in (
+                ("hide_minor_ticks_heatmap", "Hide Minor Ticks"),
+                ("ticks_inside_heatmap", "Ticks Inside"),
+                ("hide_outer_border_heatmap", "Hide Top/Right Border"),
+            )
+        ]
+        display_settings = plot_card(
+            title="Display Settings",
+            note="These apply to the heat map on this tab.",
+            fields=[
+                toolbar_field("Metric", self._metric_control()),
+                toolbar_field(
+                    "Saved Width",
+                    pn.widgets.Select.from_param(plotter.param.width_heatmap, name="", width=90, margin=CONTROL_MARGIN),
+                ),
+                toolbar_field(
+                    "Height",
+                    pn.widgets.Select.from_param(
+                        plotter.param.height_heatmap, name="", width=90, margin=CONTROL_MARGIN
+                    ),
+                ),
+                toolbar_field("Style", *style_checkboxes),
+            ],
         )
 
-        # Independent save controls (format selector + button), matching the PSTH plots.
-        save_hm = self._save_controls(
-            options_name="save_options_heatmap", callback=self.plotter.download_heatmap, base_name="heatmap"
-        )
-
-        # Numeric X-axis limits (snap to Bokeh zoom/pan) and the colour-scale (clim)
-        # limits, both reusing the PSTH tab's _range_number_inputs helper. The X boxes
-        # move the live figure in place; the colour-scale boxes re-render (heatmap_clim
-        # is in heatmap()'s @param.depends), for which move_figure_to_range is a no-op.
         # The Trials (Y) axis is intentionally not exposed: it always spans every trial
-        # row at full height, computed fresh on each render.
-        axis_limits = self._range_number_inputs(name="heatmap_X", label="X")
-        color_limits = self._range_number_inputs(name="heatmap_clim", label="Color Scale")
-
-        heatmap_card = pn.Card(
-            _controls(
-                event_selector_heatmap,
-                self._metric_control(),
-                color_map,
-                width_heatmap,
-                height_heatmap,
-                hide_minor_ticks_heatmap,
-                ticks_inside_heatmap,
-                hide_outer_border_heatmap,
-                _labeled(label="Axis Limits", content=axis_limits),
-                _labeled(label="Color Scale Limits", content=color_limits),
-                save_hm,
+        # row at full height, computed fresh on each render. The colour-scale boxes
+        # re-render (heatmap_clim is in heatmap()'s @param.depends), for which
+        # move_figure_to_range is a no-op.
+        trial_picker = pn.widgets.MultiSelect.from_param(
+            plotter.param.heatmap_y,
+            name="",
+            width=200,
+            height=self._side_picker_height(plotter.param.height_heatmap, offset=30),
+            margin=CONTROL_MARGIN,
+        )
+        heatmap_card = plot_card(
+            title="Trial Heat Map",
+            note="One row per trial of the chosen event.",
+            fields=[
+                toolbar_field(
+                    "Event",
+                    pn.widgets.Select.from_param(
+                        plotter.param.event_selector_heatmap, name="", width=260, margin=CONTROL_MARGIN
+                    ),
+                ),
+                toolbar_field(
+                    "Color Map",
+                    pn.widgets.Select.from_param(plotter.param.color_map, name="", width=130, margin=CONTROL_MARGIN),
+                ),
+                self._range_field(name="heatmap_X", label="X Range"),
+                self._range_field(name="heatmap_clim", label="Color Scale"),
+            ],
+            trailing_field=self._save_controls(
+                options_name="save_options_heatmap", callback=plotter.download_heatmap, base_name="heatmap"
             ),
-            pn.Row(_plot(self.plotter.heatmap), heatmap_y_parameters, sizing_mode="stretch_width"),
-            title="Trial heatmap",
-            collapsed=False,
-            sizing_mode="stretch_width",
+            body=[pn.Row(_plot(plotter.heatmap), side_column("Trials", trial_picker), sizing_mode="stretch_width")],
         )
 
-        return pn.Column(heatmap_card, sizing_mode="stretch_width")
+        return pn.Column(display_settings, heatmap_card, sizing_mode="stretch_width")
 
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""

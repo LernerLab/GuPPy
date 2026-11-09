@@ -17,6 +17,7 @@ import pandas as pd
 import panel as pn
 
 from .binned_metrics_view import METRICS, TRACE_LABELS
+from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
 from ..analysis.io_utils import read_hdf5
 from ..analysis.standard_io import (
     read_binned_covariates_from_hdf5,
@@ -70,10 +71,12 @@ class CovariateCorrelationView:
         self.covariate_series = read_covariate_series(filepath)
 
         first_site = self.sites[0]
-        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=first_site, width=220)
-        self.metric_select = pn.widgets.Select(name="Metric", options=self._metric_options(first_site), width=260)
+        self.site_select = pn.widgets.Select(options=self.sites, value=first_site, width=220, margin=CONTROL_MARGIN)
+        self.metric_select = pn.widgets.Select(
+            options=self._metric_options(first_site), width=260, margin=CONTROL_MARGIN
+        )
         self.covariate_select = pn.widgets.Select(
-            name="Covariate", options=self._covariate_options(first_site), width=220
+            options=self._covariate_options(first_site), width=220, margin=CONTROL_MARGIN
         )
         self.trace_pane = pn.pane.HoloViews(self._make_trace_layout(), sizing_mode="stretch_width")
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
@@ -175,13 +178,17 @@ class CovariateCorrelationView:
     @property
     def widget(self) -> pn.Column:
         """The composed selectors, stacked traces, scatter and correlations table."""
-        return pn.Column(
-            pn.Row(self.site_select, self.metric_select, self.covariate_select),
-            self.trace_pane,
-            self.plot_pane,
-            self.table_pane,
-            sizing_mode="stretch_width",
+        card = plot_card(
+            title="Covariate Correlation",
+            note="How one binned metric tracks a behavioral covariate, bin by bin.",
+            fields=[
+                toolbar_field("Recording Site", self.site_select),
+                toolbar_field("Metric", self.metric_select),
+                toolbar_field("Covariate", self.covariate_select),
+            ],
+            body=[self.trace_pane, self.plot_pane, self.table_pane],
         )
+        return pn.Column(card, sizing_mode="stretch_width")
 
 
 def build_covariate_correlation_view(filepath: str) -> pn.Column:
