@@ -136,7 +136,7 @@ class TestBuildBinnedMetricsView:
         result = build_binned_metrics_view(session)
 
         assert isinstance(result, pn.Column)
-        assert not isinstance(result[0], pn.pane.Markdown)
+        assert len(result.select(pn.pane.HoloViews)) == 1
 
     def test_returns_an_empty_state_note_when_there_are_no_results(self, tmp_path, panel_extension):
         result = build_binned_metrics_view(str(tmp_path))

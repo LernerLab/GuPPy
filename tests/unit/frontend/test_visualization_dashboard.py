@@ -1,6 +1,7 @@
 import panel as pn
 import pytest
 
+from guppy.frontend.input_parameters import CARD_STYLES, SECTION_STYLES
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 
 BASENAME = "test_session"
@@ -30,9 +31,9 @@ def field_labels(layout):
     return [label.split(">")[1].split("<")[0] for label in labels]
 
 
-def header_text(card):
-    """Return the HTML of a card's header, which carries its title and note."""
-    return card.header.object
+def toolbar(card):
+    """Return a card's toolbar row, which follows the note in its white section."""
+    return card[0][1]
 
 
 @pytest.fixture
@@ -79,28 +80,28 @@ class TestVisualizationDashboard:
     def test_metric_selector_leads_each_tabs_display_settings(self, dashboard):
         for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
             display_settings = tab[0]
-            first_field = display_settings[0][0]
+            first_field = toolbar(display_settings)[0]
 
-            assert "Display Settings" in header_text(display_settings)
+            assert display_settings.title == "Display Settings"
             assert field_labels(first_field)[0] == "Metric"
             assert first_field[1][0] is metric_selectors(tab)[0]
 
     def test_cards_are_titled_in_title_case_without_numbers(self, dashboard):
-        titles = [header_text(card) for card in [*dashboard._psth_tab, *dashboard._heatmap_tab]]
+        titles = [card.title for card in [*dashboard._psth_tab, *dashboard._heatmap_tab]]
 
-        for title, expected in zip(
-            titles,
-            [
-                "Display Settings",
-                "Single-Event PSTH",
-                "Multi-Event Comparison",
-                "Selected Trials",
-                "Display Settings",
-                "Trial Heat Map",
-            ],
-            strict=True,
-        ):
-            assert f">{expected}</span>" in title
+        assert titles == [
+            "Display Settings",
+            "Single-Event PSTH",
+            "Multi-Event Comparison",
+            "Selected Trials",
+            "Display Settings",
+            "Trial Heat Map",
+        ]
+
+    def test_cards_match_the_homepage_cards(self, dashboard):
+        for card in [*dashboard._psth_tab, *dashboard._heatmap_tab]:
+            assert card.styles == CARD_STYLES
+            assert card[0].styles == SECTION_STYLES
 
     def test_the_y_axis_label_is_not_a_display_setting(self, dashboard):
         """The label follows the metric, so no widget offers to change it."""
@@ -181,7 +182,7 @@ class TestVisualizationDashboard:
         cards = [*dashboard._psth_tab, *dashboard._heatmap_tab]
 
         assert [card.sizing_mode for card in cards] == ["stretch_width"] * 6
-        assert [type(card[0]) for card in cards] == [pn.Row] * 6
+        assert [type(toolbar(card)) for card in cards] == [pn.Row] * 6
 
     def test_pickers_sit_beside_their_plots_at_the_plot_height(self, dashboard, plotter):
         # Height_Plot defaults to 300 and height_heatmap to 600; each picker leaves 30px for its label.

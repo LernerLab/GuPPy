@@ -13,7 +13,7 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
-from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
+from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
 from ..analysis.io_utils import read_hdf5
 from ..analysis.standard_io import read_binned_metrics_from_hdf5
 from ..visualization.binned_metrics import build_binned_metrics_panel
@@ -109,13 +109,11 @@ class BinnedMetricsView:
     @property
     def widget(self) -> pn.Column:
         """The composed selectors and plot."""
-        card = plot_card(
-            title="Binned Metrics",
+        return plot_page(
             note="One metric per time bin, under the trace it was computed from.",
             fields=[toolbar_field("Recording Site", self.site_select), toolbar_field("Metric", self.metric_select)],
             body=[self.plot_pane],
         )
-        return pn.Column(card, sizing_mode="stretch_width")
 
 
 def build_binned_metrics_view(filepath: str) -> pn.Column:

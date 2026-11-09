@@ -1,7 +1,9 @@
 import panel as pn
 
+from guppy.frontend.input_parameters import CARD_STYLES, SECTION_STYLES
 from guppy.frontend.plot_card import (
     plot_card,
+    plot_page,
     plot_with_side_panel,
     side_column,
     toolbar_field,
@@ -48,21 +50,25 @@ class TestPlotWithSidePanel:
 
 
 class TestPlotCard:
-    def test_header_carries_title_and_note(self, panel_extension):
+    def test_is_a_homepage_card_titled_by_its_title(self, panel_extension):
         card = plot_card(title="Selected Trials", note="Trials of one event.", fields=[])
 
-        assert ">Selected Trials</span>" in card.header.object
-        assert ">Trials of one event.</span>" in card.header.object
+        assert card.title == "Selected Trials"
+        assert card.styles == CARD_STYLES
         assert card.collapsible is True
 
-    def test_toolbar_comes_first_then_the_body(self, panel_extension):
+    def test_holds_note_toolbar_and_body_in_one_white_section(self, panel_extension):
         field = toolbar_field("Event", pn.widgets.Select())
         plot = pn.pane.Markdown("plot")
 
-        card = plot_card(title="Title", note="Note.", fields=[field], body=[plot])
+        card = plot_card(title="Title", note="Trials of one event.", fields=[field], body=[plot])
 
-        assert list(card) == [card[0], plot]
-        assert list(card[0]) == [field]
+        (section,) = card
+        assert section.styles == SECTION_STYLES
+        note, toolbar, body = section
+        assert note.object == "Trials of one event."
+        assert list(toolbar) == [field]
+        assert body is plot
 
     def test_trailing_field_is_pushed_to_the_right_edge(self, panel_extension):
         leading = toolbar_field("Event", pn.widgets.Select())
@@ -70,7 +76,7 @@ class TestPlotCard:
 
         card = plot_card(title="Title", note="Note.", fields=[leading], trailing_field=trailing)
 
-        toolbar = card[0]
+        toolbar = card[0][1]
         assert toolbar[0] is leading
         assert isinstance(toolbar[1], pn.Spacer) and toolbar[1].sizing_mode == "stretch_width"
         assert toolbar[2] is trailing
@@ -79,5 +85,20 @@ class TestPlotCard:
         settings_only = plot_card(title="Title", note="Note.", fields=[])
         with_plot = plot_card(title="Title", note="Note.", fields=[], body=[pn.pane.Markdown("plot")])
 
-        assert "border-bottom" not in settings_only[0].styles
-        assert with_plot[0].styles["border-bottom"] == "1px solid #E9ECEF"
+        assert "border-bottom" not in settings_only[0][1].styles
+        assert with_plot[0][1].styles["border-bottom"] == "1px solid #E9ECEF"
+
+
+class TestPlotPage:
+    def test_lays_out_note_toolbar_and_body_with_no_card(self, panel_extension):
+        field = toolbar_field("Comparison", pn.widgets.Select())
+        plot = pn.pane.Markdown("plot")
+
+        page = plot_page(note="Where a PSTH departs from zero.", fields=[field], body=[plot])
+
+        assert isinstance(page, pn.Column)
+        assert not page.select(pn.Card)
+        note, toolbar, body = page
+        assert note.object == "Where a PSTH departs from zero."
+        assert list(toolbar) == [field]
+        assert body is plot

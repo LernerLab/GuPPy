@@ -17,7 +17,7 @@ import pandas as pd
 import panel as pn
 
 from .binned_metrics_view import METRICS, TRACE_LABELS
-from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
+from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
 from ..analysis.io_utils import read_hdf5
 from ..analysis.standard_io import (
     read_binned_covariates_from_hdf5,
@@ -178,8 +178,7 @@ class CovariateCorrelationView:
     @property
     def widget(self) -> pn.Column:
         """The composed selectors, stacked traces, scatter and correlations table."""
-        card = plot_card(
-            title="Covariate Correlation",
+        return plot_page(
             note="How one binned metric tracks a behavioral covariate, bin by bin.",
             fields=[
                 toolbar_field("Recording Site", self.site_select),
@@ -188,7 +187,6 @@ class CovariateCorrelationView:
             ],
             body=[self.trace_pane, self.plot_pane, self.table_pane],
         )
-        return pn.Column(card, sizing_mode="stretch_width")
 
 
 def build_covariate_correlation_view(filepath: str) -> pn.Column:

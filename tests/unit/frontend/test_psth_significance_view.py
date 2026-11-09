@@ -170,9 +170,8 @@ class TestBuildPsthSignificanceView:
         result = build_psth_significance_view(results_folder)
 
         assert isinstance(result, pn.Column)
-        (card,) = result
-        assert isinstance(card, pn.Card)
-        assert len(card.select(pn.widgets.Select)) == 1
+        assert not result.select(pn.Card)
+        assert len(result.select(pn.widgets.Select)) == 1
 
     def test_returns_an_empty_state_note_when_there_are_no_results(self, tmp_path, panel_extension):
         result = build_psth_significance_view(str(tmp_path))

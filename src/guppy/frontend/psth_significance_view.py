@@ -16,7 +16,7 @@ from pathlib import Path
 import holoviews as hv
 import panel as pn
 
-from .plot_card import CONTROL_MARGIN, plot_card, toolbar_field
+from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
 from ..analysis.io_utils import PSTH_SIGNIFICANCE_DIRNAME, PSTH_SIGNIFICANCE_PREFIX
 from ..analysis.standard_io import read_psth_significance_from_hdf5
 from ..visualization.psth_significance import build_significance_panel
@@ -147,13 +147,11 @@ class PsthSignificanceView:
     @property
     def widget(self) -> pn.Column:
         """The composed selector, caption and plot."""
-        card = plot_card(
-            title="PSTH Significance",
+        return plot_page(
             note="Where a PSTH, or the difference of two, departs from zero.",
             fields=[toolbar_field("Comparison", self.comparison_select)],
             body=[self.caption, self.plot_pane],
         )
-        return pn.Column(card, sizing_mode="stretch_width")
 
 
 def build_psth_significance_view(filepath: str) -> pn.Column:

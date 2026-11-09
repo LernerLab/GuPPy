@@ -1,9 +1,14 @@
-"""The card every Visualization plot sits in: a titled header, one toolbar of labeled controls, then the plot."""
+"""How a Visualization plot is laid out: a short note, one toolbar of labeled controls, then the plot.
+
+On a tab with several plots, each sits in a homepage card, which can be collapsed to focus on another.
+On a tab with one, the same layout sits on the page with no card around it.
+"""
 
 import panel as pn
 
+from .input_parameters import CARD_STYLES, SECTION_STYLES
 from .side_panel_split import SidePanelSplit
-from .typography import HEADING_SIZE, INK, SECONDARY_INK, SEMIBOLD, SMALL_SIZE
+from .typography import SECONDARY_INK, SEMIBOLD, SMALL_CLASS, SMALL_SIZE
 
 # Each control's own margin inside a toolbar field, so neighbouring controls share one gap.
 CONTROL_MARGIN = (0, 5)
@@ -11,9 +16,6 @@ CONTROL_MARGIN = (0, 5)
 # A checkbox is shorter than a dropdown, so it drops to sit level with the dropdowns beside it.
 CHECKBOX_MARGIN = (8, 5, 0, 5)
 
-_CARD_STYLES = {"background": "White", "border": "1px solid #C8CCD0", "border-radius": "6px"}
-_HEADER_BACKGROUND = "#F8F9FA"
-_FLAT_STYLESHEET = ":host { box-shadow: none !important; }"
 _RULE_COLOR = "#E9ECEF"
 _LABEL_STYLE = f"font-size: {SMALL_SIZE}; font-weight: {SEMIBOLD}; color: {SECONDARY_INK}; white-space: nowrap;"
 
@@ -89,6 +91,21 @@ def plot_with_side_panel(
     )
 
 
+def _plot_layout(
+    *,
+    note: str,
+    fields: list[pn.viewable.Viewable],
+    trailing_field: pn.viewable.Viewable | None,
+    body: list[pn.viewable.Viewable],
+) -> list[pn.viewable.Viewable]:
+    """The note, the toolbar and the body, in order, with a thin rule under the toolbar when a body follows."""
+    note_pane = pn.pane.Markdown(note, sizing_mode="stretch_width", css_classes=[SMALL_CLASS], margin=(5, 10, 0, 10))
+    trailing = [pn.Spacer(sizing_mode="stretch_width"), trailing_field] if trailing_field is not None else []
+    toolbar_styles = {"border-bottom": f"1px solid {_RULE_COLOR}", "padding-bottom": "12px"} if body else {}
+    toolbar = pn.Row(*fields, *trailing, sizing_mode="stretch_width", styles=toolbar_styles, margin=(4, 10, 8, 10))
+    return [note_pane, toolbar, *body]
+
+
 def plot_card(
     *,
     title: str,
@@ -97,14 +114,14 @@ def plot_card(
     trailing_field: pn.viewable.Viewable | None = None,
     body: list[pn.viewable.Viewable] | None = None,
 ) -> pn.Card:
-    """A card headed by its title and note, with one toolbar row over the plot.
+    """A homepage card holding one white section: a note, one toolbar row, then the plot.
 
     Parameters
     ----------
     title : str
         The card's title.
     note : str
-        Small gray text beside the title, saying what the card shows.
+        Small gray text above the toolbar, saying what the card shows.
     fields : list of pn.viewable.Viewable
         Toolbar fields from the left, in reading order.
     trailing_field : pn.viewable.Viewable, optional
@@ -117,22 +134,40 @@ def plot_card(
     panel.Card
         The card, stretched to the width of its container.
     """
-    body = body or []
-    header = pn.pane.HTML(
-        f"<span style='font-size: {HEADING_SIZE}; font-weight: {SEMIBOLD}; color: {INK};'>{title}</span>"
-        f"<span style='font-size: {SMALL_SIZE}; color: {SECONDARY_INK}; margin-left: 12px;'>{note}</span>",
-        margin=(0, 5),
-    )
-    trailing = [pn.Spacer(sizing_mode="stretch_width"), trailing_field] if trailing_field is not None else []
-    toolbar_styles = {"border-bottom": f"1px solid {_RULE_COLOR}", "padding-bottom": "12px"} if body else {}
-    toolbar = pn.Row(*fields, *trailing, sizing_mode="stretch_width", styles=toolbar_styles, margin=(4, 10, 8, 10))
-    return pn.Card(
-        toolbar,
-        *body,
-        header=header,
+    section = pn.WidgetBox(
+        *_plot_layout(note=note, fields=fields, trailing_field=trailing_field, body=body or []),
         sizing_mode="stretch_width",
-        header_background=_HEADER_BACKGROUND,
-        styles=_CARD_STYLES,
-        stylesheets=[_FLAT_STYLESHEET],
-        margin=(5, 10, 16, 10),
+        styles=SECTION_STYLES,
+    )
+    return pn.Card(section, title=title, styles=dict(CARD_STYLES), sizing_mode="stretch_width")
+
+
+def plot_page(
+    *,
+    note: str,
+    fields: list[pn.viewable.Viewable],
+    trailing_field: pn.viewable.Viewable | None = None,
+    body: list[pn.viewable.Viewable] | None = None,
+) -> pn.Column:
+    """The layout of a plot card with no card around it, for a tab that shows only one plot.
+
+    Parameters
+    ----------
+    note : str
+        Small gray text above the toolbar, saying what the tab shows.
+    fields : list of pn.viewable.Viewable
+        Toolbar fields from the left, in reading order.
+    trailing_field : pn.viewable.Viewable, optional
+        A toolbar field held at the right edge, such as the save controls.
+    body : list of pn.viewable.Viewable, optional
+        What sits under the toolbar, usually the plot. A thin rule separates the two.
+
+    Returns
+    -------
+    panel.Column
+        The note, toolbar and body, stretched to the width of the tab.
+    """
+    return pn.Column(
+        *_plot_layout(note=note, fields=fields, trailing_field=trailing_field, body=body or []),
+        sizing_mode="stretch_width",
     )
