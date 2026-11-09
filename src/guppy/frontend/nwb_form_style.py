@@ -273,12 +273,11 @@ def _markdown(html: str, **styles: str) -> pn.pane.Markdown:
     return pn.pane.Markdown(html, sizing_mode="stretch_width", styles=styles, margin=(0, 0))
 
 
-def page_header(title: str, subtitle: str) -> pn.pane.Markdown:
-    """A page-top title block: name + one-line subtitle over a thin accent rule."""
+def page_header(title: str) -> pn.pane.Markdown:
+    """A page-top title over a thin accent rule."""
     html = (
         f"<div style='padding:4px 0 2px 0;'>"
         f"<div style='font-size:{HEADING_SIZE};font-weight:{SEMIBOLD};color:{INK};'>{title}</div>"
-        f"<div style='font-size:{BODY_SIZE};color:{INK};margin-top:3px;'>{subtitle}</div>"
         f"<div style='height:3px;width:46px;background:{ACCENT};border-radius:3px;margin-top:12px;'></div>"
         f"</div>"
     )

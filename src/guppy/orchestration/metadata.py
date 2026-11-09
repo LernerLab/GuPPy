@@ -51,7 +51,6 @@ def build_metadata_template(
     acquisition formats whose raw files do not record one.
     """
     selector = MetadataSelector(
-        session_label=session_label,
         channels=channels,
         initial_metadata=metadata,
         require_session_start_time=require_session_start_time,

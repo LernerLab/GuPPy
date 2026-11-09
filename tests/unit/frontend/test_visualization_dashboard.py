@@ -66,13 +66,13 @@ class TestVisualizationDashboard:
             assert selector.disabled is False
 
     def test_metric_selector_leads_the_psth_display_settings(self, dashboard):
-        display_settings = dashboard._psth_tab[1]
+        display_settings = dashboard._psth_tab[0]
 
         assert display_settings.title == "Display Settings (all plots)"
         assert display_settings[0][0] is metric_selectors(dashboard._psth_tab)[0]
 
     def test_metric_selector_follows_the_heatmap_event_selector(self, dashboard):
-        heatmap_card = dashboard._heatmap_tab[1]
+        heatmap_card = dashboard._heatmap_tab[0]
 
         assert heatmap_card.title == "Trial heatmap"
         assert heatmap_card[0][1] is metric_selectors(dashboard._heatmap_tab)[0]
@@ -150,7 +150,7 @@ class TestVisualizationDashboard:
     def test_each_card_flows_its_controls_through_one_row(self, dashboard):
         # Controls stacked one per line leave a wide card mostly empty, so each card's
         # controls share one wrapping row.
-        cards = [*dashboard._psth_tab[1:], dashboard._heatmap_tab[1]]
+        cards = [*dashboard._psth_tab, dashboard._heatmap_tab[0]]
 
         assert [card.sizing_mode for card in cards] == ["stretch_width"] * 5
         assert [sum(isinstance(item, pn.FlexBox) for item in card) for card in cards] == [1] * 5
@@ -158,10 +158,8 @@ class TestVisualizationDashboard:
     def test_psth_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._psth_tab, pn.Column)
 
-    def test_psth_tab_title_contains_basename(self, dashboard):
-        first_object = dashboard._psth_tab.objects[0]
-        content = first_object.object if hasattr(first_object, "object") else str(first_object)
-        assert BASENAME in content
+    def test_psth_tab_opens_on_its_settings_without_a_title(self, dashboard):
+        assert isinstance(dashboard._psth_tab.objects[0], pn.Card)
 
     def test_psth_tab_embeds_reactive_plots(self, dashboard, plotter):
         # Panel wraps each reactive method in a ParamMethod pane. Each plot now lives
@@ -177,10 +175,8 @@ class TestVisualizationDashboard:
     def test_heatmap_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._heatmap_tab, pn.Column)
 
-    def test_heatmap_tab_title_contains_basename(self, dashboard):
-        first_object = dashboard._heatmap_tab.objects[0]
-        content = first_object.object if hasattr(first_object, "object") else str(first_object)
-        assert BASENAME in content
+    def test_heatmap_tab_opens_on_its_card_without_a_title(self, dashboard):
+        assert isinstance(dashboard._heatmap_tab.objects[0], pn.Card)
 
     def test_psth_tab_uses_number_inputs_for_axis_limits(self, dashboard):
         # 3 plots x 2 axes x (min, max) = 12 FloatInput boxes.

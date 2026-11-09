@@ -21,11 +21,10 @@ class TestHumanize:
 
 
 class TestChromeBuilders:
-    def test_page_header_includes_title_and_subtitle(self):
-        pane = style.page_header("NWB Metadata", "Photo (run1)")
+    def test_page_header_is_the_title_alone(self):
+        pane = style.page_header("NWB Metadata")
         assert isinstance(pane, pn.pane.Markdown)
         assert "NWB Metadata" in pane.object
-        assert "Photo (run1)" in pane.object
 
     def test_section_label_with_and_without_note(self):
         with_note = style.section_label("Session", "last name first")
@@ -54,11 +53,10 @@ class TestTypeScale:
     def test_field_labels_are_14px_regular(self):
         assert "  font-size: 14px;\n  font-weight: 400;" in style.INPUT_STYLESHEET
 
-    def test_page_header_title_is_16px_semibold_over_a_14px_subtitle(self):
-        html = style.page_header("NWB Metadata", "Photo (run1)").object
+    def test_page_header_title_is_16px_semibold(self):
+        html = style.page_header("NWB Metadata").object
 
         assert "font-size:16px;font-weight:600;" in html
-        assert "font-size:14px;" in html
 
     def test_section_label_is_14px_semibold_without_uppercase(self):
         html = style.section_label("Session").object

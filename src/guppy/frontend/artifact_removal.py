@@ -119,9 +119,8 @@ class PreprocessingReviewView:
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.site_select.param.watch(self._refresh, "value")
 
-        heading = "Artifact removal review" if artifacts_removed else "Preprocessing review"
         self.widget = pn.Column(
-            f"## {heading} — {self.label}",
+            f"## {self.label}",
             self.site_select,
             self.plot_pane,
             sizing_mode="stretch_width",

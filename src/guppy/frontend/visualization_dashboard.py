@@ -418,7 +418,6 @@ class VisualizationDashboard:
         )
 
         return pn.Column(
-            "## " + self.basename,
             shared_settings,
             single_event_plot,
             comparison_plot,
@@ -497,7 +496,7 @@ class VisualizationDashboard:
             sizing_mode="stretch_width",
         )
 
-        return pn.Column("## " + self.basename, heatmap_card, sizing_mode="stretch_width")
+        return pn.Column(heatmap_card, sizing_mode="stretch_width")
 
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""

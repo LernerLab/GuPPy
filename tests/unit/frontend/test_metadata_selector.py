@@ -62,7 +62,7 @@ COMPLETE_SCALARS = {
 class TestMetadataSelector:
     @pytest.fixture
     def selector(self, panel_extension) -> MetadataSelector:
-        return MetadataSelector(session_label="Photo (run1)", channels=CHANNELS, initial_metadata={})
+        return MetadataSelector(channels=CHANNELS, initial_metadata={})
 
     # -- Layout --------------------------------------------------------------------------------------------------------
     def test_the_form_has_no_width_cap(self, selector):
@@ -124,7 +124,6 @@ class TestMetadataSelector:
 
     def test_marked_required_when_the_format_supplies_none(self, panel_extension):
         selector = MetadataSelector(
-            session_label="Photo (run1)",
             channels=CHANNELS,
             initial_metadata={},
             require_session_start_time=True,

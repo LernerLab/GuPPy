@@ -85,12 +85,10 @@ class MetadataSelector:
 
     def __init__(
         self,
-        session_label: str,
         channels: list[Channel],
         initial_metadata: dict,
         require_session_start_time: bool = False,
     ) -> None:
-        self.session_label = session_label
         self.channels = channels
         # Only the formats whose raw files carry no recording start time make the user supply one,
         # so the required mark is per-session rather than a property of the field.
@@ -185,7 +183,7 @@ class MetadataSelector:
         )
 
         self.widget = pn.Column(
-            style.page_header("NWB Metadata", session_label),
+            style.page_header("NWB Metadata"),
             style.intro_note(
                 "Provide the metadata needed to export this session to NWB. Define each piece of hardware and "
                 "biology once under <strong>Optical Hardware</strong> and <strong>Biological Reagents</strong>, link "
