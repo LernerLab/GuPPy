@@ -13,7 +13,6 @@ from pathlib import Path
 
 import panel as pn
 
-from ..frontend import nwb_form_style as style
 from ..frontend.metadata_selector import MetadataSelector
 from ..utils import page_links
 from ..utils.acquisition_format import (
@@ -55,12 +54,7 @@ def build_metadata_template(
         initial_metadata=metadata,
         require_session_start_time=require_session_start_time,
     )
-    template = pn.template.BootstrapTemplate(
-        title=f"Metadata GUI - {session_label}",
-        header_background=style.HEADER_BG,
-        header_color="#FFFFFF",
-    )
-    template.config.raw_css = [style.DOCUMENT_CSS]
+    template = pn.template.BootstrapTemplate(title=f"Metadata GUI - {session_label}")
 
     def _format_errors(errors: list[str]) -> str:
         return "####Alert !! \n Missing required metadata for NWB export:\n" + "\n".join(

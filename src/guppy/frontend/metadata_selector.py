@@ -16,6 +16,7 @@ import logging
 import panel as pn
 
 from . import nwb_form_style as style
+from .input_parameters import CARD_STYLES, SECTION_STYLES
 from .row_controls import delete_row_button
 from .typography import title_case
 from ..utils.nwb_metadata import (
@@ -76,8 +77,8 @@ def _fields(*fields: object) -> pn.FlexBox:
 
 
 def _sheets(required: bool) -> list[str]:
-    """Per-widget stylesheet list for an input (adds the accent required-mark when required)."""
-    return [style.INPUT_STYLESHEET, style.REQUIRED_STYLESHEET] if required else [style.INPUT_STYLESHEET]
+    """Per-widget stylesheet list for an input: the required mark when required, otherwise nothing."""
+    return [style.REQUIRED_STYLESHEET] if required else []
 
 
 class MetadataSelector:
@@ -97,8 +98,8 @@ class MetadataSelector:
             "#### No alerts !!",
             alert_type="success",
             sizing_mode="stretch_width",
-            stylesheets=[style.ALERT_STYLESHEET],
             margin=(0, 0, 10, 0),
+            visible=False,
         )
 
         devices, channel_rows, scalars = parse_metadata_dict(metadata=initial_metadata, channels=channels)
@@ -130,30 +131,21 @@ class MetadataSelector:
             pn.Spacer(sizing_mode="stretch_width"),
             self.load_existing,
             sizing_mode="stretch_width",
-            styles={
-                "background": style.SURFACE_INSET,
-                "border": f"1px solid {style.BORDER}",
-                "border-radius": "12px",
-                "padding": "12px 18px",
-                "align-items": "center",
-                "margin": "10px 0 6px 0",
-            },
+            styles={**SECTION_STYLES, "padding": "8px 12px", "align-items": "center"},
         )
         self.build_config = pn.widgets.Button(
             name="Build & Preview YAML",
             sizing_mode="stretch_width",
-            stylesheets=[style.BUTTON_OUTLINE],
         )
         self.save = pn.widgets.Button(
             name="Save Metadata",
+            button_type="primary",
             sizing_mode="stretch_width",
-            stylesheets=[style.BUTTON_ACCENT],
         )
         self.path = pn.widgets.TextInput(
             name="Saved to",
             disabled=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.INPUT_STYLESHEET],
         )
 
         advanced_card = pn.Card(
@@ -162,10 +154,10 @@ class MetadataSelector:
                 "can't express something, then Save."
             ),
             self.code_editor,
-            title="Advanced — Raw YAML",
+            title="Raw YAML (advanced)",
             collapsed=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
+            styles=CARD_STYLES,
             margin=(8, 0),
         )
         action_footer = pn.Column(
@@ -173,22 +165,16 @@ class MetadataSelector:
             pn.Row(self.build_config, self.save, sizing_mode="stretch_width"),
             self.path,
             sizing_mode="stretch_width",
-            styles={
-                "background": style.SURFACE,
-                "border": f"1px solid {style.BORDER}",
-                "border-radius": "14px",
-                "padding": "18px 20px",
-                "box-shadow": "0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.05)",
-            },
+            styles={**SECTION_STYLES, "padding": "8px 12px"},
         )
 
         self.widget = pn.Column(
-            style.page_header("NWB Metadata"),
+            pn.pane.Markdown("## NWB Metadata", sizing_mode="stretch_width"),
             style.intro_note(
                 "Provide the metadata needed to export this session to NWB. Define each piece of hardware and "
                 "biology once under <strong>Optical Hardware</strong> and <strong>Biological Reagents</strong>, link "
-                "them to each channel under <strong>Fiber-photometry channels</strong>, then "
-                "<strong>Build &amp; preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
+                "them to each channel under <strong>Fiber-Photometry Channels</strong>, then "
+                "<strong>Build &amp; Preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
                 "fixed by your <code>storesList.csv</code>."
             ),
             load_strip,
@@ -198,7 +184,7 @@ class MetadataSelector:
             advanced_card,
             action_footer,
             sizing_mode="stretch_width",
-            styles={"padding": "8px 4px 40px 4px"},
+            styles={"padding": "0 0 40px 0"},
         )
 
         self.refresh_link_options()
@@ -241,7 +227,7 @@ class MetadataSelector:
         # Experimenter repeater.
         self.experimenter_box = _fields()
         self.experimenter_inputs: list[pn.widgets.TextInput] = []
-        add_experimenter = pn.widgets.Button(name="Add Experimenter", width=180, stylesheets=[style.BUTTON_GHOST])
+        add_experimenter = pn.widgets.Button(name="Add Experimenter", width=180)
         add_experimenter.on_click(lambda event: self._add_experimenter(""))
         for name in scalars.get("experimenter") or [""]:
             self._add_experimenter(name)
@@ -277,7 +263,6 @@ class MetadataSelector:
             options={"Age": "Age", "Date of Birth": "Date of birth"},
             value="Date of birth" if scalars.get("date_of_birth") else "Age",
             inline=True,
-            stylesheets=[style.RADIO_STYLESHEET],
         )
         self.age_or_dob.param.watch(lambda event: self._sync_age_dob(), "value")
         self._sync_age_dob()
@@ -296,7 +281,7 @@ class MetadataSelector:
             title="Core NWB Metadata",
             collapsed=False,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
+            styles=CARD_STYLES,
             margin=(8, 0),
         )
 
@@ -306,7 +291,6 @@ class MetadataSelector:
             value=value,
             placeholder="Last, First",
             width=_FIELD_WIDTH,
-            stylesheets=[style.INPUT_STYLESHEET],
         )
         remove = delete_row_button(description="Delete this experimenter")
         remove.on_click(lambda event: self._remove_experimenter(row, text_input))
@@ -340,7 +324,7 @@ class MetadataSelector:
                     title=group_name,
                     collapsed=False,
                     sizing_mode="stretch_width",
-                    stylesheets=[style.SECTION_CARD],
+                    styles=CARD_STYLES,
                     margin=(8, 0),
                 )
             )
@@ -351,7 +335,6 @@ class MetadataSelector:
         add_button = pn.widgets.Button(
             name=f"Add {title_case(category.singular)}",
             width=240,
-            stylesheets=[style.BUTTON_OUTLINE],
         )
         add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self.refresh_link_options()))
         card = pn.Card(
@@ -360,7 +343,7 @@ class MetadataSelector:
             title=title_case(category.label),
             collapsed=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.CATEGORY_CARD],
+            styles=SECTION_STYLES,
             margin=(4, 0),
         )
         self.category_cards[key] = card
@@ -390,7 +373,7 @@ class MetadataSelector:
             if spec.name == "name":
                 name_widget = widget
 
-        remove = pn.widgets.Button(name="Remove", width=110, stylesheets=[style.BUTTON_GHOST])
+        remove = pn.widgets.Button(name="Remove", width=110)
         # Each instance is its own collapsible card, titled by its name so a category with many is navigable.
         card = pn.Card(
             *rows,
@@ -398,7 +381,7 @@ class MetadataSelector:
             title=(name_widget.value or "(unnamed)"),
             collapsed=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.INSTANCE_CARD],
+            styles=CARD_STYLES,
             margin=(4, 0),
         )
         if name_widget is not None:
@@ -451,7 +434,7 @@ class MetadataSelector:
                 chosen = current
             return pn.widgets.Select(
                 name=label,
-                options=choices,
+                options={title_case(choice): choice for choice in choices},
                 value=chosen,
                 description=spec.doc,
                 width=_FIELD_WIDTH,
@@ -535,7 +518,7 @@ class MetadataSelector:
                 _fields(excitation, emission, *link_widgets),
                 hide_header=True,
                 sizing_mode="stretch_width",
-                stylesheets=[style.INSTANCE_CARD],
+                styles=CARD_STYLES,
                 margin=(6, 0),
             )
             recording_site_to_cards.setdefault(channel.recording_site, []).append(instance_card)
@@ -546,7 +529,7 @@ class MetadataSelector:
                 title=recording_site.upper(),
                 collapsed=False,
                 sizing_mode="stretch_width",
-                stylesheets=[style.CATEGORY_CARD],
+                styles=SECTION_STYLES,
                 margin=(6, 0),
             )
             for recording_site, instance_cards in recording_site_to_cards.items()
@@ -556,7 +539,7 @@ class MetadataSelector:
             title="Fiber-Photometry Channels",
             collapsed=False,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
+            styles=CARD_STYLES,
             margin=(8, 0),
         )
 
@@ -712,6 +695,7 @@ class MetadataSelector:
         """Set the alert text, colored red when it reports a problem and green otherwise."""
         self.alert.object = message
         self.alert.alert_type = "danger" if is_error else "success"
+        self.alert.visible = message != "#### No alerts !!"
 
     def set_path(self, value: str) -> None:
         """Set the displayed save path."""

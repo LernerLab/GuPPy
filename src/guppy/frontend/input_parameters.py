@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 
 SAME_ROOT_LABEL = "Output root folder is the same as the input root folder"
 
+# Every card's body is WhiteSmoke.
+CARD_STYLES = {"background": "WhiteSmoke"}
+
 # White against the card's WhiteSmoke, with a border, so the sections read as
 # distinct blocks rather than merging into the card behind them.
 SECTION_STYLES = {
@@ -184,7 +187,7 @@ class ParameterForm:
         # Where the file browsers open before a root is chosen. Choosing an input root
         # re-points the session browser, so this only shows until then.
         self.folder_path = default_root_path()
-        self.styles = dict(background="WhiteSmoke")
+        self.styles = dict(CARD_STYLES)
         # Sessions the run selection was last synced against, so a change can tell which
         # sessions are new and should inherit the bulk run-name choice.
         self._sessions_in_run_selection: list[str] = []

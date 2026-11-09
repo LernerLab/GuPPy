@@ -4,9 +4,8 @@ from pathlib import Path
 
 import panel as pn
 
-from . import nwb_form_style as style
 from .store_labeling_config import StoreLabelingConfig
-from .typography import BODY_SIZE
+from .typography import BODY_SIZE, INK
 
 pn.extension(notifications=True)
 
@@ -79,10 +78,7 @@ class StoreLabelingSelector:
             options={"Create New Run": "create_new_file", "Overwrite Existing Run": "over_write_file"},
             value="create_new_file",
             inline=True,
-            stylesheets=[
-                f":host label {{ color: {style.INK}; font-size: {BODY_SIZE}; }} "
-                f':host input[type="radio"] {{ accent-color: {style.ACCENT}; }}'
-            ],
+            stylesheets=[f":host label {{ color: {INK}; font-size: {BODY_SIZE}; }}"],
         )
 
         self.literal_input_2 = pn.widgets.CodeEditor(

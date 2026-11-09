@@ -278,6 +278,29 @@ class TestMetadataSelector:
         selector.set_yaml(metadata)
         assert selector.get_yaml() == metadata
 
+    def test_alert_is_hidden_until_there_is_something_to_report(self, selector):
+        assert selector.alert.visible is False
+        selector.set_alert_message("####Alert !! \n something missing", is_error=True)
+        assert selector.alert.visible is True
+        selector.set_alert_message("#### No alerts !!", is_error=False)
+        assert selector.alert.visible is False
+
+    def test_cards_use_the_homepage_card_and_section_styles(self, selector):
+        core_card = selector.widget[3]
+        assert core_card.title == "Core NWB Metadata"
+        assert core_card.styles == {"background": "WhiteSmoke"}
+        category_card = selector.category_cards["optical_fiber"]
+        assert category_card.styles["background"] == "White"
+        assert category_card.styles["border"] == "1px solid #C8CCD0"
+
+    def test_enumerated_values_show_title_case_names(self, selector):
+        selector._add_device("virus_injection", {"hemisphere": "left"})
+
+        (record,) = selector.device_entry_records["virus_injection"]
+        hemisphere = next(widget for spec, widget in record["fields"] if spec.name == "hemisphere")
+        assert hemisphere.options == {"Left": "left", "Right": "right"}
+        assert hemisphere.value == "left"
+
     def test_set_alert_message_colors_errors_red(self, selector):
         selector.set_alert_message("####Alert !! \n something missing", is_error=True)
         assert selector.alert.alert_type == "danger"
