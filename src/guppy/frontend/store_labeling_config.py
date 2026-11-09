@@ -2,7 +2,7 @@ import logging
 
 import panel as pn
 
-from .typography import MONOSPACE_FAMILY, MONOSPACE_SCALE, SMALL_CLASS
+from .typography import SMALL_CLASS
 
 pn.extension()
 
@@ -206,10 +206,7 @@ class StoreLabelingConfig:
         store_id_to_store_labels : dict
             Previously saved assignments used to pre-populate the widgets.
         """
-        label = pn.pane.Markdown(
-            f"<span style='font-family: {MONOSPACE_FAMILY}; font-size: {MONOSPACE_SCALE};'>{store_id}</span>",
-            margin=(5, 10, 0, 10),
-        )
+        label = pn.pane.Markdown(f"**{store_id}**", margin=(5, 10, 0, 10))
 
         # Pre-populate from cache if available; otherwise start blank
         options = ["", "control", "signal", "event TTLs", "behavioral covariate"]
