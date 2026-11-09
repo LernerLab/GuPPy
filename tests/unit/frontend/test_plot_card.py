@@ -102,3 +102,13 @@ class TestPlotPage:
         assert note.object == "Where a PSTH departs from zero."
         assert list(toolbar) == [field]
         assert body is plot
+
+    def test_opens_on_the_toolbar_when_there_is_no_note(self, panel_extension):
+        field = toolbar_field("Recording Site", pn.widgets.Select())
+        plot = pn.pane.Markdown("plot")
+
+        page = plot_page(fields=[field], body=[plot])
+
+        toolbar, body = page
+        assert list(toolbar) == [field]
+        assert body is plot

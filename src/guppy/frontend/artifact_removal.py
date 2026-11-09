@@ -36,11 +36,6 @@ hv.extension("bokeh")
 
 logger = logging.getLogger(__name__)
 
-_REVIEW_NOTES = {
-    False: "The control and signal, the control fitted to the signal, then the z-score and ΔF/F derived from them.",
-    True: "The same traces after artifact removal: control, signal, the fit, then the z-score and ΔF/F.",
-}
-
 
 def load_pair_traces(filepath: str) -> dict[str, dict[str, object]]:
     """Load the control/signal/fit traces for every channel pair in a run folder.
@@ -125,7 +120,6 @@ class PreprocessingReviewView:
         self.site_select.param.watch(self._refresh, "value")
 
         self.widget = plot_page(
-            note=_REVIEW_NOTES[artifacts_removed],
             fields=[run_field, toolbar_field("Recording Site", self.site_select)],
             body=[self.plot_pane],
         )

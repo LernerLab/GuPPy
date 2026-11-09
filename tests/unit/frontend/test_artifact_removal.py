@@ -27,8 +27,8 @@ def _write_site(filepath, site):
 
 
 def toolbar_labels(page):
-    """The labels of a run-folder page's toolbar fields, which follow its note."""
-    return [field[0].object.split(">")[1].split("<")[0] for field in page[1]]
+    """The labels of a review page's toolbar fields, which open the page."""
+    return [field[0].object.split(">")[1].split("<")[0] for field in page[0]]
 
 
 def run_folder_selectors(page):

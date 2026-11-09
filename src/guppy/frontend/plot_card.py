@@ -101,12 +101,16 @@ def _plot_layout(
     trailing_field: pn.viewable.Viewable | None,
     body: list[pn.viewable.Viewable],
 ) -> list[pn.viewable.Viewable]:
-    """The note, the toolbar and the body, in order, with a thin rule under the toolbar when a body follows."""
-    note_pane = pn.pane.Markdown(note, sizing_mode="stretch_width", css_classes=[SMALL_CLASS], margin=(5, 10, 0, 10))
+    """The note (when there is one), the toolbar and the body, with a thin rule under the toolbar when a body follows."""
+    note_panes = (
+        [pn.pane.Markdown(note, sizing_mode="stretch_width", css_classes=[SMALL_CLASS], margin=(5, 10, 0, 10))]
+        if note
+        else []
+    )
     trailing = [pn.Spacer(sizing_mode="stretch_width"), trailing_field] if trailing_field is not None else []
     toolbar_styles = {"border-bottom": f"1px solid {_RULE_COLOR}", "padding-bottom": "12px"} if body else {}
     toolbar = pn.Row(*fields, *trailing, sizing_mode="stretch_width", styles=toolbar_styles, margin=(4, 10, 8, 10))
-    return [note_pane, toolbar, *body]
+    return [*note_panes, toolbar, *body]
 
 
 def plot_card(
@@ -147,23 +151,23 @@ def plot_card(
 
 def plot_page(
     *,
-    note: str,
     fields: list[pn.viewable.Viewable],
     trailing_field: pn.viewable.Viewable | None = None,
     body: list[pn.viewable.Viewable] | None = None,
+    note: str = "",
 ) -> pn.Column:
     """The layout of a plot card with no card around it, for a tab that shows only one plot.
 
     Parameters
     ----------
-    note : str
-        Small gray text above the toolbar, saying what the tab shows.
     fields : list of pn.viewable.Viewable
         Toolbar fields from the left, in reading order.
     trailing_field : pn.viewable.Viewable, optional
         A toolbar field held at the right edge, such as the save controls.
     body : list of pn.viewable.Viewable, optional
         What sits under the toolbar, usually the plot. A thin rule separates the two.
+    note : str, optional
+        Small gray text above the toolbar, for what the page's controls and plot do not say themselves.
 
     Returns
     -------
