@@ -2,7 +2,7 @@ import logging
 
 import panel as pn
 
-from .typography import SMALL_CLASS
+from .typography import BODY_SIZE, SECONDARY_INK, SEMIBOLD, SMALL_CLASS, SMALL_SIZE
 
 pn.extension()
 
@@ -10,6 +10,18 @@ logger = logging.getLogger(__name__)
 
 # Sentinel option shown in a control's "control for" dropdown before a signal is chosen.
 NO_SIGNAL_OPTION = "— select signal —"
+
+# Column widths shared by the heading and every store's row, so the columns line up.
+_STORE_COLUMN_WIDTH = 140
+_TYPE_COLUMN_WIDTH = 170
+_NAME_COLUMN_WIDTH = 260
+# Each column also carries Panel's 10px margin on either side.
+_ROW_WIDTH = _STORE_COLUMN_WIDTH + _TYPE_COLUMN_WIDTH + _NAME_COLUMN_WIDTH + 6 * 10
+
+NAME_OR_SIGNAL_HELP = (
+    "For a signal, the recording site, such as DMS. For a control, the signal it belongs to. "
+    "For event TTLs, the event name. For a behavioral covariate, the name of the measured variable."
+)
 
 
 class StoreLabelingConfig:
@@ -57,9 +69,8 @@ class StoreLabelingConfig:
         store_id_to_store_labels: dict[str, list[str]],
     ) -> None:
         self.config_widgets = []
-        # One store under another, so each store's Type and Name fields read on their own.
+        # One row per store under a shared heading, so the stores read as a table.
         self.store_entries = pn.Column()
-        self._dropdown_help_map = {}
         self._dropdown_to_key = {}
         # Per control-row widget_key → the signal recording site it was assigned to in a
         # previous session (from cache), so we can re-select it once options exist.
@@ -82,6 +93,7 @@ class StoreLabelingConfig:
                 "## Label Stores\nSelect appropriate options for each store and provide a label as needed:"
             )
         )
+        self.config_widgets.append(self._column_heading())
         self.config_widgets.append(self.store_entries)
 
         for i, store_id in enumerate(store_ids):
@@ -102,23 +114,33 @@ class StoreLabelingConfig:
             )
         )
 
+    @staticmethod
+    def _column_heading() -> pn.Row:
+        style = f"font-size: {SMALL_SIZE}; font-weight: {SEMIBOLD}; color: {SECONDARY_INK};"
+        return pn.Row(
+            pn.pane.HTML(f"<div style='{style}'>Store</div>", width=_STORE_COLUMN_WIDTH),
+            pn.pane.HTML(f"<div style='{style}'>Type</div>", width=_TYPE_COLUMN_WIDTH),
+            pn.Row(
+                pn.pane.HTML(f"<div style='{style}'>Name or Signal</div>", margin=(5, 0, 5, 10)),
+                pn.widgets.TooltipIcon(value=NAME_OR_SIGNAL_HELP, margin=(0, 10, 0, 0)),
+                width=_NAME_COLUMN_WIDTH + 20,
+            ),
+        )
+
     def _on_dropdown_value_change(self, event: object) -> None:
-        help_pane = self._dropdown_help_map.get(event.obj)
-        if help_pane is not None:
-            help_pane.object = self._get_help_text(dropdown_value=event.new)
+        textbox = self.store_id_textboxes[self._dropdown_to_key[event.obj]]
+        textbox.placeholder = self._name_placeholder(dropdown_value=event.new)
         self._apply_row_visibility(event.obj)
         # A row switching to/from "signal" changes the available control targets.
         self._refresh_control_options()
 
-    def _get_help_text(self, dropdown_value: str) -> str:
-        if dropdown_value == "control":
-            return "*Select the signal this control belongs to*"
-        elif dropdown_value == "signal":
-            return "*Type appropriate recording-site name*"
+    def _name_placeholder(self, dropdown_value: str) -> str:
+        if dropdown_value == "signal":
+            return "Recording-site name"
         elif dropdown_value == "event TTLs":
-            return "*Type event name for the TTLs*"
+            return "Event name"
         elif dropdown_value == "behavioral covariate":
-            return "*Type name for the measured variable*"
+            return "Variable name"
         else:
             return ""
 
@@ -206,7 +228,10 @@ class StoreLabelingConfig:
         store_id_to_store_labels : dict
             Previously saved assignments used to pre-populate the widgets.
         """
-        label = pn.pane.Markdown(f"**{store_id}**", margin=(5, 10, 0, 10))
+        label = pn.pane.HTML(
+            f"<div style='font-size: {BODY_SIZE}; font-weight: {SEMIBOLD}; padding-top: 7px;'>{store_id}</div>",
+            width=_STORE_COLUMN_WIDTH,
+        )
 
         # Pre-populate from cache if available; otherwise start blank
         options = ["", "control", "signal", "event TTLs", "behavioral covariate"]
@@ -224,32 +249,37 @@ class StoreLabelingConfig:
         self._widget_keys.append(widget_key)
         self._widget_key_to_store_id[widget_key] = store_id
 
-        dropdown = pn.widgets.Select(name="Type", value=default_type, options=options, width=150)
+        dropdown = pn.widgets.Select(value=default_type, options=options, width=_TYPE_COLUMN_WIDTH)
         store_id_dropdowns[widget_key] = dropdown
         self._dropdown_to_key[dropdown] = widget_key
 
         # Name box (used for signal / event TTLs / behavioral covariate rows)
         textbox = pn.widgets.TextInput(
-            name="Name", value=default_name, placeholder="Enter recording-site/event/variable name", width=200
+            value=default_name, placeholder=self._name_placeholder(default_type), width=_NAME_COLUMN_WIDTH
         )
         store_id_textboxes[widget_key] = textbox
         textbox.param.watch(lambda event: self._refresh_control_options(), "value")
 
         # Signal picker (used for control rows) — options filled by _refresh_control_options
-        control_ref = pn.widgets.Select(name="Control For", value="", options={NO_SIGNAL_OPTION: ""}, width=250)
+        control_ref = pn.widgets.Select(value="", options={NO_SIGNAL_OPTION: ""}, width=_NAME_COLUMN_WIDTH)
         store_id_control_refs[widget_key] = control_ref
         if default_type == "control":
             self._control_desired_recording_site[widget_key] = default_name
 
-        initial_help_text = self._get_help_text(default_type)
-        help_pane = pn.pane.Markdown(initial_help_text, css_classes=[SMALL_CLASS], height=20, margin=(0, 0, 0, 0))
-        self._dropdown_help_map[dropdown] = help_pane
         dropdown.param.watch(self._on_dropdown_value_change, "value")
 
         # Show the Name box for signal/event/covariate rows, the signal picker for control rows.
         textbox.visible = default_type in ("signal", "event TTLs", "behavioral covariate")
         control_ref.visible = default_type == "control"
 
-        # Wrap dropdown in a column with a same-height spacer so it bottom-aligns with the inputs
-        fields = pn.Row(pn.Column(pn.Spacer(height=20), dropdown), pn.Column(help_pane, textbox, control_ref))
-        self.store_entries.append(pn.Column(label, fields, margin=(5, 0)))
+        self.store_entries.append(
+            pn.Row(
+                label,
+                dropdown,
+                textbox,
+                control_ref,
+                width=_ROW_WIDTH,
+                styles={"border-bottom": "1px solid #E9ECEF"},
+                margin=(0, 0, 4, 0),
+            )
+        )
