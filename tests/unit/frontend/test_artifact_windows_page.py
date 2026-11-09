@@ -618,21 +618,21 @@ class TestCopyWindowsAcrossMismatchedSites:
 class TestTraceSelection:
     """One trace is marked at a time, so there is a single plot and a single toolbar."""
 
-    def test_offers_the_three_traces_by_store_name(self, selector):
+    def test_offers_the_three_traces_by_name_and_site(self, selector):
         assert selector.trace_select.options == {
-            "control_DMS": CONTROL_TRACE,
-            "signal_DMS": SIGNAL_TRACE,
-            "cntrl_sig_fit_DMS": FIT_TRACE,
+            "Control (DMS)": CONTROL_TRACE,
+            "Signal (DMS)": SIGNAL_TRACE,
+            "Control Fit (DMS)": FIT_TRACE,
         }
 
     def test_starts_on_the_signal_trace(self, selector):
         assert selector.trace_select.value == SIGNAL_TRACE
-        assert rendered_figure(selector).title.text == "signal_DMS"
+        assert rendered_figure(selector).title.text == "Signal (DMS)"
 
     def test_choosing_a_trace_redraws_the_plot_on_it(self, selector):
         selector.trace_select.value = CONTROL_TRACE
 
-        assert rendered_figure(selector).title.text == "control_DMS"
+        assert rendered_figure(selector).title.text == "Control (DMS)"
 
     def test_the_control_is_drawn_blue_and_the_signal_green(self, panel_extension, tmp_path):
         # A flat trace shades to an empty image, so these traces rise across the recording.
@@ -660,7 +660,7 @@ class TestTraceSelection:
         selector.trace_select.value = FIT_TRACE
         figure = rendered_figure(selector)
 
-        assert figure.title.text == "cntrl_sig_fit_DMS"
+        assert figure.title.text == "Control Fit (DMS)"
         # The signal and the fit are separate shaded layers over the same axes.
         assert len(figure.renderers) == 3
 
@@ -670,8 +670,12 @@ class TestTraceSelection:
         selector.site_select.value = "DLS"
 
         assert selector.trace_select.value == CONTROL_TRACE
-        assert list(selector.trace_select.options) == ["control_DLS", "signal_DLS", "cntrl_sig_fit_DLS"]
-        assert rendered_figure(selector).title.text == "control_DLS"
+        assert list(selector.trace_select.options) == [
+            "Control (DLS)",
+            "Signal (DLS)",
+            "Control Fit (DLS)",
+        ]
+        assert rendered_figure(selector).title.text == "Control (DLS)"
 
     def test_a_drag_marks_the_same_period_whichever_trace_is_shown(self, selector):
         """The periods belong to the recording site, not to the trace they were drawn on."""

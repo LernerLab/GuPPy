@@ -1,7 +1,7 @@
 """Display-time rendering for whole-session time-binned metrics.
 
 The binned values are drawn as bars spanning the bins they summarize, stacked
-under the trace they were reduced from. Both panels share the ``time (s)``
+under the trace they were reduced from. Both panels share the ``Time (s)``
 dimension, so bokeh links their axes and zooming the bars zooms the trace with
 them -- which is what makes a bin width that is too coarse or too fine visible
 at a glance.
@@ -12,6 +12,7 @@ import logging
 import holoviews as hv
 import numpy as np
 
+from .labels import TIME_LABEL
 from .palette import SIGNAL
 from .shading import shade_trace
 
@@ -35,13 +36,13 @@ def build_bin_bars(
     values : np.ndarray
         One value per bin.
     value_label : str
-        Axis label for the values, e.g. ``"mean z-score"``.
+        Axis label for the values, e.g. ``"Mean Z-Score"``.
 
     Returns
     -------
     hv.Rectangles
         Bars from zero to each bin's value. The first key dimension is
-        ``"time (s)"``, so this panel links axes with a trace plotted against the
+        ``"Time (s)"``, so this panel links axes with a trace plotted against the
         same dimension.
     """
     bin_starts = np.asarray(bin_starts, dtype=float)
@@ -61,7 +62,7 @@ def build_bin_bars(
 
     return hv.Rectangles(
         bars,
-        kdims=["time (s)", value_label, "time (s) end", value_label + " end"],
+        kdims=[TIME_LABEL, value_label, f"{TIME_LABEL} end", value_label + " end"],
     )
 
 
@@ -86,7 +87,7 @@ def build_binned_metrics_panel(
     trace : np.ndarray
         Full-session trace the metric was reduced from.
     trace_label : str
-        Axis label for the trace, e.g. ``"z-score"``.
+        Axis label for the trace, e.g. ``"Z-Score"``.
     bin_starts, bin_ends : np.ndarray
         Bin bounds in seconds.
     values : np.ndarray
@@ -103,7 +104,7 @@ def build_binned_metrics_panel(
     hv.Layout
         The shaded trace above, the per-bin bars below, on a linked time axis.
     """
-    trace_curve = shade_trace(hv.Curve((timestamps, trace), "time (s)", trace_label)).opts(
+    trace_curve = shade_trace(hv.Curve((timestamps, trace), TIME_LABEL, trace_label)).opts(
         title=f"{suptitle} — {trace_label}", responsive=True, height=panel_height
     )
     bars = build_bin_bars(bin_starts=bin_starts, bin_ends=bin_ends, values=values, value_label=value_label).opts(

@@ -24,13 +24,13 @@ _FILE_PREFIX = "binned_metrics_"
 
 # Column -> (menu label, axis label, the trace the metric was reduced from).
 METRICS = {
-    "mean_zscore": ("Mean z-score", "mean z-score", "z_score"),
-    "mean_dff": ("Mean ΔF/F", "mean ΔF/F", "dff"),
-    "transient_count_z_score": ("Transient count (z-score)", "transients per bin", "z_score"),
-    "transient_count_dff": ("Transient count (ΔF/F)", "transients per bin", "dff"),
+    "mean_zscore": ("Mean Z-Score", "Mean Z-Score", "z_score"),
+    "mean_dff": ("Mean ΔF/F", "Mean ΔF/F", "dff"),
+    "transient_count_z_score": ("Transient Count (Z-Score)", "Transients per Bin", "z_score"),
+    "transient_count_dff": ("Transient Count (ΔF/F)", "Transients per Bin", "dff"),
 }
 
-TRACE_LABELS = {"z_score": "z-score", "dff": "ΔF/F"}
+TRACE_LABELS = {"z_score": "Z-Score", "dff": "ΔF/F"}
 
 
 def binned_metrics_sites(filepath: str) -> list[str]:

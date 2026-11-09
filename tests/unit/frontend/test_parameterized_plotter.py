@@ -14,6 +14,8 @@ from guppy.frontend.parameterized_plotter import (
     overview_y_options,
     psth_result_paths,
     remove_cols,
+    trial_column_label,
+    trial_options,
 )
 
 
@@ -50,7 +52,7 @@ class TestBuildPlotter:
             filepath=str(one_site_output_directory), events=["RewardPort"], metric="z_score", x_min=-5.0, x_max=10.0
         )
 
-        assert plotter.Y_Label == "z-score"
+        assert plotter.Y_Label == "Z-Score"
         np.testing.assert_allclose(plotter.df_new["RewardPort_DMS"]["mean"].to_numpy(), np.full(30, 1.0))
 
     def test_dff_results_are_loaded_and_label_the_y_axis(self, one_site_output_directory, panel_extension):
@@ -367,7 +369,7 @@ class TestParameterizedPlotter:
         assert plotter.select_trials_checkbox == ["just trials"]
 
     def test_default_y_label(self, plotter):
-        assert plotter.Y_Label == "z-score"
+        assert plotter.Y_Label == "Z-Score"
 
     def test_default_save_options(self, plotter):
         assert plotter.save_options_cont == "png"
@@ -1051,3 +1053,27 @@ def capture_notifications(monkeypatch):
         staticmethod(lambda level, message: recorded.append((level, message))),
     )
     return recorded
+
+
+class TestTrialLabels:
+    def test_a_session_trial_reads_as_its_event_time_to_two_decimals(self):
+        assert trial_column_label("81.81415939331055") == "81.81 s"
+
+    def test_a_group_trial_keeps_the_name_of_the_run_it_averages(self):
+        assert trial_column_label("mouse_02_output_1") == "mouse_02_output_1"
+
+    def test_options_label_each_value_and_keep_the_value(self):
+        assert trial_options(["1 - 81.81415939331055", "2 - 147.3552384376526", "All"]) == {
+            "1 · 81.81 s": "1 - 81.81415939331055",
+            "2 · 147.36 s": "2 - 147.3552384376526",
+            "All": "All",
+        }
+
+    def test_the_trial_pickers_offer_labeled_trials(self, plotter):
+        # The fixture's trial columns are named, not timed, so they read as their names.
+        assert plotter.param["psth_y"].objects == {
+            "1 · trial_1": "1 - trial_1",
+            "2 · trial_2": "2 - trial_2",
+            "3 · trial_3": "3 - trial_3",
+        }
+        assert list(plotter.param["heatmap_y"].objects)[-1] == "All"

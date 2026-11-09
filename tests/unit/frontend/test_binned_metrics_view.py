@@ -68,9 +68,9 @@ class TestBinnedMetricsView:
 
     def test_metric_menu_covers_the_columns_present(self, view):
         assert view.metric_select.options == {
-            "Mean z-score": "mean_zscore",
+            "Mean Z-Score": "mean_zscore",
             "Mean ΔF/F": "mean_dff",
-            "Transient count (z-score)": "transient_count_z_score",
+            "Transient Count (Z-Score)": "transient_count_z_score",
         }
 
     def test_metric_menu_omits_counts_the_detector_did_not_produce(self, tmp_path, panel_extension):
@@ -78,15 +78,15 @@ class TestBinnedMetricsView:
         write_site_outputs(str(tmp_path), "dms", count_columns=())
         binned_metrics_view = BinnedMetricsView(str(tmp_path))
 
-        assert "Transient count (z-score)" not in binned_metrics_view.metric_select.options
-        assert "Mean z-score" in binned_metrics_view.metric_select.options
+        assert "Transient Count (Z-Score)" not in binned_metrics_view.metric_select.options
+        assert "Mean Z-Score" in binned_metrics_view.metric_select.options
 
     def test_metric_menu_covers_both_counts_when_both_were_computed(self, tmp_path, panel_extension):
         write_site_outputs(str(tmp_path), "dms", count_columns=("transient_count_z_score", "transient_count_dff"))
         binned_metrics_view = BinnedMetricsView(str(tmp_path))
 
-        assert "Transient count (z-score)" in binned_metrics_view.metric_select.options
-        assert "Transient count (ΔF/F)" in binned_metrics_view.metric_select.options
+        assert "Transient Count (Z-Score)" in binned_metrics_view.metric_select.options
+        assert "Transient Count (ΔF/F)" in binned_metrics_view.metric_select.options
 
     def test_plots_the_selected_metric_values(self, view):
         view.metric_select.value = "mean_zscore"

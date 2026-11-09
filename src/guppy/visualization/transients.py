@@ -3,6 +3,7 @@ import logging
 import holoviews as hv
 import numpy as np
 
+from .labels import TIME_LABEL
 from .palette import HIGHLIGHT
 from .shading import shade_trace
 
@@ -31,6 +32,6 @@ def build_peaks_overlay(
         Density-shaded z-score trace overlaid with a scatter of peak markers.
         Only the trace is shaded; every detected peak keeps its marker.
     """
-    curve = shade_trace(hv.Curve((timestamps, z_score), "time (s)", title))
+    curve = shade_trace(hv.Curve((timestamps, z_score), TIME_LABEL, title))
     peaks = hv.Scatter((timestamps[peaksIndex], z_score[peaksIndex])).opts(color=HIGHLIGHT, size=6)
     return (curve * peaks).opts(title=title, responsive=True, height=300)

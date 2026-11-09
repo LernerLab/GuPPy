@@ -25,6 +25,7 @@ from ..utils.artifact_windows import (
     windows_to_coords,
 )
 from ..utils.utils import parse_run_name, sibling_run_folders
+from ..visualization.labels import trace_title
 from ..visualization.palette import CONTROL, SIGNAL
 from ..visualization.preprocessing import (
     build_markable_trace,
@@ -500,9 +501,13 @@ class ArtifactWindowSelector:
         self._rebuild_marking_plot()
 
     def _trace_options(self, site: str) -> dict[str, str]:
-        """Label each of the site's three traces by the store it came from."""
+        """Label each of the site's three traces by what it is and the site it was recorded at."""
         control_name, signal_name, fit_name = self.pair_traces[site]["plot_name"]
-        return {control_name: CONTROL_TRACE, signal_name: SIGNAL_TRACE, fit_name: FIT_TRACE}
+        return {
+            trace_title(control_name): CONTROL_TRACE,
+            trace_title(signal_name): SIGNAL_TRACE,
+            trace_title(fit_name): FIT_TRACE,
+        }
 
     def _rebuild_marking_plot(self) -> None:
         """Redraw the plot for the selected site and trace, on a fresh span stream.
@@ -518,9 +523,9 @@ class ArtifactWindowSelector:
         control_name, signal_name, fit_name = trace["plot_name"]
         choice = self.trace_select.value
         values, overlay, title, color = {
-            CONTROL_TRACE: (trace["control"], None, control_name, CONTROL),
-            SIGNAL_TRACE: (trace["signal"], None, signal_name, SIGNAL),
-            FIT_TRACE: (trace["signal"], trace["fit"], fit_name, SIGNAL),
+            CONTROL_TRACE: (trace["control"], None, trace_title(control_name), CONTROL),
+            SIGNAL_TRACE: (trace["signal"], None, trace_title(signal_name), SIGNAL),
+            FIT_TRACE: (trace["signal"], trace["fit"], trace_title(fit_name), SIGNAL),
         }[choice]
         return build_markable_trace(
             x=trace["x"],

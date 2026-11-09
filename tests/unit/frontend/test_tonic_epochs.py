@@ -231,13 +231,13 @@ class TestTonicResultsView:
         assert len(bars) == 2
 
         zscore_bars = bars[0].Bars.I
-        assert list(zscore_bars.dimension_values("epoch")) == ["baseline", "post"]
+        assert list(zscore_bars.dimension_values("Epoch")) == ["baseline", "post"]
         # Means are 1.0 and 9.0; against the default "baseline" epoch the bars carry the
         # change, so the reference epoch sits at zero and "post" carries the full step.
-        np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [0.0, 8.0])
+        np.testing.assert_allclose(zscore_bars.dimension_values("Δ Mean Z-Score"), [0.0, 8.0])
 
         dff_bars = bars[1].Bars.I
-        np.testing.assert_allclose(dff_bars.dimension_values("Δ mean ΔF/F"), [0.0, 0.8])
+        np.testing.assert_allclose(dff_bars.dimension_values("Δ Mean ΔF/F"), [0.0, 0.8])
 
     def test_each_epoch_bar_matches_its_window_color(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
@@ -257,8 +257,8 @@ class TestTonicResultsView:
 
         # Re-basing on "post" puts it at zero and sends "baseline" negative by the step.
         zscore_bars = view.bars_pane.object[0].Bars.I
-        np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [-8.0, 0.0])
-        assert view.bars_pane.object[0].Bars.I.kdims[0].name == "epoch"
+        np.testing.assert_allclose(zscore_bars.dimension_values("Δ Mean Z-Score"), [-8.0, 0.0])
+        assert view.bars_pane.object[0].Bars.I.kdims[0].name == "Epoch"
 
     def test_bars_mark_no_change_at_zero(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")

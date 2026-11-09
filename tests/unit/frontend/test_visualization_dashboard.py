@@ -67,13 +67,13 @@ class TestVisualizationDashboard:
     def test_metric_selector_offers_every_available_metric(self, dashboard):
         for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
             (selector,) = metric_selectors(tab)
-            assert selector.options == {"z-score": "z_score", "\u0394F/F": "dff"}
+            assert selector.options == {"Z-Score": "z_score", "\u0394F/F": "dff"}
             assert selector.value == "z_score"
 
     def test_metric_selector_offers_the_one_metric_that_was_computed(self, single_metric_dashboard):
         for tab in (single_metric_dashboard._psth_tab, single_metric_dashboard._heatmap_tab):
             (selector,) = metric_selectors(tab)
-            assert selector.options == {"z-score": "z_score"}
+            assert selector.options == {"Z-Score": "z_score"}
             assert selector.value == "z_score"
             assert selector.disabled is False
 

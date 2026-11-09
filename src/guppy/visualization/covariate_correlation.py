@@ -1,7 +1,7 @@
 """Display-time rendering for behavioral covariates against binned photometry metrics.
 
 Two views of the same numbers: the covariate's own trace with the per-bin means it was
-reduced to, drawn on the ``time (s)`` dimension so it stacks and links with the photometry
+reduced to, drawn on the ``Time (s)`` dimension so it stacks and links with the photometry
 panels of :mod:`guppy.visualization.binned_metrics`, and a scatter of one against the other
 with a point per bin.
 """
@@ -12,6 +12,7 @@ import holoviews as hv
 import numpy as np
 
 from .binned_metrics import build_bin_bars
+from .labels import TIME_LABEL
 from .palette import COVARIATE, SIGNAL
 
 logger = logging.getLogger(__name__)
@@ -52,13 +53,13 @@ def build_covariate_panel(
     Returns
     -------
     hv.Layout
-        The raw covariate above, its per-bin means below, on a ``time (s)`` axis shared
+        The raw covariate above, its per-bin means below, on a ``Time (s)`` axis shared
         with the photometry panels.
     """
     covariate_timestamps = np.asarray(covariate_timestamps, dtype=float).ravel()
     covariate_values = np.asarray(covariate_values, dtype=float).ravel()
 
-    raw_curve = hv.Curve((covariate_timestamps, covariate_values), "time (s)", covariate_label)
+    raw_curve = hv.Curve((covariate_timestamps, covariate_values), TIME_LABEL, covariate_label)
     raw_panel = (
         raw_curve.opts(color=COVARIATE_COLOR) * hv.Scatter(raw_curve).opts(color=COVARIATE_COLOR, size=5)
     ).opts(responsive=True, height=panel_height, title=covariate_label)
@@ -66,13 +67,13 @@ def build_covariate_panel(
         bin_starts=bin_starts,
         bin_ends=bin_ends,
         values=binned_values,
-        value_label=f"mean {covariate_label}",
+        value_label=f"Mean {covariate_label}",
     ).opts(
         color=COVARIATE_COLOR,
         line_color="white",
         responsive=True,
         height=panel_height,
-        title=f"mean {covariate_label}",
+        title=f"Mean {covariate_label}",
     )
 
     return hv.Layout([raw_panel, binned_bars]).cols(1)

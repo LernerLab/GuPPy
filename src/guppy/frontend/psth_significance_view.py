@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # A comparison name ends with its basename, ``<metric>_<recording_site>``, so the metric
 # token is the last one of these it contains -- searched from the right so an event whose
 # own label contains "dff" or "z_score" cannot shadow it.
-METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
+METRIC_LABELS = {"z_score": "Z-Score", "dff": "\u0394F/F"}
 
 
 def metric_label_for(name: str) -> str:
@@ -134,8 +134,8 @@ class PsthSignificanceView:
             ci_lower=significance["ci_lower"].to_numpy(),
             ci_upper=significance["ci_upper"].to_numpy(),
             significant=significance["significant"].to_numpy(),
-            value_label=f"difference in {metric}" if is_difference else metric,
-            estimate_label="difference of means" if is_difference else "mean PSTH",
+            value_label=f"Difference in {metric}" if is_difference else metric,
+            estimate_label="Difference of Means" if is_difference else "Mean PSTH",
             significance_level=float(significance["alpha"].iloc[0]),
             title=self.comparison_select.value,
         )

@@ -16,6 +16,7 @@ import panel as pn
 from .plot_card import CONTROL_MARGIN, RUN_FOLDER_WIDTH, plot_page, toolbar_field
 from ..analysis.standard_io import read_transients_from_hdf5
 from ..utils.utils import relative_output_labels
+from ..visualization.labels import trace_title
 from ..visualization.transients import build_peaks_overlay
 
 # Load the HoloViews bokeh backend for the peak-overlay plots.
@@ -76,7 +77,7 @@ class PeaksReviewView:
             options=list(runs), value=first_run, width=RUN_FOLDER_WIDTH, margin=CONTROL_MARGIN
         )
         self.trace_select = pn.widgets.Select(
-            options=list(runs[first_run]), value=next(iter(runs[first_run])), width=220, margin=CONTROL_MARGIN
+            options=self._trace_options(first_run), value=next(iter(runs[first_run])), width=220, margin=CONTROL_MARGIN
         )
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.run_select.param.watch(self._on_run_change, "value")
@@ -91,7 +92,7 @@ class PeaksReviewView:
     def _make_plot(self) -> hv.DynamicMap:
         entry = self.runs[self.run_select.value][self.trace_select.value]
         return build_peaks_overlay(
-            title=self.trace_select.value,
+            title=trace_title(self.trace_select.value),
             z_score=entry["z_score"],
             timestamps=entry["timestamps"],
             peaksIndex=entry["peaksInd"],
@@ -101,11 +102,15 @@ class PeaksReviewView:
         traces = list(self.runs[event.new])
         # Keep the same trace when the new run has it, so runs can be compared trace by trace.
         current = self.trace_select.value
-        self.trace_select.options = traces
+        self.trace_select.options = self._trace_options(event.new)
         if current in traces:
             self._refresh(event)
         else:
             self.trace_select.value = traces[0]
+
+    def _trace_options(self, run: str) -> dict[str, str]:
+        """Name each of a run's traces by what it is and its site, keyed to its file name."""
+        return {trace_title(trace): trace for trace in self.runs[run]}
 
     def _refresh(self, event: object) -> None:
         self.plot_pane.object = self._make_plot()

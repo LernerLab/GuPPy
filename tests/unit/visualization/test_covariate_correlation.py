@@ -41,7 +41,7 @@ class TestBuildCovariatePanel:
     def test_raw_panel_keeps_every_sample(self, panel):
         line = panel[0].Curve.I
 
-        np.testing.assert_allclose(line.dimension_values("time (s)"), [0.0, 2.0, 4.0, 6.0, 8.0])
+        np.testing.assert_allclose(line.dimension_values("Time (s)"), [0.0, 2.0, 4.0, 6.0, 8.0])
         np.testing.assert_allclose(line.dimension_values("akinesia"), [1.0, 2.0, 3.0, 4.0, 5.0])
 
     def test_raw_panel_overlays_markers_on_the_line(self, panel):
@@ -50,14 +50,14 @@ class TestBuildCovariatePanel:
     def test_bins_span_their_true_bounds(self, panel):
         bars = panel[1]
 
-        np.testing.assert_allclose(bars.dimension_values("time (s)"), [0.0, 5.0])
-        np.testing.assert_allclose(bars.dimension_values("time (s) end"), [5.0, 10.0])
-        np.testing.assert_allclose(bars.dimension_values("mean akinesia"), [0.0, 0.0])
-        np.testing.assert_allclose(bars.dimension_values("mean akinesia end"), [2.0, 4.5])
+        np.testing.assert_allclose(bars.dimension_values("Time (s)"), [0.0, 5.0])
+        np.testing.assert_allclose(bars.dimension_values("Time (s) end"), [5.0, 10.0])
+        np.testing.assert_allclose(bars.dimension_values("Mean akinesia"), [0.0, 0.0])
+        np.testing.assert_allclose(bars.dimension_values("Mean akinesia end"), [2.0, 4.5])
 
     def test_both_panels_share_the_time_dimension(self, panel):
-        assert panel[0].Curve.I.kdims[0].name == "time (s)"
-        assert panel[1].kdims[0].name == "time (s)"
+        assert panel[0].Curve.I.kdims[0].name == "Time (s)"
+        assert panel[1].kdims[0].name == "Time (s)"
 
     def test_empty_bins_are_not_drawn_at_zero(self, panel_extension):
         panel = build_covariate_panel(
@@ -69,7 +69,7 @@ class TestBuildCovariatePanel:
             covariate_label="akinesia",
         )
 
-        np.testing.assert_allclose(panel[1].dimension_values("time (s)"), [0.0])
+        np.testing.assert_allclose(panel[1].dimension_values("Time (s)"), [0.0])
 
 
 class TestBuildCovariateScatter:

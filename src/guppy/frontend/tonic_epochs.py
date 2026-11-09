@@ -325,7 +325,7 @@ class TonicEpochConfig:
         trace = self.site_traces[site]
         return build_stacked_traces(
             x=trace["x"],
-            traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
+            traces={"Z-Score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
             spans=self.spans_pipe,
         )
 
@@ -425,10 +425,10 @@ class TonicResultsView:
         colors = [epoch_color(index) for index in range(len(epochs))]
 
         panels = []
-        for column, label in (("diff_zscore", "Δ mean z-score"), ("diff_dff", "Δ mean ΔF/F")):
+        for column, label in (("diff_zscore", "Δ Mean Z-Score"), ("diff_dff", "Δ Mean ΔF/F")):
             values = [float(table.loc[epoch, column]) for epoch in epochs]
-            bars = hv.Bars(list(zip(epochs, values, strict=True)), "epoch", label).opts(
-                color=hv.dim("epoch").categorize(dict(zip(epochs, colors, strict=True))),
+            bars = hv.Bars(list(zip(epochs, values, strict=True)), "Epoch", label).opts(
+                color=hv.dim("Epoch").categorize(dict(zip(epochs, colors, strict=True))),
                 title=f"{label} vs. {baseline}",
                 responsive=True,
                 height=280,
@@ -458,7 +458,7 @@ class TonicResultsView:
         site = self.site_select.value
         timestamps = np.asarray(read_hdf5("timeCorrection_" + site, self.filepath, "timestampNew")).ravel()
         traces = {
-            "z-score": np.asarray(read_hdf5("", Path(self.filepath) / ("z_score_" + site + ".hdf5"), "data")).ravel(),
+            "Z-Score": np.asarray(read_hdf5("", Path(self.filepath) / ("z_score_" + site + ".hdf5"), "data")).ravel(),
             "ΔF/F": np.asarray(read_hdf5("", Path(self.filepath) / ("dff_" + site + ".hdf5"), "data")).ravel(),
         }
         # The analysed windows are fixed on disk, so the pipe is seeded once per rebuild

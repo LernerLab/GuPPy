@@ -67,7 +67,7 @@ class TestPeaksReviewViewSelectors:
         view = PeaksReviewView(load_peaks(two_runs, "z_score"))
 
         assert view.run_select.options == ["session_a/output_1", "session_b/output_1"]
-        assert sorted(view.trace_select.options) == ["z_score_DLS", "z_score_DMS"]
+        assert view.trace_select.options == {"Z-Score (DMS)": "z_score_DMS", "Z-Score (DLS)": "z_score_DLS"}
         assert [field[0].object.split(">")[1].split("<")[0] for field in view.widget[1]] == ["Run Folder", "Trace"]
 
     def test_switching_run_keeps_the_trace_when_the_run_has_it(self, panel_extension, two_runs):
@@ -76,7 +76,7 @@ class TestPeaksReviewViewSelectors:
 
         view.run_select.value = "session_b/output_1"
 
-        assert view.trace_select.options == ["z_score_DLS"]
+        assert view.trace_select.options == {"Z-Score (DLS)": "z_score_DLS"}
         assert view.trace_select.value == "z_score_DLS"
 
     def test_switching_run_falls_back_to_its_first_trace(self, panel_extension, two_runs):

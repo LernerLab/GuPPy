@@ -156,11 +156,11 @@ class TestPreprocessingReviewView:
     def test_stacks_all_five_traces_for_the_selected_site(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DMS"
         assert _panel_titles(preprocessing_review) == [
-            "control_DMS",
-            "signal_DMS",
-            "cntrl_sig_fit_DMS",
-            "z_score_DMS",
-            "dff_DMS",
+            "Control (DMS)",
+            "Signal (DMS)",
+            "Control Fit (DMS)",
+            "Z-Score (DMS)",
+            "ΔF/F (DMS)",
         ]
 
     def test_zscore_and_dff_panels_show_their_own_data(self, preprocessing_review):
@@ -173,11 +173,11 @@ class TestPreprocessingReviewView:
     def test_site_selector_switches_every_panel_together(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DLS"
         assert _panel_titles(preprocessing_review) == [
-            "control_DLS",
-            "signal_DLS",
-            "cntrl_sig_fit_DLS",
-            "z_score_DLS",
-            "dff_DLS",
+            "Control (DLS)",
+            "Signal (DLS)",
+            "Control Fit (DLS)",
+            "Z-Score (DLS)",
+            "ΔF/F (DLS)",
         ]
 
     def test_shades_nothing_even_when_windows_are_saved(self, preprocessing_review, run_folder):

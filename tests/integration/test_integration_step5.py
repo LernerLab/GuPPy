@@ -21,8 +21,8 @@ STORE_ID_TO_STORE_LABEL = {
 
 
 def metric_selectors(tab):
-    """Return the "Metric" selectors rendered inside one dashboard tab."""
-    return [widget for widget in tab.select(pn.widgets.Select) if widget.name == "Metric"]
+    """Return the metric selectors rendered inside one dashboard tab: the selects offering a PSTH metric."""
+    return [widget for widget in tab.select(pn.widgets.Select) if {"z_score", "dff"} & set(widget.values)]
 
 
 @pytest.mark.parametrize(
@@ -72,7 +72,7 @@ def test_step5(step5_fixture_name, expected_event_substring, request):
         # The fixtures run step 4 with its default metric, so the z-score is the only
         # one on disk: it is what the plotter loaded and what labels the y axis.
         assert dashboard.available_metrics == ["z_score"]
-        assert dashboard.plotter.Y_Label == "z-score"
+        assert dashboard.plotter.Y_Label == "Z-Score"
 
     # Confirm at least one dashboard has an event matching the expected TTL store_id
     all_events = [event for dashboard in captured_dashboards for event in dashboard.plotter.event_selector_objects]
