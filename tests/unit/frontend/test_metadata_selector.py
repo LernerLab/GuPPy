@@ -310,14 +310,14 @@ class TestMetadataSelector:
         assert category_section.styles["background"] == "White"
         assert category_section.styles["border"] == "1px solid #C8CCD0"
 
-    def test_each_device_is_a_flat_card_with_a_darker_border_and_a_regular_title(self, selector):
+    def test_each_device_is_a_flat_card_with_a_darker_border_and_a_semibold_title(self, selector):
         selector._add_device("optical_fiber", {"name": "fiber"})
         (record,) = selector.device_entry_records["optical_fiber"]
         card = record["container"]
         assert card.styles["border"] == "1px solid #ADB5BD"
         assert card.header_background == "#F1F3F5"
         assert card.stylesheets == [":host { box-shadow: none !important; }"]
-        assert card.header.styles == {"font-size": "14px", "font-weight": "400", "color": "#212529"}
+        assert card.header.styles == {"font-size": "14px", "font-weight": "600", "color": "#212529"}
 
     def test_enumerated_values_show_title_case_names(self, selector):
         selector._add_device("virus_injection", {"hemisphere": "left"})

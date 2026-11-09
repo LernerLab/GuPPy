@@ -11,7 +11,6 @@ from .typography import (
     BODY_SIZE,
     INK,
     MONOSPACE_FAMILY,
-    REGULAR,
     SECONDARY_INK,
     SEMIBOLD,
     SMALL_SIZE,
@@ -133,8 +132,8 @@ def section_box(title: str, *contents: pn.viewable.Viewable, note: str = "") -> 
 
 
 def item_title(text: str) -> pn.pane.HTML:
-    """The title of one device card, in body text so it ranks below its category's heading."""
-    return pn.pane.HTML(text, styles={"font-size": BODY_SIZE, "font-weight": str(REGULAR), "color": INK})
+    """The title of one device card: body size in semibold, which reads as a title on the card's gray header."""
+    return pn.pane.HTML(text, styles={"font-size": BODY_SIZE, "font-weight": str(SEMIBOLD), "color": INK})
 
 
 def subgroup_label(text: str) -> pn.pane.Markdown:
