@@ -116,13 +116,13 @@ class TestStoreLabelingConfig:
     # ── _name_placeholder ─────────────────────────────────────────────────────
 
     def test_name_placeholder_signal(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._name_placeholder("signal") == "Recording-site name"
+        assert store_labeling_config_instance._name_placeholder("signal") == "Enter the recording site"
 
     def test_name_placeholder_event_ttls(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._name_placeholder("event TTLs") == "Event name"
+        assert store_labeling_config_instance._name_placeholder("event TTLs") == "Enter the event name"
 
     def test_name_placeholder_covariate(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._name_placeholder("behavioral covariate") == "Variable name"
+        assert store_labeling_config_instance._name_placeholder("behavioral covariate") == "Enter the variable name"
 
     def test_name_placeholder_empty(self, store_labeling_config_instance):
         assert store_labeling_config_instance._name_placeholder("") == ""
@@ -160,12 +160,12 @@ class TestStoreLabelingConfig:
 
     def test_cached_type_sets_the_name_placeholder(self, panel_extension, show_config_button):
         _, _, textboxes, _ = build_config(show_config_button, ["Dv2A"], {"Dv2A": ["signal_DLS"]})
-        assert textboxes["Dv2A_0"].placeholder == "Recording-site name"
+        assert textboxes["Dv2A_0"].placeholder == "Enter the recording site"
 
     def test_dropdown_change_to_event_updates_placeholder(self, panel_extension, show_config_button):
         _, dropdowns, textboxes, _ = build_config(show_config_button, ["PrtR"])
         dropdowns["PrtR_0"].value = "event TTLs"
-        assert textboxes["PrtR_0"].placeholder == "Event name"
+        assert textboxes["PrtR_0"].placeholder == "Enter the event name"
 
     def test_control_row_shows_signal_picker_hides_name_box(self, panel_extension, show_config_button):
         _, dropdowns, textboxes, control_refs = build_config(show_config_button, ["Dv1A"])

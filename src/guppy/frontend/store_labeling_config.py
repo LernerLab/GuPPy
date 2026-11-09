@@ -19,8 +19,8 @@ _NAME_COLUMN_WIDTH = 260
 _ROW_WIDTH = _STORE_COLUMN_WIDTH + _TYPE_COLUMN_WIDTH + _NAME_COLUMN_WIDTH + 6 * 10
 
 NAME_OR_SIGNAL_HELP = (
-    "For a signal, the recording site, such as DMS. For a control, the signal it belongs to. "
-    "For event TTLs, the event name. For a behavioral covariate, the name of the measured variable."
+    "For a signal, enter its recording site, such as DMS. For a control, select the signal it belongs to. "
+    "For event TTLs, enter the event name. For a behavioral covariate, enter the name of the measured variable."
 )
 
 
@@ -136,11 +136,11 @@ class StoreLabelingConfig:
 
     def _name_placeholder(self, dropdown_value: str) -> str:
         if dropdown_value == "signal":
-            return "Recording-site name"
+            return "Enter the recording site"
         elif dropdown_value == "event TTLs":
-            return "Event name"
+            return "Enter the event name"
         elif dropdown_value == "behavioral covariate":
-            return "Variable name"
+            return "Enter the variable name"
         else:
             return ""
 
