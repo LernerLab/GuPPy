@@ -13,6 +13,9 @@ from .typography import SECONDARY_INK, SEMIBOLD, SMALL_CLASS, SMALL_SIZE
 # Each control's own margin inside a toolbar field, so neighbouring controls share one gap.
 CONTROL_MARGIN = (0, 5)
 
+# Wide enough for a session and run path, which is what tells runs from different sessions apart.
+RUN_FOLDER_WIDTH = 560
+
 # A checkbox is shorter than a dropdown, so it drops to sit level with the dropdowns beside it.
 CHECKBOX_MARGIN = (8, 5, 0, 5)
 

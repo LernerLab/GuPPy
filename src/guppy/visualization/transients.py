@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_peaks_overlay(
-    *, title: str, suptitle: str, z_score: np.ndarray, timestamps: np.ndarray, peaksIndex: np.ndarray
+    *, title: str, z_score: np.ndarray, timestamps: np.ndarray, peaksIndex: np.ndarray
 ) -> hv.DynamicMap:
     """Build a z-score trace overlaid with markers at detected transient peaks.
 
@@ -18,8 +18,6 @@ def build_peaks_overlay(
     ----------
     title : str
         Trace title.
-    suptitle : str
-        Session-level title prefix.
     z_score : np.ndarray
         Z-score signal values.
     timestamps : np.ndarray
@@ -35,4 +33,4 @@ def build_peaks_overlay(
     """
     curve = shade_trace(hv.Curve((timestamps, z_score), "time (s)", title))
     peaks = hv.Scatter((timestamps[peaksIndex], z_score[peaksIndex])).opts(color=HIGHLIGHT, size=6)
-    return (curve * peaks).opts(title=f"{suptitle} — {title}", responsive=True, height=300)
+    return (curve * peaks).opts(title=title, responsive=True, height=300)

@@ -24,9 +24,7 @@ def peaks_index():
 class TestBuildPeaksOverlay:
     def test_returns_shaded_trace_and_scatter(self, panel_extension, timestamps, z_score, peaks_index):
         overlay = resolve_plot(
-            build_peaks_overlay(
-                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
-            )
+            build_peaks_overlay(title="z_score_DMS", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index)
         )
         assert isinstance(overlay, hv.Overlay)
         # The trace is shaded into an image; the peak markers stay a scatter of real points.
@@ -35,9 +33,7 @@ class TestBuildPeaksOverlay:
 
     def test_trace_has_correct_data(self, panel_extension, timestamps, z_score, peaks_index):
         overlay = resolve_plot(
-            build_peaks_overlay(
-                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
-            )
+            build_peaks_overlay(title="z_score_DMS", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index)
         )
         # The shaded trace spans the full timestamp range and the z-score min/max.
         extent = tuple(float(value) for value in overlay.RGB.I.bounds.lbrt())
@@ -45,9 +41,7 @@ class TestBuildPeaksOverlay:
 
     def test_markers_at_peak_positions(self, panel_extension, timestamps, z_score, peaks_index):
         overlay = resolve_plot(
-            build_peaks_overlay(
-                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
-            )
+            build_peaks_overlay(title="z_score_DMS", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index)
         )
         # Markers sit at t=1.0 and t=3.0 with the corresponding z-score values.
         np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(0), np.array([1.0, 3.0]))
@@ -57,9 +51,7 @@ class TestBuildPeaksOverlay:
         from bokeh.models import Plot
 
         figure = hv.render(
-            build_peaks_overlay(
-                title="z_score_DMS", suptitle="session", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index
-            )
+            build_peaks_overlay(title="z_score_DMS", z_score=z_score, timestamps=timestamps, peaksIndex=peaks_index)
         )
         plots = [model for model in figure.references() if isinstance(model, Plot)]
         assert len(plots) == 1
@@ -67,8 +59,6 @@ class TestBuildPeaksOverlay:
 
     def test_empty_peaks_index(self, panel_extension, timestamps, z_score):
         overlay = resolve_plot(
-            build_peaks_overlay(
-                title="t", suptitle="s", z_score=z_score, timestamps=timestamps, peaksIndex=np.array([], dtype=int)
-            )
+            build_peaks_overlay(title="t", z_score=z_score, timestamps=timestamps, peaksIndex=np.array([], dtype=int))
         )
         assert overlay.Scatter.I.dimension_values(0).shape == (0,)

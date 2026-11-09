@@ -1,6 +1,7 @@
 import holoviews as hv
 import numpy as np
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.analysis.standard_io import write_tonic_to_hdf5
@@ -33,14 +34,16 @@ def site_traces():
 class TestTonicEpochConfig:
     @pytest.fixture
     def config(self, panel_extension, run_folder, site_traces):
-        config = TonicEpochConfig(str(run_folder), site_traces, label="output_1")
+        config = TonicEpochConfig(str(run_folder), site_traces, run_field=pn.Column())
         # Adding, removing, and the live preview act on the selected site; pin it so the
         # tests do not depend on dict iteration order.
         config.site_select.value = "DMS"
         return config
 
-    def test_page_is_headed_by_the_run_alone(self, config):
-        assert config.widget[0].object == "# output_1"
+    def test_toolbar_holds_the_run_and_recording_site(self, config):
+        run_field, site_field = config.widget[1]
+        assert site_field[1][0] is config.site_select
+        assert site_field[0].object.split(">")[1].split("<")[0] == "Recording Site"
 
     def test_epochs_render_under_column_headings(self, config):
         config.set_epochs("DMS", [("baseline", 1.0, 3.0)])
@@ -61,7 +64,7 @@ class TestTonicEpochConfig:
             run_folder / "tonic_epochs_DMS.csv", index=False
         )
 
-        config = TonicEpochConfig(str(run_folder), site_traces, label="output_1")
+        config = TonicEpochConfig(str(run_folder), site_traces, run_field=pn.Column())
 
         assert config.epochs_for("DMS") == [("baseline", 0.0, 2.0)]
         assert config.epochs_for("DLS") == []
@@ -197,13 +200,13 @@ def _write_tonic_results(filepath, site):
 
 class TestTonicResultsView:
     def test_build_returns_note_when_no_results(self, panel_extension, run_folder):
-        panel_column = build_tonic_results_view(str(run_folder), label="output_1")
+        panel_column = build_tonic_results_view(str(run_folder))
         markdown = panel_column.objects[0]
         assert "No tonic" in markdown.object
 
     def test_diff_table_is_relative_to_selected_baseline(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         table = view.table_pane.object
         # Baseline defaults to the first epoch ("baseline"), so its diff is 0 and
@@ -220,7 +223,7 @@ class TestTonicResultsView:
 
     def test_bars_plot_the_change_from_baseline_not_the_absolute_means(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         bars = view.bars_pane.object
         # One panel for z-score, one for dF/F — the two differ by an order of magnitude,
@@ -238,7 +241,7 @@ class TestTonicResultsView:
 
     def test_each_epoch_bar_matches_its_window_color(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         zscore_bars = view.bars_pane.object[0].Bars.I
         bar_colors = hv.Store.lookup_options("bokeh", zscore_bars, "style").kwargs["color"].apply(zscore_bars)
@@ -248,7 +251,7 @@ class TestTonicResultsView:
 
     def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         view.baseline_select.value = "post"
 
@@ -259,7 +262,7 @@ class TestTonicResultsView:
 
     def test_bars_mark_no_change_at_zero(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         # Bars run either side of zero, so the dashed line is pinned to no-change
         # regardless of which epoch is the baseline.

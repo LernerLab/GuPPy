@@ -71,7 +71,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[]),
         )
         assert isinstance(layout, hv.Layout)
@@ -85,7 +84,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[]),
         )
         # Top two carry a single shaded trace plus the (empty) spans layer; the bottom
@@ -107,7 +105,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[]),
         )
         control_overlay, signal_overlay, fit_overlay = (resolve_plot(plot) for plot in layout.values())
@@ -130,7 +127,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[(1.0, 2.0)]),
         )
         _, spans = resolve_plot(layout.values()[0]).values()
@@ -146,7 +142,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[(0.0, 1.0, "#6E56CF"), (2.0, 3.0, "#1F7FC4")]),
         )
         _, spans = resolve_plot(layout.values()[0]).values()
@@ -160,7 +155,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[]),
             extra_traces={
                 "z_score": np.array([30.0, 31.0, 32.0, 33.0, 34.0]),
@@ -181,7 +175,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[(1.0, 2.0)]),
             extra_traces={"z_score": np.array([30.0, 31.0, 32.0, 33.0, 34.0])},
         )
@@ -196,7 +189,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
         )
         # Without the spans layer a single-trace panel is a bare image; only the fit panel,
         # which overlays two traces, stays an Overlay.
@@ -212,7 +204,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=make_spans_pipe(windows=[(1.0, 2.0), (3.0, 4.0)]),
         )
         for plot in layout.values():
@@ -233,7 +224,6 @@ class TestBuildControlSignalFit:
             signal=signal_trace,
             fit=fit,
             titles=["control", "signal", "fit"],
-            suptitle="session",
             spans=spans,
         )
 
@@ -264,7 +254,6 @@ class TestPanelSizing:
                 signal=np.cos(x),
                 fit=np.cos(x) * 0.9,
                 titles=["control", "signal", "fit"],
-                suptitle="session",
                 spans=make_spans_pipe(windows=windows),
                 extra_traces={"z_score": np.sin(x) * 2},
             )
@@ -281,7 +270,7 @@ class TestPanelSizing:
 
     def test_every_panel_keeps_its_title(self, rendered_plots):
         titles = {plot.title.text for plot in rendered_plots([])}
-        assert titles == {"session — control", "signal", "fit", "z_score"}
+        assert titles == {"control", "signal", "fit", "z_score"}
 
 
 class TestBuildMarkableTrace:
@@ -295,7 +284,7 @@ class TestBuildMarkableTrace:
                 x=x,
                 values=np.sin(x),
                 overlay=overlay,
-                title="session — signal",
+                title="signal",
                 spans=make_spans_pipe(windows=[(1.0, 2.0)]),
                 on_x_select=on_x_select,
                 hooks=hooks,
@@ -317,7 +306,7 @@ class TestBuildMarkableTrace:
         plot = rendered()
 
         assert (plot.title.text, plot.sizing_mode, plot.width, plot.height) == (
-            "session — signal",
+            "signal",
             "stretch_width",
             None,
             420,
@@ -378,7 +367,7 @@ class TestSetDragGesture:
         plot = build_markable_trace(
             x=x,
             values=np.sin(x),
-            title="session — signal",
+            title="signal",
             spans=make_spans_pipe(windows=[]),
             on_x_select=lambda start, end: None,
         )

@@ -71,7 +71,6 @@ def build_stacked_traces(
     *,
     x: np.ndarray,
     traces: dict[str, np.ndarray],
-    suptitle: str,
     spans: hv.streams.Pipe | None = None,
 ) -> hv.Layout:
     """Build density-shaded curves stacked over a shared time axis.
@@ -85,8 +84,6 @@ def build_stacked_traces(
         Time axis values shared by all curves.
     traces : dict
         Panel title → trace values against the same ``x``, stacked in iteration order.
-    suptitle : str
-        Session-level title prefix applied to the first panel.
     spans : hv.streams.Pipe, optional
         Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
         the traces unshaded.
@@ -97,9 +94,9 @@ def build_stacked_traces(
         Vertically stacked curves, one per trace.
     """
     panels = []
-    for index, (title, values) in enumerate(traces.items()):
+    for title, values in traces.items():
         curve = shade_trace(hv.Curve((x, values), "time (s)", title))
-        panels.append(_shaded_panel(curve=curve, title=f"{suptitle} — {title}" if index == 0 else title, spans=spans))
+        panels.append(_shaded_panel(curve=curve, title=title, spans=spans))
     return hv.Layout(panels).cols(1)
 
 
@@ -110,7 +107,6 @@ def build_control_signal_fit(
     signal: np.ndarray,
     fit: np.ndarray,
     titles: list[str],
-    suptitle: str,
     spans: hv.streams.Pipe | None = None,
     extra_traces: dict[str, np.ndarray] | None = None,
 ) -> hv.Layout:
@@ -131,8 +127,6 @@ def build_control_signal_fit(
         Fitted control trace overlaid on the signal (bottom).
     titles : list[str]
         Titles for the three curves (control, signal, fit).
-    suptitle : str
-        Session-level title prefix applied to the control curve.
     spans : hv.streams.Pipe, optional
         Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
         the traces unshaded.
@@ -154,7 +148,7 @@ def build_control_signal_fit(
         return _shaded_panel(curve=curve, title=title, spans=spans)
 
     panels = [
-        panel(control_curve, f"{suptitle} — {titles[0]}"),
+        panel(control_curve, titles[0]),
         panel(signal_curve, titles[1]),
         panel(fit_curve, titles[2]),
     ]

@@ -41,6 +41,7 @@ from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
+from guppy.frontend.plot_card import RUN_FOLDER_WIDTH, toolbar_field
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.tonic_epochs import TonicEpochConfig, TonicResultsView
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
@@ -78,6 +79,11 @@ SAMPLE_DATA_DIR = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_
 DANDI_DEMO_DANDISET_ID = "000971"
 DANDI_DEMO_SUBJECT = "sub-112-283"
 DANDI_DEMO_ASSET = "sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
+
+
+def _run_field(run_label: str) -> pn.Column:
+    """The "Run Folder" toolbar field a run-folder page shows, offering the one run."""
+    return toolbar_field("Run Folder", pn.widgets.Select(options=[run_label], width=RUN_FOLDER_WIDTH))
 
 
 def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
@@ -223,7 +229,9 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     run_folder.mkdir(parents=True, exist_ok=True)
 
     selector = ArtifactWindowSelector(
-        str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]), label="sample_data_csv_1/output_1"
+        str(run_folder),
+        _synthetic_pair_traces(recording_sites=["DMS", "DLS"]),
+        run_field=_run_field("sample_data_csv_1/output_1"),
     )
     selector.set_windows("DMS", [(128.0, 140.0)])
 
@@ -294,7 +302,7 @@ def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
     config = TonicEpochConfig(
         str(run_folder),
         _synthetic_site_traces(recording_sites=["DMS", "DLS"]),
-        label="sample_data_csv_injection_1/output_1",
+        run_field=_run_field("sample_data_csv_injection_1/output_1"),
     )
     config.set_epochs("DMS", TONIC_EPOCHS)
 
@@ -342,7 +350,7 @@ def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
     )
 
     template = pn.template.BootstrapTemplate(title="GuPPy — Visualization")
-    template.main.append(TonicResultsView(str(run_folder), label=run_folder.name).widget)
+    template.main.append(TonicResultsView(str(run_folder)).widget)
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1500})

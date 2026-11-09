@@ -14,6 +14,7 @@ import numpy as np
 import panel as pn
 
 from .artifact_removal import build_run_folder_page, load_pair_traces
+from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
 from .row_controls import column_heading, delete_row_button
 from ..analysis.io_utils import fetchCoords
 from ..orchestration.save_parameters import record_artifact_provenance
@@ -225,9 +226,10 @@ class ArtifactWindowSelector:
     one ``coordsForPreProcessing_<site>.npy`` per site holding the keep-windows.
     """
 
-    def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]], *, label: str) -> None:
+    def __init__(
+        self, filepath: str, pair_traces: dict[str, dict[str, object]], *, run_field: pn.viewable.Viewable
+    ) -> None:
         self.filepath = filepath
-        self.label = label
         self.pair_traces = pair_traces
         self.sites = list(pair_traces.keys())
 
@@ -239,18 +241,17 @@ class ArtifactWindowSelector:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
         self.trace_select = pn.widgets.Select(
-            name="Trace", options=self._trace_options(self.sites[0]), value=SIGNAL_TRACE, width=200
+            options=self._trace_options(self.sites[0]), value=SIGNAL_TRACE, width=200, margin=CONTROL_MARGIN
         )
         self.mode_toggle = pn.widgets.RadioButtonGroup(
-            name="Drag Gesture",
             options=INTERACTION_MODES,
             value=MARK_MODE,
             button_type="primary",
             button_style="outline",
             width=240,
-            align="end",
+            margin=CONTROL_MARGIN,
         )
         self.runs_with_windows = _runs_with_saved_windows(filepath)
         self.copy_from_select = pn.widgets.Select(
@@ -287,17 +288,22 @@ class ArtifactWindowSelector:
             if self.runs_with_windows
             else []
         )
-        self.widget = pn.Column(
-            f"# {self.label}",
-            pn.pane.Markdown(_INSTRUCTIONS),
-            *copy_from_section,
-            pn.Row(self.site_select, self.trace_select, self.mode_toggle),
-            self.marking_pane,
-            self.rows_container,
-            pn.Row(self.add_row_button, self.apply_to_all_button),
-            self.method_select,
-            self.save_button,
-            sizing_mode="stretch_width",
+        self.widget = plot_page(
+            note=_INSTRUCTIONS,
+            fields=[
+                run_field,
+                toolbar_field("Recording Site", self.site_select),
+                toolbar_field("Trace", self.trace_select),
+                toolbar_field("Drag Gesture", self.mode_toggle),
+            ],
+            body=[
+                *copy_from_section,
+                self.marking_pane,
+                self.rows_container,
+                pn.Row(self.add_row_button, self.apply_to_all_button),
+                self.method_select,
+                self.save_button,
+            ],
         )
 
     def _build_row(self, site: str, start: float | None, end: float | None) -> ArtifactWindowRow:
@@ -520,7 +526,7 @@ class ArtifactWindowSelector:
             x=trace["x"],
             values=values,
             overlay=overlay,
-            title=f"{self.label} — {title}",
+            title=title,
             spans=self.spans_pipe,
             on_x_select=self._on_drag,
             hooks=[self._capture_figure],
@@ -586,7 +592,7 @@ def build_artifact_window_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, label: ArtifactWindowSelector(
-            filepath, load_pair_traces(filepath), label=label
+        build_folder_page=lambda filepath, run_field: ArtifactWindowSelector(
+            filepath, load_pair_traces(filepath), run_field=run_field
         ).widget,
     )

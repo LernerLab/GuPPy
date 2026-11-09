@@ -7,9 +7,16 @@ import logging
 import holoviews as hv  # noqa: F401
 import panel as pn
 
+from .row_controls import column_heading, delete_row_button
+
 pn.extension()
 
 logger = logging.getLogger(__name__)
+
+# Column widths of the event table, shared by its headings and its rows.
+_NAME_WIDTH = 220
+_TIMESTAMPS_WIDTH = 380
+_ROW_WIDTH = _NAME_WIDTH + _TIMESTAMPS_WIDTH + 60
 
 _INSTRUCTIONS = """
 ## Import Custom Events
@@ -17,7 +24,7 @@ _INSTRUCTIONS = """
 Add behavioral events you derived outside GuPPy (e.g. movement onsets or
 manually scored events). For each event, enter a **name** and paste its
 **timestamps** — one per row, in seconds — copied straight from a spreadsheet
-column. Click **Add event** for more, then **Save**.
+column. Click **Add Event** for more, then **Save**.
 
 Each event is written into this session as ``<name>.csv`` and appears as a
 selectable store the next time you open the Label Stores GUI. This step is
@@ -28,33 +35,38 @@ optional — leave it empty and just continue if you have no custom events.
 class CustomEventsConfig:
     """Panel widget for pasting one or more named custom events for a session.
 
-    Renders a header, a growable list of event rows (each with a name field and
-    a paste box for timestamps), an "Add Event" button, an "Overwrite existing"
-    checkbox, a "Save" button, and an alert pane. The widget only collects user
-    input and displays alerts; writing the CSV files is the orchestration
-    layer's responsibility.
+    Renders a header, a table of event rows (each with a name field, a paste box
+    for timestamps and a delete button), an "Add Event" button, an "Overwrite
+    existing" checkbox, a "Save" button, and an alert pane shown once there is a
+    message. The widget only collects user input and displays alerts; writing the
+    CSV files is the orchestration layer's responsibility.
     """
 
     def __init__(self) -> None:
         self.rows: list[tuple[pn.widgets.TextInput, pn.widgets.TextAreaInput]] = []
 
-        self.instructions = pn.pane.Markdown(_INSTRUCTIONS, width=600)
+        self.instructions = pn.pane.Markdown(_INSTRUCTIONS, max_width=780, sizing_mode="stretch_width")
         self.event_rows = pn.Column()
-        self.add_event = pn.widgets.Button(name="Add Event", button_type="default", width=600)
+        self.add_event = pn.widgets.Button(name="Add Event", button_type="default", icon="plus")
         self.overwrite = pn.widgets.Checkbox(name="Overwrite existing events with the same name", value=False)
-        self.save = pn.widgets.Button(name="Save", button_type="primary", width=600)
-        self.alert = pn.pane.Alert("#### No alerts !!", alert_type="primary", width=600)
+        self.save = pn.widgets.Button(name="Save", button_type="primary")
+        self.alert = pn.pane.Alert("", alert_type="primary", width=_ROW_WIDTH, visible=False)
 
         self.add_event_row()
 
         self.widget = pn.Column(
             self.instructions,
+            pn.Row(
+                column_heading(text="Event Name", width=_NAME_WIDTH),
+                column_heading(text="Timestamps (s)", width=_TIMESTAMPS_WIDTH),
+                margin=(0, 0, 2, 0),
+            ),
             self.event_rows,
             self.add_event,
-            pn.Spacer(height=10),
             self.overwrite,
             self.save,
             self.alert,
+            sizing_mode="stretch_width",
         )
 
     def add_event_row(self, event: object = None) -> None:
@@ -66,12 +78,19 @@ class CustomEventsConfig:
             Unused click-event argument so this can be wired directly to the
             "Add Event" button.
         """
-        name_input = pn.widgets.TextInput(name="Event Name", placeholder="e.g. movement_onset", width=200)
-        timestamps_input = pn.widgets.TextAreaInput(
-            name="Timestamps (one per row, seconds)", placeholder="0.0\n1.5\n2.3", height=150, width=380
-        )
-        self.rows.append((name_input, timestamps_input))
-        self.event_rows.append(pn.Row(name_input, timestamps_input, margin=(5, 0)))
+        name_input = pn.widgets.TextInput(placeholder="e.g. movement_onset", width=_NAME_WIDTH)
+        timestamps_input = pn.widgets.TextAreaInput(placeholder="0.0\n1.5\n2.3", height=120, width=_TIMESTAMPS_WIDTH)
+        remove = delete_row_button(description="Remove this event")
+        row = pn.Row(name_input, timestamps_input, remove, margin=(0, 0, 4, 0))
+        entry = (name_input, timestamps_input)
+
+        def remove_row(event: object) -> None:
+            self.rows.remove(entry)
+            self.event_rows.remove(row)
+
+        remove.on_click(remove_row)
+        self.rows.append(entry)
+        self.event_rows.append(row)
 
     def get_rows(self) -> list[tuple[str, str]]:
         """Return the ``(name, pasted_text)`` pair currently entered in each row.
@@ -92,6 +111,7 @@ class CustomEventsConfig:
             Markdown-formatted alert message.
         """
         self.alert.object = message
+        self.alert.visible = True
 
     def attach_callbacks(self, button_name_to_onclick_fn: dict[str, object]) -> None:
         """Register click-handler callbacks on the widget's buttons.

@@ -163,9 +163,10 @@ class TonicEpochConfig:
     On save, writes each site's windows and their per-epoch means.
     """
 
-    def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]], *, label: str) -> None:
+    def __init__(
+        self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]], *, run_field: pn.viewable.Viewable
+    ) -> None:
         self.filepath = filepath
-        self.label = label
         self.site_traces = site_traces
         self.sites = list(site_traces.keys())
 
@@ -176,7 +177,7 @@ class TonicEpochConfig:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording Site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
         self.add_row_button = pn.widgets.Button(name="Add Epoch", button_type="default", icon="plus")
         self.apply_to_all_button = pn.widgets.Button(name="Apply to All Recording Sites", button_type="default")
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
@@ -191,15 +192,15 @@ class TonicEpochConfig:
         self.apply_to_all_button.on_click(lambda event: self.apply_epochs_to_all_sites())
         self.save_button.on_click(self._on_save)
 
-        self.widget = pn.Column(
-            f"# {self.label}",
-            pn.pane.Markdown(_INSTRUCTIONS),
-            self.site_select,
-            self.plot_pane,
-            self.rows_container,
-            pn.Row(self.add_row_button, self.apply_to_all_button),
-            self.save_button,
-            sizing_mode="stretch_width",
+        self.widget = plot_page(
+            note=_INSTRUCTIONS,
+            fields=[run_field, toolbar_field("Recording Site", self.site_select)],
+            body=[
+                self.plot_pane,
+                self.rows_container,
+                pn.Row(self.add_row_button, self.apply_to_all_button),
+                self.save_button,
+            ],
         )
 
     def _build_row(self, site: str, label: str, start: float | None, end: float | None) -> TonicEpochRow:
@@ -325,7 +326,6 @@ class TonicEpochConfig:
         return build_stacked_traces(
             x=trace["x"],
             traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
-            suptitle=self.label,
             spans=self.spans_pipe,
         )
 
@@ -357,8 +357,8 @@ def build_tonic_epoch_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, label: TonicEpochConfig(
-            filepath, load_site_traces(filepath), label=label
+        build_folder_page=lambda filepath, run_field: TonicEpochConfig(
+            filepath, load_site_traces(filepath), run_field=run_field
         ).widget,
     )
 
@@ -381,9 +381,8 @@ class TonicResultsView:
     the selector re-bases the bars and the ``diff_zscore`` / ``diff_dff`` columns.
     """
 
-    def __init__(self, filepath: str, *, label: str) -> None:
+    def __init__(self, filepath: str) -> None:
         self.filepath = filepath
-        self.label = label
         self.sites = _tonic_result_sites(filepath)
 
         self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
@@ -474,7 +473,6 @@ class TonicResultsView:
         return build_stacked_traces(
             x=timestamps,
             traces=traces,
-            suptitle=self.label,
             spans=self.spans_pipe,
         )
 
@@ -490,7 +488,7 @@ class TonicResultsView:
         self.table_pane.object = self._means_with_diff()
 
 
-def build_tonic_results_view(filepath: str, *, label: str) -> pn.Column:
+def build_tonic_results_view(filepath: str) -> pn.Column:
     """Build the Step-5 tonic results panel for a run folder.
 
     Returns a short note when the folder holds no ``tonic_<site>.h5`` results so
@@ -498,4 +496,4 @@ def build_tonic_results_view(filepath: str, *, label: str) -> pn.Column:
     """
     if not _tonic_result_sites(filepath):
         return pn.Column(pn.pane.Markdown("_No tonic/basal analysis results in this session._"))
-    return TonicResultsView(filepath, label=label).widget
+    return TonicResultsView(filepath).widget
