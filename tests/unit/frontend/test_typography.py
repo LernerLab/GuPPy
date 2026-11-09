@@ -7,6 +7,7 @@ from guppy.frontend.typography import (
     COMPONENT_CSS,
     FONTS_DIRECTORY,
     HEADING_SIZE,
+    MONOSPACE_FAMILY,
     REGULAR,
     SEMIBOLD,
     SMALL_SIZE,
@@ -50,25 +51,41 @@ class TestGuppyTypeDesign:
         assert GuppyTypeDesign._themes["default"].bokeh_theme is PLOT_THEME
 
 
-class TestInter:
+class TestBundledFonts:
     def test_text_is_set_in_inter_first(self):
         assert TEXT_FAMILY.startswith('"Inter", ')
 
-    def test_regular_and_semibold_ship_with_their_license(self):
+    def test_literals_are_set_in_jetbrains_mono_first(self):
+        assert MONOSPACE_FAMILY.startswith('"JetBrains Mono", ')
+
+    def test_fonts_ship_with_their_licenses(self):
         assert sorted(path.name for path in FONTS_DIRECTORY.iterdir()) == [
             "Inter-LICENSE.txt",
             "Inter-Regular.woff2",
             "Inter-SemiBold.woff2",
+            "JetBrainsMono-LICENSE.txt",
+            "JetBrainsMono-Regular.woff2",
         ]
 
-    def test_font_faces_embed_both_weights(self):
+    def test_font_faces_embed_every_bundled_face(self):
         css = font_face_css()
         regular = base64.b64encode((FONTS_DIRECTORY / "Inter-Regular.woff2").read_bytes()).decode("ascii")
         semibold = base64.b64encode((FONTS_DIRECTORY / "Inter-SemiBold.woff2").read_bytes()).decode("ascii")
+        monospace = base64.b64encode((FONTS_DIRECTORY / "JetBrainsMono-Regular.woff2").read_bytes()).decode("ascii")
 
-        assert css.count("@font-face") == 2
-        assert f'font-weight: 400; font-display: block; src: url("data:font/woff2;base64,{regular}")' in css
-        assert f'font-weight: 600; font-display: block; src: url("data:font/woff2;base64,{semibold}")' in css
+        assert css.count("@font-face") == 3
+        assert (
+            f'font-family: "Inter"; font-style: normal; font-weight: 400; font-display: block; '
+            f'src: url("data:font/woff2;base64,{regular}")'
+        ) in css
+        assert (
+            f'font-family: "Inter"; font-style: normal; font-weight: 600; font-display: block; '
+            f'src: url("data:font/woff2;base64,{semibold}")'
+        ) in css
+        assert (
+            f'font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: block; '
+            f'src: url("data:font/woff2;base64,{monospace}")'
+        ) in css
 
     def test_tabular_figures_apply_to_table_cells_only(self):
         assert ".tabulator-cell, table.panel-df td {\n  font-variant-numeric: tabular-nums;\n}" in COMPONENT_CSS

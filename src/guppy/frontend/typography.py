@@ -18,7 +18,7 @@ from ..visualization.palette import PLOT_THEME
 FONTS_DIRECTORY = Path(__file__).parent.parent / "assets" / "fonts"
 
 TEXT_FAMILY = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-MONOSPACE_FAMILY = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
+MONOSPACE_FAMILY = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace'
 
 TITLE_SIZE = "20px"
 HEADING_SIZE = "16px"
@@ -121,18 +121,25 @@ class GuppyTypeDesign(Bootstrap):
 
 
 def font_face_css() -> str:
-    """Return the page CSS that declares Inter's regular and semibold faces, embedded so they work offline.
+    """Return the page CSS that declares the bundled faces, embedded so they work offline.
+
+    Inter comes in regular and semibold, JetBrains Mono in regular.
 
     Returns
     -------
     str
         ``@font-face`` rules for the page's ``raw_css``.
     """
+    faces = (
+        ("Inter", REGULAR, "Inter-Regular.woff2"),
+        ("Inter", SEMIBOLD, "Inter-SemiBold.woff2"),
+        ("JetBrains Mono", REGULAR, "JetBrainsMono-Regular.woff2"),
+    )
     rules = []
-    for weight, file_name in ((REGULAR, "Inter-Regular.woff2"), (SEMIBOLD, "Inter-SemiBold.woff2")):
+    for family, weight, file_name in faces:
         data = base64.b64encode((FONTS_DIRECTORY / file_name).read_bytes()).decode("ascii")
         rules.append(
-            f'@font-face {{ font-family: "Inter"; font-style: normal; font-weight: {weight}; font-display: block; '
+            f'@font-face {{ font-family: "{family}"; font-style: normal; font-weight: {weight}; font-display: block; '
             f'src: url("data:font/woff2;base64,{data}") format("woff2"); }}'
         )
     return "\n".join(rules)
