@@ -679,41 +679,39 @@ class ParameterizedPlotter(param.Parameterized):
             index = np.arange(0, timestamps.shape[0], 3)
             df_curve = df_curve.loc[index, :]
             df_spread = df_spread.loc[index, :]
+            # Each event's curve and spread carry its own colour (its override, else its palette
+            # colour). The overlays keep the selection order, so the legend lists events in the
+            # order they were chosen.
+            effective_colors = self.overlay_effective_colors()
             overlay = hv.NdOverlay(
                 {
-                    curve_column: hv.Curve((df_curve["timestamps"], df_curve[curve_column]), kdims=[TIME_LABEL]).opts(
+                    event: hv.Curve((df_curve["timestamps"], df_curve[event]), kdims=[TIME_LABEL]).opts(
                         **self._psth_size(),
                         xlim=self.overlay_X,
                         ylim=self.overlay_Y,
+                        color=effective_colors[event],
                     )
-                    for curve_column in columns_curve[:-1]
-                }
+                    for event in columns_curve[:-1]
+                },
+                sort=False,
             )
             spread = hv.NdOverlay(
                 {
-                    spread_column: hv.Spread(
+                    event: hv.Spread(
                         (
                             df_spread["timestamps"],
-                            df_curve[spread_column],
-                            df_spread[spread_column],
-                            df_spread[spread_column],
+                            df_curve[event],
+                            df_spread[event],
+                            df_spread[event],
                         ),
                         vdims=["y", "yerrpos", "yerrneg"],
-                    ).opts(line_width=0, fill_alpha=0.3)
-                    for spread_column in columns_spread[:-1]
-                }
+                    ).opts(line_width=0, fill_alpha=0.3, fill_color=effective_colors[event])
+                    for event in columns_spread[:-1]
+                },
+                sort=False,
             )
-            # Colour each event's curve (and its matching spread) from its effective
-            # colour (per-event override, else the chosen palette). Curves and spreads
-            # are built in the same selection order, so a positional cycle over this
-            # list assigns consistent per-event colours.
-            effective_colors = self.overlay_effective_colors()
-            palette_colors = hv.Cycle([effective_colors[event] for event in selected_events])
             plot_combine = (
-                (overlay * spread)
-                .opts(opts.NdOverlay(xlabel=TIME_LABEL, ylabel=self.Y_Label))
-                .opts(opts.Curve(color=palette_colors), opts.Spread(fill_color=palette_colors))
-                .opts(shared_axes=False)
+                (overlay * spread).opts(opts.NdOverlay(xlabel=TIME_LABEL, ylabel=self.Y_Label)).opts(shared_axes=False)
             )
             plot_combine = plot_combine.opts(
                 hooks=[
@@ -912,6 +910,8 @@ class ParameterizedPlotter(param.Parameterized):
                     for trial in selected_trials
                 },
                 kdims=["Trial"],
+                # Keep the trials in picker order; sorted, the event times would order as text.
+                sort=False,
             )
             layers.append(overlay.opts(**axis_opts))
         if show_mean:

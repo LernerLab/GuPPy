@@ -1077,3 +1077,22 @@ class TestTrialLabels:
             "3 · trial_3": "3 - trial_3",
         }
         assert list(plotter.param["heatmap_y"].objects)[-1] == "All"
+
+
+class TestComparisonColors:
+    def test_each_event_is_drawn_in_the_colour_its_picker_shows(self, plotter, panel_extension):
+        # Selected out of alphabetical order: the overlay must not reorder the colours.
+        plotter.selector_for_multipe_events_plot = ["event2", "event1"]
+        plotter.overlay_color_overrides = {"event1": "#112233"}
+        expected = plotter.overlay_effective_colors()
+
+        figure = hv.render(plotter.update_selector())
+
+        drawn = {
+            item.label["value"]: renderer.glyph.line_color
+            for item in figure.legend[0].items
+            for renderer in item.renderers
+            if type(renderer.glyph).__name__ == "Line"
+        }
+        assert drawn == expected
+        assert [item.label["value"] for item in figure.legend[0].items] == ["event2", "event1"]
