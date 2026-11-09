@@ -167,6 +167,11 @@ class TestVisualizationDashboard:
         # its note rather than failing -- which is what lets it be added unconditionally.
         assert "No PSTH significance results" in dashboard._significance_tab[0].object
 
+    def test_each_tab_is_drawn_when_first_opened(self, dashboard):
+        # Drawn while hidden, the multi-panel Tonic, Binned and Covariates plots size
+        # themselves to zero width and stay blank once the tab is opened.
+        assert dashboard._tabs.dynamic is True
+
     def test_the_tabs_stretch_to_the_page_width(self, dashboard):
         assert dashboard._tabs.sizing_mode == "stretch_width"
         assert dashboard._psth_tab.sizing_mode == "stretch_width"

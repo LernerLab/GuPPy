@@ -87,6 +87,9 @@ class VisualizationDashboard:
             ("Binned", self._binned_tab),
             ("Covariates", self._covariate_tab),
             ("Significance", self._significance_tab),
+            # A tab's plots are drawn when it is first opened, so a multi-panel layout sizes
+            # itself against the visible page; drawn while hidden, it collapses to zero width.
+            dynamic=True,
             sizing_mode="stretch_width",
         )
 
