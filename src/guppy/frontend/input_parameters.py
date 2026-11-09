@@ -37,12 +37,14 @@ SAME_ROOT_LABEL = "Output root folder is the same as the input root folder"
 CARD_STYLES = {"background": "WhiteSmoke"}
 
 # White against the card's WhiteSmoke, with a border, so the sections read as
-# distinct blocks rather than merging into the card behind them.
+# distinct blocks rather than merging into the card behind them. The bottom padding is the
+# one buffer every section and card keeps between its last control and its edge.
 SECTION_STYLES = {
     "background": "White",
     "border": "1px solid #C8CCD0",
     "border-radius": "6px",
     "margin-bottom": "12px",
+    "padding-bottom": "12px",
 }
 
 

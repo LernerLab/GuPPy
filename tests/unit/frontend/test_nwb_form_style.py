@@ -42,7 +42,7 @@ class TestChromeBuilders:
             "border": "1px solid #C8CCD0",
             "border-radius": "6px",
             "margin-bottom": "12px",
-            "padding-bottom": "10px",
+            "padding-bottom": "12px",
         }
         assert section[0].object == "### Session"
         assert section[1] is field

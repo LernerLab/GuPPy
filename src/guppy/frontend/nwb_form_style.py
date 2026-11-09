@@ -28,7 +28,16 @@ FLAT_CARD_STYLESHEET = ":host { box-shadow: none !important; }"
 # One device or channel inside a white section: a darker border than the section's, so a white
 # item still stands apart from the white around it, under a light gray header.
 ITEM_CARD_STYLES = {**SECTION_STYLES, "border": "1px solid #ADB5BD"}
+
+# The section bottom buffer, for content that collapses: carried inside a collapsible card's body,
+# so a collapsed card keeps no empty strip under its header.
+COLLAPSIBLE_CARD_STYLES = {key: value for key, value in ITEM_CARD_STYLES.items() if key != "padding-bottom"}
+BOTTOM_BUFFER_STYLES = {"padding-bottom": SECTION_STYLES["padding-bottom"]}
 ITEM_HEADER_BACKGROUND = "#F1F3F5"
+
+# A text area that grows with its text, and that the user can drag taller or shorter. Sized by the
+# browser, not by Panel, whose own resizing loses track of the box and overlaps what follows it.
+GROWING_TEXT_AREA_STYLESHEET = ":host textarea { field-sizing: content; min-height: 3lh; resize: vertical; }"
 
 # Appended to a required field: a red asterisk after its label.
 REQUIRED_STYLESHEET = f"""
@@ -120,10 +129,7 @@ def section_box(title: str, *contents: pn.viewable.Viewable, note: str = "") -> 
         header.append(
             pn.pane.Markdown(note, sizing_mode="stretch_width", styles={"margin-top": "0"}, css_classes=["small"])
         )
-    # Room under the last row of fields, which otherwise sits on the section's bottom border.
-    return pn.WidgetBox(
-        *header, *contents, sizing_mode="stretch_width", styles={**SECTION_STYLES, "padding-bottom": "10px"}
-    )
+    return pn.WidgetBox(*header, *contents, sizing_mode="stretch_width", styles=SECTION_STYLES)
 
 
 def item_title(text: str) -> pn.pane.HTML:

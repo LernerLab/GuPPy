@@ -72,7 +72,7 @@ class TestMetadataSelector:
     def test_each_channel_flows_its_fields_through_one_row(self, selector):
         # One wrapping row per channel, so a wide page fits all nine fields on fewer lines.
         channel_card = next(
-            card for card in selector.widget if getattr(card, "title", None) == "Fiber-Photometry Channels"
+            card for card in selector.widget if getattr(card, "title", None) == "Fiber Photometry Channels"
         )
         instance_cards = [instance for site in channel_card for instance in site if isinstance(instance, pn.Card)]
 
@@ -279,10 +279,19 @@ class TestMetadataSelector:
         selector.set_yaml(metadata)
         assert selector.get_yaml() == metadata
 
-    def test_session_description_grows_in_height_only(self, selector):
-        assert selector.session_description.resizable == "height"
-        assert selector.session_description.auto_grow is True
-        assert selector.session_description.rows == 2
+    def test_session_description_is_sized_by_the_browser_to_its_text(self, selector):
+        assert selector.session_description.resizable is False
+        assert (
+            ":host textarea { field-sizing: content; min-height: 3lh; resize: vertical; }"
+            in selector.session_description.stylesheets
+        )
+
+    def test_a_collapsed_device_card_keeps_its_bottom_buffer_inside_its_body(self, selector):
+        selector._add_device("optical_fiber", {"name": "fiber"})
+        (record,) = selector.device_entry_records["optical_fiber"]
+        card = record["container"]
+        assert "padding-bottom" not in card.styles
+        assert card[0].styles == {"padding-bottom": "12px"}
 
     def test_alert_is_hidden_until_there_is_something_to_report(self, selector):
         assert selector.alert.visible is False

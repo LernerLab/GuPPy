@@ -127,11 +127,17 @@ class MetadataSelector:
         self.load_existing = pn.widgets.FileInput(accept=".yaml,.yml", width=320)
         self.load_existing.param.watch(self._on_file_upload, "value")
         load_strip = pn.Row(
-            style.help_note("Reuse metadata from another session: load any <code>nwb_metadata.yaml</code> on disk."),
+            style.intro_note("Reuse metadata from another session: load any <code>nwb_metadata.yaml</code> on disk."),
             pn.Spacer(sizing_mode="stretch_width"),
             self.load_existing,
             sizing_mode="stretch_width",
-            styles={**SECTION_STYLES, "padding": "8px 12px", "align-items": "center"},
+            styles={
+                **SECTION_STYLES,
+                "padding-top": "8px",
+                "padding-left": "12px",
+                "padding-right": "12px",
+                "align-items": "center",
+            },
             margin=(5, 10),
         )
         self.build_config = pn.widgets.Button(
@@ -165,7 +171,7 @@ class MetadataSelector:
             pn.Row(self.build_config, self.save, sizing_mode="stretch_width"),
             self.path,
             sizing_mode="stretch_width",
-            styles={**SECTION_STYLES, "padding": "8px 12px"},
+            styles={**SECTION_STYLES, "padding-top": "8px", "padding-left": "12px", "padding-right": "12px"},
             margin=(5, 10),
         )
 
@@ -174,7 +180,7 @@ class MetadataSelector:
             style.intro_note(
                 "Provide the metadata needed to export this session to NWB. Define each piece of hardware and "
                 "biology once under <strong>Optical Hardware</strong> and <strong>Biological Reagents</strong>, link "
-                "them to each channel under <strong>Fiber-Photometry Channels</strong>, then "
+                "them to each channel under <strong>Fiber Photometry Channels</strong>, then "
                 "<strong>Build &amp; Preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
                 "fixed by your <code>storesList.csv</code>."
             ),
@@ -217,10 +223,8 @@ class MetadataSelector:
             value=scalars.get("session_description", ""),
             description=_SCALAR_DOCS["session_description"],
             sizing_mode="stretch_width",
-            rows=2,
-            auto_grow=True,
-            resizable="height",
-            stylesheets=_sheets(True),
+            resizable=False,
+            stylesheets=[*_sheets(True), style.GROWING_TEXT_AREA_STYLESHEET],
         )
         self.identifier = text("identifier", placeholder="leave blank to auto-generate")
         self.session_start_time = text("session_start_time", placeholder="e.g. 2018-10-30T10:33:32-05:00")
@@ -376,15 +380,14 @@ class MetadataSelector:
         title = name_widget.value or "(unnamed)"
         header = style.item_title(title)
         card = pn.Card(
-            *rows,
-            remove,
+            pn.Column(*rows, remove, sizing_mode="stretch_width", styles=style.BOTTOM_BUFFER_STYLES),
             title=title,
             header=header,
             header_background=style.ITEM_HEADER_BACKGROUND,
             active_header_background=style.ITEM_HEADER_BACKGROUND,
             collapsed=True,
             sizing_mode="stretch_width",
-            styles=style.ITEM_CARD_STYLES,
+            styles=style.COLLAPSIBLE_CARD_STYLES,
             stylesheets=[style.FLAT_CARD_STYLESHEET],
         )
         if name_widget is not None:
@@ -532,7 +535,7 @@ class MetadataSelector:
         ]
         return pn.Card(
             *recording_site_sections,
-            title="Fiber-Photometry Channels",
+            title="Fiber Photometry Channels",
             collapsed=False,
             sizing_mode="stretch_width",
             styles=CARD_STYLES,
