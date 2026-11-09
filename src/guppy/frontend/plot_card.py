@@ -2,6 +2,7 @@
 
 import panel as pn
 
+from .side_panel_split import SidePanelSplit
 from .typography import HEADING_SIZE, INK, SECONDARY_INK, SEMIBOLD, SMALL_SIZE
 
 # Each control's own margin inside a toolbar field, so neighbouring controls share one gap.
@@ -42,7 +43,7 @@ def range_separator() -> pn.pane.HTML:
 
 
 def side_column(label: str, picker: pn.viewable.Viewable) -> pn.Column:
-    """A labeled picker beside a plot, set off from it by a thin rule.
+    """A labeled picker, stretched to the width of the side panel it sits in.
 
     Parameters
     ----------
@@ -57,11 +58,34 @@ def side_column(label: str, picker: pn.viewable.Viewable) -> pn.Column:
         The label above the picker.
     """
     heading = pn.pane.HTML(f"<div style='{_LABEL_STYLE}'>{label}</div>", margin=(10, 5, 4, 5))
-    return pn.Column(
-        heading,
-        picker,
-        styles={"border-left": f"1px solid {_RULE_COLOR}", "padding-left": "8px"},
-        margin=(8, 10, 10, 0),
+    return pn.Column(heading, picker, sizing_mode="stretch_width", margin=(8, 10, 10, 0))
+
+
+def plot_with_side_panel(
+    plot: pn.viewable.Viewable, *, label: str, picker: pn.viewable.Viewable, height: object, side_width: int = 460
+) -> SidePanelSplit:
+    """A plot with its picker in a side panel that can be resized or hidden.
+
+    Parameters
+    ----------
+    plot : pn.viewable.Viewable
+        The plot, which takes the width the side panel leaves.
+    label : str
+        What the picker chooses (e.g. "Events"), shown above it.
+    picker : pn.viewable.Viewable
+        The picker, stretched to the side panel's width.
+    height : int or bound function
+        The plot's height in pixels, which the handle between the two matches.
+    side_width : int, optional
+        The side panel's starting width in pixels.
+
+    Returns
+    -------
+    SidePanelSplit
+        The plot and the side panel, stretched to the width of their container.
+    """
+    return SidePanelSplit(
+        main=plot, side=side_column(label, picker), side_label=label, height=height, side_width=side_width
     )
 
 
@@ -106,7 +130,6 @@ def plot_card(
         toolbar,
         *body,
         header=header,
-        collapsible=False,
         sizing_mode="stretch_width",
         header_background=_HEADER_BACKGROUND,
         styles=_CARD_STYLES,

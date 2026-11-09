@@ -10,8 +10,8 @@ from .plot_card import (
     CHECKBOX_MARGIN,
     CONTROL_MARGIN,
     plot_card,
+    plot_with_side_panel,
     range_separator,
-    side_column,
     toolbar_field,
 )
 from .psth_significance_view import build_psth_significance_view
@@ -276,8 +276,20 @@ class VisualizationDashboard:
             margin=(0, 10, 8, 10),
         )
 
-    def _side_picker_height(self, height_parameter: object, *, offset: int) -> object:
-        """Bind a picker's height to the plot height beside it, less ``offset`` for its label."""
+    def _cross_selector(self, parameter: object, *, height: object) -> pn.widgets.CrossSelector:
+        """Return a CrossSelector for a side panel, as narrow as 300px and stretching to the panel's width.
+
+        A CrossSelector sizes its two lists from its width once, when built, and keeps that size
+        as their minimum; built at 300px and then stretched, the lists grow and shrink with the panel.
+        """
+        picker = pn.widgets.CrossSelector.from_param(
+            parameter, name="", width=300, height=height, margin=CONTROL_MARGIN
+        )
+        picker.sizing_mode = "stretch_width"
+        return picker
+
+    def _follow_plot_height(self, height_parameter: object, *, offset: int) -> object:
+        """Bind a height to a plot height parameter, less ``offset`` pixels (e.g. for a label above)."""
         return pn.bind(lambda height: int(height) - offset, height_parameter)
 
     def _build_psth_tab(self) -> pn.Column:
@@ -333,15 +345,11 @@ class VisualizationDashboard:
             body=[_plot(plotter.contPlot)],
         )
 
-        # The pickers sit beside their plots, as tall as the plot, so each toolbar stays one line.
-        picker_height = self._side_picker_height(plotter.param.Height_Plot, offset=30)
-        event_picker = pn.widgets.CrossSelector.from_param(
-            plotter.param.selector_for_multipe_events_plot,
-            name="",
-            width=440,
-            height=picker_height,
-            margin=CONTROL_MARGIN,
-        )
+        # The pickers sit in side panels beside their plots, as tall as the plot, so each toolbar
+        # stays one line; each panel can be dragged wider or hidden.
+        plot_height = self._follow_plot_height(plotter.param.Height_Plot, offset=0)
+        picker_height = self._follow_plot_height(plotter.param.Height_Plot, offset=30)
+        event_picker = self._cross_selector(plotter.param.selector_for_multipe_events_plot, height=picker_height)
         per_event_colors = self._per_event_color_pickers()
         colors_toggle = pn.widgets.Toggle(name="Colors", button_type="light", width=90, margin=CONTROL_MARGIN)
         colors_toggle.link(per_event_colors, value="visible")
@@ -364,15 +372,13 @@ class VisualizationDashboard:
             ),
             body=[
                 per_event_colors,
-                pn.Row(
-                    _plot(plotter.update_selector), side_column("Events", event_picker), sizing_mode="stretch_width"
+                plot_with_side_panel(
+                    _plot(plotter.update_selector), label="Events", picker=event_picker, height=plot_height
                 ),
             ],
         )
 
-        trial_picker = pn.widgets.CrossSelector.from_param(
-            plotter.param.psth_y, name="", width=440, height=picker_height, margin=CONTROL_MARGIN
-        )
+        trial_picker = self._cross_selector(plotter.param.psth_y, height=picker_height)
         selected_trials_plot = plot_card(
             title="Selected Trials",
             note="Trials of the Single-Event PSTH's event, in its trace color.",
@@ -396,10 +402,8 @@ class VisualizationDashboard:
                 options_name="save_options_trials", callback=plotter.download_trials, base_name="psth_trials"
             ),
             body=[
-                pn.Row(
-                    _plot(plotter.plot_specific_trials),
-                    side_column("Trials", trial_picker),
-                    sizing_mode="stretch_width",
+                plot_with_side_panel(
+                    _plot(plotter.plot_specific_trials), label="Trials", picker=trial_picker, height=plot_height
                 )
             ],
         )
@@ -450,8 +454,8 @@ class VisualizationDashboard:
         trial_picker = pn.widgets.MultiSelect.from_param(
             plotter.param.heatmap_y,
             name="",
-            width=200,
-            height=self._side_picker_height(plotter.param.height_heatmap, offset=30),
+            sizing_mode="stretch_width",
+            height=self._follow_plot_height(plotter.param.height_heatmap, offset=30),
             margin=CONTROL_MARGIN,
         )
         heatmap_card = plot_card(
@@ -474,7 +478,15 @@ class VisualizationDashboard:
             trailing_field=self._save_controls(
                 options_name="save_options_heatmap", callback=plotter.download_heatmap, base_name="heatmap"
             ),
-            body=[pn.Row(_plot(plotter.heatmap), side_column("Trials", trial_picker), sizing_mode="stretch_width")],
+            body=[
+                plot_with_side_panel(
+                    _plot(plotter.heatmap),
+                    label="Trials",
+                    picker=trial_picker,
+                    height=self._follow_plot_height(plotter.param.height_heatmap, offset=0),
+                    side_width=300,
+                )
+            ],
         )
 
         return pn.Column(display_settings, heatmap_card, sizing_mode="stretch_width")
