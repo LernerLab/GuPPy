@@ -60,3 +60,11 @@ class TestCustomEventsConfig:
 
     def test_widget_is_a_panel_column(self, config):
         assert isinstance(config.widget, pn.Column)
+
+    def test_page_fills_the_window_width(self, config):
+        # The name column keeps its width; the instructions, the timestamps column and
+        # the alert take whatever the window gives them.
+        name_input, timestamps_input = config.rows[0]
+        assert config.instructions.max_width is None
+        assert (name_input.width, timestamps_input.sizing_mode) == (220, "stretch_width")
+        assert [item.sizing_mode for item in (config.widget, config.event_rows, config.alert)] == ["stretch_width"] * 3

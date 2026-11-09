@@ -13,10 +13,8 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
-# Column widths of the event table, shared by its headings and its rows.
+# The name column's width, shared by its heading and its rows; the timestamps column takes the rest.
 _NAME_WIDTH = 220
-_TIMESTAMPS_WIDTH = 380
-_ROW_WIDTH = _NAME_WIDTH + _TIMESTAMPS_WIDTH + 60
 
 _INSTRUCTIONS = """
 ## Import Custom Events
@@ -45,12 +43,12 @@ class CustomEventsConfig:
     def __init__(self) -> None:
         self.rows: list[tuple[pn.widgets.TextInput, pn.widgets.TextAreaInput]] = []
 
-        self.instructions = pn.pane.Markdown(_INSTRUCTIONS, max_width=780, sizing_mode="stretch_width")
-        self.event_rows = pn.Column()
+        self.instructions = pn.pane.Markdown(_INSTRUCTIONS, sizing_mode="stretch_width")
+        self.event_rows = pn.Column(sizing_mode="stretch_width")
         self.add_event = pn.widgets.Button(name="Add Event", button_type="default", icon="plus")
         self.overwrite = pn.widgets.Checkbox(name="Overwrite existing events with the same name", value=False)
         self.save = pn.widgets.Button(name="Save", button_type="primary")
-        self.alert = pn.pane.Alert("", alert_type="primary", width=_ROW_WIDTH, visible=False)
+        self.alert = pn.pane.Alert("", alert_type="primary", sizing_mode="stretch_width", visible=False)
 
         self.add_event_row()
 
@@ -58,7 +56,8 @@ class CustomEventsConfig:
             self.instructions,
             pn.Row(
                 column_heading(text="Event Name", width=_NAME_WIDTH),
-                column_heading(text="Timestamps (s)", width=_TIMESTAMPS_WIDTH),
+                column_heading(text="Timestamps (s)"),
+                sizing_mode="stretch_width",
                 margin=(0, 0, 2, 0),
             ),
             self.event_rows,
@@ -79,9 +78,11 @@ class CustomEventsConfig:
             "Add Event" button.
         """
         name_input = pn.widgets.TextInput(placeholder="e.g. movement_onset", width=_NAME_WIDTH)
-        timestamps_input = pn.widgets.TextAreaInput(placeholder="0.0\n1.5\n2.3", height=120, width=_TIMESTAMPS_WIDTH)
+        timestamps_input = pn.widgets.TextAreaInput(
+            placeholder="0.0\n1.5\n2.3", height=120, sizing_mode="stretch_width"
+        )
         remove = delete_row_button(description="Remove this event")
-        row = pn.Row(name_input, timestamps_input, remove, margin=(0, 0, 4, 0))
+        row = pn.Row(name_input, timestamps_input, remove, sizing_mode="stretch_width", margin=(0, 0, 4, 0))
         entry = (name_input, timestamps_input)
 
         def remove_row(event: object) -> None:
