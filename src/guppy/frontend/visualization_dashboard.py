@@ -3,8 +3,11 @@ from io import BytesIO
 
 import panel as pn
 
-from .binned_metrics_view import build_binned_metrics_view
-from .covariate_correlation_view import build_covariate_correlation_view
+from .binned_metrics_view import binned_metrics_sites, build_binned_metrics_view
+from .covariate_correlation_view import (
+    build_covariate_correlation_view,
+    covariate_correlation_sites,
+)
 from .parameterized_plotter import METRIC_LABELS, build_plotter
 from .plot_card import (
     CHECKBOX_MARGIN,
@@ -15,7 +18,7 @@ from .plot_card import (
     toolbar_field,
 )
 from .psth_significance_view import build_psth_significance_view
-from .tonic_epochs import build_tonic_results_view
+from .tonic_epochs import _tonic_result_sites, build_tonic_results_view
 
 pn.extension()
 
@@ -36,6 +39,27 @@ def _plot(plot_method: Callable[[], object]) -> pn.viewable.Viewable:
     return pn.panel(plot_method, sizing_mode="stretch_width")
 
 
+def whole_session_result_tabs(*, filepath: str) -> list[str]:
+    """Return the names of the event-independent tabs that have results in ``filepath``.
+
+    Parameters
+    ----------
+    filepath : str
+        Output directory: a session run folder or a group folder.
+
+    Returns
+    -------
+    list of str
+        A subset of ``["Tonic", "Binned", "Covariates"]``, in tab order.
+    """
+    sites_by_tab = {
+        "Tonic": _tonic_result_sites(filepath),
+        "Binned": binned_metrics_sites(filepath),
+        "Covariates": covariate_correlation_sites(filepath),
+    }
+    return [tab for tab, sites in sites_by_tab.items() if sites]
+
+
 class VisualizationDashboard:
     """Dashboard for interactive PSTH and heatmap visualization.
 
@@ -44,17 +68,25 @@ class VisualizationDashboard:
     externally; this class is responsible for widget creation, layout
     assembly, and serving the application.
 
+    With a plotter, the dashboard shows the PSTH, Heat Map, Tonic, Binned, Covariates
+    and Significance tabs. Without one, the output directory has no PSTH results, and
+    the dashboard shows only the Tonic, Binned and Covariates tabs that have results.
+
     Parameters
     ----------
-    plotter : ParameterizedPlotter
+    filepath : str
+        Output directory the dashboard reads its results from.
+    plotter : ParameterizedPlotter or None
         A fully configured ParameterizedPlotter instance that provides reactive plot
-        methods and param-based controls.
+        methods and param-based controls, or None when the output directory holds no
+        PSTH results.
     basename : str
         Session name displayed as the tab title.
     events : list of str
         Event labels the plotter was built over, used to rebuild it for another metric.
-    metric : str
-        The metric ``plotter`` holds results for: ``"z_score"`` or ``"dff"``.
+    metric : str or None
+        The metric ``plotter`` holds results for: ``"z_score"`` or ``"dff"``. None
+        without a plotter.
     available_metrics : list of str
         Metrics step 4 wrote complete results for in this output directory. The options
         of the metric selector the PSTH and Heat Map tabs each carry.
@@ -63,23 +95,34 @@ class VisualizationDashboard:
     def __init__(
         self,
         *,
-        plotter: object,
+        filepath: str,
+        plotter: object | None,
         basename: str,
         events: list[str],
-        metric: str,
+        metric: str | None,
         available_metrics: list[str],
     ) -> None:
+        self.filepath = filepath
         self.plotter = plotter
         self.basename = basename
         self.events = events
         self.metric = metric
         self.available_metrics = available_metrics
+        self._tonic_tab = build_tonic_results_view(filepath)
+        self._binned_tab = build_binned_metrics_view(filepath)
+        self._covariate_tab = build_covariate_correlation_view(filepath)
+        if plotter is None:
+            tabs_by_name = {"Tonic": self._tonic_tab, "Binned": self._binned_tab, "Covariates": self._covariate_tab}
+            self._tabs = pn.Tabs(
+                *[(name, tabs_by_name[name]) for name in whole_session_result_tabs(filepath=filepath)],
+                dynamic=True,
+                sizing_mode="stretch_width",
+            )
+            return
+
         self._psth_tab = self._build_psth_tab()
         self._heatmap_tab = self._build_heatmap_tab()
-        self._tonic_tab = build_tonic_results_view(plotter.filepath)
-        self._binned_tab = build_binned_metrics_view(plotter.filepath)
-        self._covariate_tab = build_covariate_correlation_view(plotter.filepath)
-        self._significance_tab = build_psth_significance_view(plotter.filepath)
+        self._significance_tab = build_psth_significance_view(filepath)
         self._tabs = pn.Tabs(
             ("PSTH", self._psth_tab),
             ("Heat Map", self._heatmap_tab),
@@ -119,7 +162,7 @@ class VisualizationDashboard:
         self._tabs.loading = True
         self.metric = event.new
         self.plotter = build_plotter(
-            filepath=self.plotter.filepath,
+            filepath=self.filepath,
             events=self.events,
             metric=event.new,
             x_min=self.plotter.x_min,
