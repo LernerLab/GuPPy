@@ -195,6 +195,11 @@ class TestVisualizationDashboard:
 
         assert (event_picker.height, trial_picker.height) == (370, 370)
 
+    def test_side_panel_pickers_stretch_with_their_panel(self, dashboard):
+        # Built at 300px, each list keeps that as its minimum and grows as the panel is dragged wider.
+        for picker in dashboard._psth_tab.select(pn.widgets.CrossSelector):
+            assert (picker.width, picker.sizing_mode) == (300, "stretch_width")
+
     def test_psth_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._psth_tab, pn.Column)
 
