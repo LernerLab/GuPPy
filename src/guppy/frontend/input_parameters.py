@@ -391,7 +391,7 @@ class ParameterForm:
             "**Existing Runs (Steps 2–5).** Pick at least one existing output directory per "
             "selected session. Naming a run below selects it in every session that has it; the "
             "tree underneath shows the result and can be adjusted session by session. To create "
-            "a new run, use the Label Stores GUI in Step 1.",
+            "a new run, use the Label Stores page in Step 1.",
             sizing_mode="stretch_width",
         )
         self.run_names_for_all_sessions = pn.widgets.MultiChoice(

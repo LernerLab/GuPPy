@@ -493,6 +493,6 @@ class VisualizationDashboard:
 
     def build_template(self) -> pn.template.MaterialTemplate:
         """Build and return the Panel template without serving it."""
-        template = pn.template.MaterialTemplate(title="Visualization GUI")
+        template = pn.template.MaterialTemplate(title="Visualization")
         template.main.append(self._tabs)
         return template

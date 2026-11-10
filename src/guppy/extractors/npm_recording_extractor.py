@@ -719,9 +719,9 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         channel_keys = [file_prefix + "chev", file_prefix + "chod", file_prefix + "chpr"]
         if len(channel_keys) < num_ch:
             message = (
-                f"Number of channels in the Input Parameters GUI is set to {num_ch}, which exceeds the "
+                f"Number of channels on the homepage is set to {num_ch}, which exceeds the "
                 "maximum of 3 channels supported for NPM files. Set 'Number of channels' to 3 or fewer "
-                "in the Input Parameters GUI."
+                "on the homepage."
             )
             logger.error(message)
             raise ValueError(message)

@@ -22,7 +22,7 @@ class TestPageLinks:
     def test_offer_template_offers_the_templates_main_area(self, panel_extension):
         heading = pn.pane.Markdown("Label Stores")
         table = pn.pane.Markdown("Stores")
-        template = pn.template.BootstrapTemplate(title="Label Stores GUI - mouse_01")
+        template = pn.template.BootstrapTemplate(title="Label Stores - mouse_01")
         template.main.extend([heading, table])
 
         with page_links.collect() as pages:
