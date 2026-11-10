@@ -52,18 +52,6 @@ def preprocessing_review(panel_extension, run_folder):
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
         run_field=pn.Column(),
-        artifacts_removed=False,
-    )
-
-
-@pytest.fixture
-def artifact_review(panel_extension, run_folder):
-    return PreprocessingReviewView(
-        str(run_folder),
-        load_pair_traces(str(run_folder)),
-        load_preprocessed_traces(str(run_folder)),
-        run_field=pn.Column(),
-        artifacts_removed=True,
     )
 
 
@@ -186,10 +174,3 @@ class TestPreprocessingReviewView:
         preprocessing_review.site_select.value = "DMS"
 
         assert _span_elements(preprocessing_review) == []
-
-    def test_shades_nothing_after_removal(self, artifact_review, run_folder):
-        """Once the artifacts are gone from the data, shading the kept region says nothing."""
-        np.save(str(run_folder / "coordsForPreProcessing_DMS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
-        artifact_review.site_select.value = "DMS"
-
-        assert _span_elements(artifact_review) == []

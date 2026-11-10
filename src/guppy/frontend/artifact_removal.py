@@ -109,7 +109,6 @@ class PreprocessingReviewView:
         preprocessed_traces: dict[str, dict[str, np.ndarray]],
         *,
         run_field: pn.viewable.Viewable,
-        artifacts_removed: bool,
     ) -> None:
         self.filepath = filepath
         self.pair_traces = pair_traces
@@ -187,16 +186,10 @@ def build_run_folder_page(
     return content
 
 
-def _build_review_page(
-    filepath: str, run_field: pn.viewable.Viewable, *, artifacts_removed: bool
-) -> pn.viewable.Viewable:
+def _build_review_page(filepath: str, run_field: pn.viewable.Viewable) -> pn.viewable.Viewable:
     """Compose one run folder's preprocessing review."""
     return PreprocessingReviewView(
-        filepath,
-        load_pair_traces(filepath),
-        load_preprocessed_traces(filepath),
-        run_field=run_field,
-        artifacts_removed=artifacts_removed,
+        filepath, load_pair_traces(filepath), load_preprocessed_traces(filepath), run_field=run_field
     ).widget
 
 
@@ -215,7 +208,7 @@ def build_preprocess_view_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, run_field: _build_review_page(filepath, run_field, artifacts_removed=False),
+        build_folder_page=_build_review_page,
     )
 
 
@@ -234,5 +227,5 @@ def build_artifact_review_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, run_field: _build_review_page(filepath, run_field, artifacts_removed=True),
+        build_folder_page=_build_review_page,
     )
