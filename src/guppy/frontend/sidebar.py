@@ -28,7 +28,7 @@ STEP_NAMES = (
 PROGRESS_STEPS = ("read_rawData", "preprocess", "remove_artifacts", "psth_computation", "group_analysis", "export_nwb")
 
 # Long-running steps with a results page, opened from a View results button once they are done.
-RESULTS_STEPS = ("preprocess", "remove_artifacts", "psth_computation")
+RESULTS_STEPS = ("read_rawData", "preprocess", "remove_artifacts", "psth_computation")
 
 
 class Sidebar:
