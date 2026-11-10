@@ -12,6 +12,7 @@ import numpy as np
 import panel as pn
 
 from .artifact_removal import build_run_folder_page
+from .plot_card import CHECKBOX_MARGIN, CONTROL_MARGIN, plot_page, toolbar_field
 from ..analysis.io_utils import (
     is_channel_label,
     is_covariate_label,
@@ -19,6 +20,7 @@ from ..analysis.io_utils import (
 )
 from ..analysis.timestamp_correction import expand_block_timestamps
 from ..utils.stores_list import read_stores_list
+from ..visualization.labels import trace_title
 from ..visualization.raw_data import build_raw_traces, event_colors
 
 hv.extension("bokeh")
@@ -96,8 +98,8 @@ class RawDataView:
         Recording site → channel label → ``(times, values)``.
     event_times : dict
         Event label → event timestamps.
-    label : str
-        Name of the run folder among the ones on offer.
+    run_field : pn.viewable.Viewable
+        The "Run Folder" toolbar field, placed first in the page's toolbar.
     """
 
     def __init__(
@@ -105,43 +107,40 @@ class RawDataView:
         *,
         channels: dict[str, dict[str, tuple[np.ndarray, np.ndarray]]],
         event_times: dict[str, np.ndarray],
-        label: str,
+        run_field: pn.viewable.Viewable,
     ) -> None:
         self.channels = channels
         self.event_times = event_times
-        self.label = label
         self.colors = event_colors(event_labels=list(event_times))
 
         sites = list(channels)
-        self.site_select = pn.widgets.Select(name="Recording site", options=sites, value=sites[0])
-        self.event_select = pn.widgets.CheckBoxGroup(options=list(event_times), value=list(event_times), inline=True)
+        self.site_select = pn.widgets.Select(options=sites, value=sites[0], width=220, margin=CONTROL_MARGIN)
+        self.event_select = pn.widgets.CheckBoxGroup(
+            options=list(event_times), value=list(event_times), inline=True, margin=CHECKBOX_MARGIN
+        )
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.site_select.param.watch(self._refresh, "value")
         self.event_select.param.watch(self._refresh, "value")
 
-        self.widget = pn.Column(
-            f"## Raw data — {self.label}",
-            self.site_select,
-            *(["**Events**", self.event_select] if event_times else []),
-            self.plot_pane,
-            sizing_mode="stretch_width",
-        )
+        fields = [run_field, toolbar_field("Recording Site", self.site_select)]
+        if event_times:
+            fields.append(toolbar_field("Events", self.event_select))
+        self.widget = plot_page(fields=fields, body=[self.plot_pane])
 
     def _make_plot(self) -> hv.Layout:
         return build_raw_traces(
-            traces=self.channels[self.site_select.value],
+            traces={trace_title(channel): trace for channel, trace in self.channels[self.site_select.value].items()},
             event_times={label: self.event_times[label] for label in self.event_select.value},
             colors=self.colors,
-            suptitle=self.label,
         )
 
     def _refresh(self, event: object) -> None:
         self.plot_pane.object = self._make_plot()
 
 
-def _build_folder_page(*, run_folder: str, label: str) -> pn.viewable.Viewable:
+def _build_folder_page(run_folder: str, run_field: pn.viewable.Viewable) -> pn.viewable.Viewable:
     channels, event_times = load_raw_data(run_folder=run_folder)
-    return RawDataView(channels=channels, event_times=event_times, label=label).widget
+    return RawDataView(channels=channels, event_times=event_times, run_field=run_field).widget
 
 
 def build_raw_data_view_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
@@ -157,7 +156,4 @@ def build_raw_data_view_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
     pn.viewable.Viewable
         The composed page.
     """
-    return build_run_folder_page(
-        run_folders=run_folders,
-        build_folder_page=lambda run_folder, label: _build_folder_page(run_folder=run_folder, label=label),
-    )
+    return build_run_folder_page(run_folders=run_folders, build_folder_page=_build_folder_page)

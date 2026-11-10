@@ -159,7 +159,7 @@ GuPPy loads each CSV file and writes the data into the output folder you created
 When the step finishes, its status line changes to *✓ Done at* the time it finished, and a Raw Data tab opens beside the form so you can check what was read before preprocessing anything. Pick a recording site and its control and signal traces stack up together, exactly as recorded, on one time axis measured from the first sample. The times of each event store are drawn over both traces as vertical lines, one color per event, and the **Events** checkboxes hide the ones you don't want to see. Zooming one trace zooms the other. If you close the tab, the **View results →** button in the status line under **Read Raw Data** opens it again. Confirmation messages are also logged to the terminal where you launched `guppy`.
 
 ```{image} ../_static/images/04b_raw_data_view.png
-:alt: Raw Data results tab after Read Raw Data, showing the control_A and signal_A traces stacked on a shared time axis with the RewardPort event times drawn as orange vertical lines
+:alt: Raw Data results tab after Read Raw Data, showing the Control (A) and Signal (A) traces stacked on a shared time axis with the RewardPort event times drawn as violet vertical lines
 :align: center
 ```
 

@@ -2,12 +2,13 @@
 
 import holoviews as hv
 import numpy as np
-from bokeh.palettes import Category10_10
 
+from .labels import TIME_LABEL
+from .palette import CONTROL, PLOT_COLORS, SIGNAL
 from .shading import shade_trace
 
-# The trace hue is Category10's first color, so events take the rest and stay distinguishable from it.
-_EVENT_PALETTE = Category10_10[1:]
+# Events take the plot colors the control and signal do not, so an event line never reads as a trace.
+_EVENT_PALETTE = [color for color in PLOT_COLORS if color not in (CONTROL, SIGNAL)]
 
 
 def event_colors(*, event_labels: list[str]) -> dict[str, str]:
@@ -31,7 +32,6 @@ def build_raw_traces(
     traces: dict[str, tuple[np.ndarray, np.ndarray]],
     event_times: dict[str, np.ndarray],
     colors: dict[str, str],
-    suptitle: str,
 ) -> hv.Layout:
     """Build density-shaded raw traces stacked over a shared time axis, with event times marked.
 
@@ -48,8 +48,6 @@ def build_raw_traces(
         Event label → times at which the event occurred.
     colors : dict
         Event label → color its lines are drawn in.
-    suptitle : str
-        Run-level title prefix applied to the first panel.
 
     Returns
     -------
@@ -58,14 +56,14 @@ def build_raw_traces(
     """
     panels = []
     for index, (title, (times, values)) in enumerate(traces.items()):
-        panel = shade_trace(hv.Curve((times, values), "time (s)", title))
+        panel = shade_trace(hv.Curve((times, values), TIME_LABEL, title))
         for label, times_of_event in event_times.items():
-            panel = panel * hv.VLines(list(times_of_event), kdims=["time (s)"], label=label).opts(
+            panel = panel * hv.VLines(list(times_of_event), kdims=[TIME_LABEL], label=label).opts(
                 color=colors[label], alpha=0.6, line_width=1
             )
         panels.append(
             panel.opts(
-                title=f"{suptitle} — {title}" if index == 0 else title,
+                title=title,
                 responsive=True,
                 height=260,
                 show_legend=index == 0,

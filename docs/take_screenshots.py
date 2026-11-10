@@ -705,13 +705,13 @@ def screenshot_raw_data_view(page: Page, tmp_path: Path) -> None:
         selected_runs={str(session): [parse_run_name(run_folder)]},
     )
 
-    template = pn.template.BootstrapTemplate(title="GuPPy — Raw Data")
+    template = pn.template.BootstrapTemplate(title="Raw Data")
     template.main.append(build_raw_data_view_page(run_folders=[run_folder]))
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1000})
     page.goto(url)
-    page.get_by_text("Raw data").first.wait_for()
+    page.get_by_text("Recording Site").first.wait_for()
     page.wait_for_timeout(3000)
     page.screenshot(path=OUTPUT_DIR / "04b_raw_data_view.png", full_page=False)
     print("Saved 04b_raw_data_view.png")

@@ -32,7 +32,9 @@ def test_offers_every_selected_run_even_when_combining(panel_extension, base_inp
 
     (page,) = pages
     assert page.name == "Raw Data"
-    (run_folder_select,) = [widget for widget in page.content.select(pn.widgets.Select) if widget.name == "Run folder"]
+    (run_folder_select,) = [
+        widget for widget in page.content.select(pn.widgets.Select) if isinstance(widget.options, dict)
+    ]
     assert sorted(run_folder_select.options.values()) == [
         str(session_with_two_runs / "output_1"),
         str(session_with_two_runs / "output_2"),
