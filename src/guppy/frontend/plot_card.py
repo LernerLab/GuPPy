@@ -20,6 +20,9 @@ RUN_FOLDER_WIDTH = 560
 CHECKBOX_MARGIN = (8, 5, 0, 5)
 
 _RULE_COLOR = "#E9ECEF"
+# The toolbar's left margin, a field's own margin and its label's margin, added up, so the note
+# above a toolbar starts where the toolbar's first label does.
+_NOTE_INDENT = 10 + 8 + 5
 _LABEL_STYLE = f"font-size: {SMALL_SIZE}; font-weight: {SEMIBOLD}; color: {SECONDARY_INK}; white-space: nowrap;"
 
 
@@ -103,7 +106,11 @@ def _plot_layout(
 ) -> list[pn.viewable.Viewable]:
     """The note (when there is one), the toolbar and the body, with a thin rule under the toolbar when a body follows."""
     note_panes = (
-        [pn.pane.Markdown(note, sizing_mode="stretch_width", css_classes=[SMALL_CLASS], margin=(5, 10, 0, 10))]
+        [
+            pn.pane.Markdown(
+                note, sizing_mode="stretch_width", css_classes=[SMALL_CLASS], margin=(5, 10, 0, _NOTE_INDENT)
+            )
+        ]
         if note
         else []
     )
@@ -119,6 +126,9 @@ def _plot_layout(
         *trailing,
         flex_wrap="wrap",
         align_items="flex-start",
+        # A wrapped line sits a clear step below the one above, so its labels do not read as
+        # captions for the controls over them.
+        gap="16px 0px",
         sizing_mode="stretch_width",
         styles=toolbar_styles,
         margin=(4, 10, 8, 10),

@@ -85,7 +85,15 @@ class TestPlotCard:
 
         toolbar = card[0][1]
         assert isinstance(toolbar, pn.FlexBox)
-        assert toolbar.flex_wrap == "wrap"
+        assert (toolbar.flex_wrap, toolbar.gap) == ("wrap", "16px 0px")
+
+    def test_note_starts_where_the_first_toolbar_label_does(self, panel_extension):
+        card = plot_card(title="Title", note="Note.", fields=[toolbar_field("Event", pn.widgets.Select())])
+
+        note, toolbar = card[0]
+        field = toolbar[0]
+        label_left = toolbar.margin[3] + field.margin[1] + field[0].margin[3]
+        assert note.margin[3] == label_left == 23
 
     def test_rule_under_the_toolbar_only_when_a_body_follows(self, panel_extension):
         settings_only = plot_card(title="Title", note="Note.", fields=[])
