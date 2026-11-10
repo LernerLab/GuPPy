@@ -12,7 +12,7 @@ Streaming a public dandiset needs no DANDI API key. GuPPy reads the dandiset's
 
 ## Choosing a dandiset and assets
 
-Set **Data Source**, above the cards at the top of the page, to `dandi`. In
+Set **Data Source**, above the cards at the top of the page, to `DANDI`. In
 **Input Folder Selection** the local file browser is replaced by the DANDI panel,
 which walks you through three screens: a list of dandisets, one dandiset's page,
 and that dandiset's files.
@@ -36,7 +36,7 @@ and that dandiset's files.
    :width: 100%
    ```
 
-2. Tick **Filter dandisets for GuPPy-readable fiber photometry** to find out
+2. Tick **Filter dandisets for GuPPy-readable fiber photometry (slow)** to find out
    which of the listed dandisets GuPPy can actually read. The search matches only
    what a dataset's authors wrote about it — its title, abstract and keywords —
    so mentioning photometry is not the same as holding it; the filter settles the
@@ -59,15 +59,15 @@ and that dandiset's files.
 Click a row to open that dandiset's page, and read it to decide whether the
 dataset is the one you want: its citation details, license, species, subject and
 file counts, size, keywords and abstract, with a link to its page on
-dandiarchive.org. Click **← Back to results** to return to the list with your
+dandiarchive.org. Click **← Back to Results** to return to the list with your
 search intact.
 
-When you have found the dandiset you want, click **Analyze this dandiset** to
+When you have found the dandiset you want, click **Analyze This Dandiset** to
 open its files.
 
 ### Selecting the NWB files
 
-1. Click **Scan for fiber photometry** before you go hunting. A dandiset usually
+1. Click **Scan for Fiber Photometry** before you go hunting. A dandiset usually
    holds far more assets than recordings, and the folder names give no sign of
    which is which — in `000971`, 63 of 4139 assets carry traces, spread across 40
    of its 168 subject folders.
@@ -90,11 +90,11 @@ open its files.
 
 ### Checking what is inside a file
 
-1. Click **Preview selected file** to stream a file's header and see what it
+1. Click **Preview Selected File** to stream a file's header and see what it
    holds, none of which is on the dandiset's page on dandiarchive.org.
 
    A preview is of one file, while the pipeline runs on every file you selected.
-   Choose which of your selected files to read with **File to preview** beside
+   Choose which of your selected files to read with **File to Preview** beside
    the button; picking a different one leaves your selection alone, so you can
    look through a batch before analyzing it.
 
@@ -118,19 +118,19 @@ open its files.
      site repeats across them, so pick the pair you want to analyze.
    - **The first 60 seconds of every channel** let you see the traces before
      committing to a full streaming run. Switch between series with **Traces from
-     series** when the file holds more than one. The window starts at the
+     Series** when the file holds more than one. The window starts at the
      recording's first sample, so a session that begins with the LED turning on
-     opens on that transient — pan and zoom past it, and set **Eliminate first
-     few seconds** when you run the pipeline.
+     opens on that transient — pan and zoom past it, and set **Eliminate First
+     Few Seconds (s)** when you run the pipeline.
 
    If the file holds no `FiberPhotometryResponseSeries`, the preview says so and
    lists whatever event objects it does hold; pick a different file.
 
-3. Click **Hide preview** when you are done with it.
+3. Click **Hide Preview** when you are done with it.
 
 ### Choosing the output root folder
 
-Set the **output root folder** in the **Root Folder Selection** card, if you have
+Set the **Output Root Folder** in the **Root Folder Selection** card, if you have
 not already. GuPPy creates one session folder per selected asset inside it, named
 after the asset filename minus `.nwb`, and writes that session's runs there. The
 recording itself is streamed and never downloaded, so the session folder holds only

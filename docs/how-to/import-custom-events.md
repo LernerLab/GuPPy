@@ -4,8 +4,8 @@ GuPPy can align analyses to behavioral events you derived outside the
 acquisition system — for example movement onsets thresholded from a velocity
 trace, or events scored by hand from video. This guide shows the two ways to
 bring those timestamps in. Both produce the same artifact: a GuPPy-compatible
-event CSV in the session folder that appears as a selectable store in the
-Label Stores GUI.
+event CSV in the session folder that appears as a selectable store on the
+Label Stores page.
 
 This is an **optional** step. If all the events you care about are already in
 the recording, skip it.
@@ -39,30 +39,33 @@ a spreadsheet).
 
 1. Select your session folder(s) on the homepage as usual.
 2. Click **Import Custom Events** (above *Step 1: Label Stores* in the
-   sidebar). A window opens for each selected session in turn.
+   sidebar). An Import Custom Events tab opens beside the form, with a tab for
+   each selected session.
 
    ```{image} ../_static/images/import_custom_events_button.png
    :alt: The sidebar with the optional Import Custom Events button positioned above Step 1, Label Stores
    :width: 50%
    ```
 
-3. For each event, enter a **name** and paste its **timestamps** — one per row,
-   in seconds — into the paste box. The values come straight from a spreadsheet
+3. Each event is a row under the **Event Name** and **Timestamps (s)** headings.
+   Enter the event's name and paste its timestamps, one per row, in seconds, into
+   the paste box. The values come straight from a spreadsheet
    column; no header or surrounding text.
-4. Click **Add event** to add another event, then **Save**.
-5. Open the **Label Stores GUI**: each imported event now appears as a store
+4. Click **+ Add Event** to add another event, then **Save**. The trash button on
+   a row deletes that event. An alert below **Save** reports the result.
+5. Open the **Label Stores** page: each imported event now appears as a store
    named after what you typed, ready to label like any other.
 
 ```{image} ../_static/images/import_custom_events.png
-:alt: The Import Custom Events pop-out window with two events — movement_onset and reward_delivery — each showing a name field and a paste box of one-per-row timestamps, above the Add event, Overwrite existing, and Save controls
+:alt: The Import Custom Events page with event rows under Event Name and Timestamps (s) headings, each with a name field, a paste box of one-per-row timestamps and a delete button, above the Add Event button, the overwrite checkbox and Save
 :width: 100%
 ```
 
 Notes:
 
 - Events are saved per session, so you can paste different events into each
-  session's window (useful for hand-scored data that differs per recording).
-- To replace an event you already imported, tick **Overwrite existing** before
+  session's tab (useful for hand-scored data that differs per recording).
+- To replace an event you already imported, tick **Overwrite existing events with the same name** before
   saving; otherwise a name that already exists is rejected so you don't lose
   data by accident.
 - Timestamps are saved in the order pasted. If they are not in increasing order
@@ -94,4 +97,4 @@ timestamps
 
 Place that file in the session folder. GuPPy detects it automatically — no
 configuration needed — and it shows up as a store named `movement_onset` the
-next time you open the Label Stores GUI.
+next time you open the Label Stores page.

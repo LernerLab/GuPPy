@@ -21,7 +21,7 @@ point first:
 1. Run **Step 1: Label Stores** and **Step 2: Read Raw Data** on the sessions you
    want to measure.
 2. If the signal steps partway through — a drug injection, say — set **Control Fit
-   Window** to `baseline epoch` and give it a window from before the change. A
+   Window** to `Baseline Epoch` and give it a window from before the change. A
    full-trace fit treats the step as part of the control-to-signal relationship and
    absorbs most of it, leaving little for the epoch means to measure. See the
    [parameters reference](../reference/parameters.md).
@@ -41,11 +41,12 @@ point first:
    ```
 
    ```{image} ../_static/images/tonic_analysis.png
-   :alt: The Tonic Analysis page: a Recording site selector above the z-score and delta F over F traces of a bolus-injection recording, with the baseline, drug, and washout windows shaded orange; below them one row per epoch giving its label, start, and end, the Add epoch and Apply to all recording sites buttons, and Save
+   :alt: The Tonic Analysis page: Run Folder and Recording Site selectors above the Z-Score and delta F over F traces of a bolus-injection recording, with the baseline, drug, and washout windows shaded in their own colors; below them one row per epoch giving its label, start, and end, the Add Epoch and Apply to All Recording Sites buttons, and Save
    ```
 
-3. Pick the recording site you want to measure with the **Recording site** selector.
-4. Click **+ Add epoch** and enter a **label** for the phase along with its start and
+3. Pick the run with the **Run Folder** selector and the recording site you want to
+   measure with the **Recording Site** selector.
+4. Click **+ Add Epoch** and enter a **Label** for the phase along with its start and
    end time, in **seconds**. The shaded spans on the traces update as you type, and
    the arrow keys nudge a bound by 0.1 s at a time.
 
@@ -53,14 +54,14 @@ point first:
    on a row deletes it. For a session with an injection at 60 s and the drug clearing
    from 120 s, three equal windows placed clear of both transitions might read:
 
-   | label | start (s) | end (s) |
+   | Label | Start (s) | End (s) |
    |------------|-----|-----|
    | `baseline` | 10  | 50  |
    | `drug`     | 70  | 110 |
    | `washout`  | 138 | 178 |
 
 5. If the manipulation reaches every recording site at the same time, click **Apply
-   to all recording sites** to copy the current site's epochs to the others.
+   to All Recording Sites** to copy the current site's epochs to the others.
 6. Click **Save**.
 
 The labels you type are the identifiers you see in the results: on the bar chart, in
@@ -84,21 +85,21 @@ mean.
 Run **Step 5: Visualization** and open the **Tonic** tab. A run with no saved epochs
 shows a short note in its place.
 
-**Baseline epoch** picks which of your epochs the others are measured against.
+**Baseline Epoch** picks which of your epochs the others are measured against.
 
-The two bar panels show each epoch's change from that baseline, in mean z-score and
-mean ΔF/F. The baseline epoch sits at zero by definition; the dashed line marks no
+The two bar panels, **Δ Mean Z-Score** and **Δ Mean ΔF/F**, show each epoch's change
+from that baseline. The baseline epoch sits at zero by definition; the dashed line marks no
 change, so bars above it rose relative to baseline and bars below it fell.
 
 ```{image} ../_static/images/tonic_results.png
-:alt: The Tonic tab of the visualization: Recording site and Baseline epoch selectors above two bar panels, change in mean z-score and change in mean delta F over F, each showing the baseline epoch at zero with the drug and washout epochs raised above the dashed no-change line
+:alt: The Tonic tab of the visualization: Recording Site and Baseline Epoch selectors above two bar panels, Delta Mean Z-Score and Delta Mean delta F over F, each showing the baseline epoch at zero with the drug and washout epochs raised above the dashed no-change line
 ```
 
 Below the bars, the traces show the analysed windows shaded, and the table gives the
 absolute means (`mean_zscore`, `mean_dff`) alongside the differences (`diff_zscore`,
 `diff_dff`).
 
-Changing **Baseline epoch** re-bases the bars and the two difference columns. The
+Changing **Baseline Epoch** re-bases the bars and the two difference columns. The
 absolute means do not move.
 
 ## Adjusting the epochs

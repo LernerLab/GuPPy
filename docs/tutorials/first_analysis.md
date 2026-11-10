@@ -51,13 +51,13 @@ A browser tab opens showing the GuPPy dashboard.
 :align: center
 ```
 
-The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Visualization* at the bottom, with a status line under each step that says whether it has run. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Root Folder Selection*, *Input Folder Selection*, *Output Folder Selection* and *Parameter Selection*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
+The page is split into a **sidebar on the left** and a **main area on the right**. The sidebar lists the pipeline buttons in run order, from *Label Stores* at the top through *Export to NWB* at the bottom, with a status line under each step that says whether it has run. The main area is where you select your data folder and configure parameters; settings are grouped into collapsible cards, of which this tutorial uses *Root Folder Selection*, *Input Folder Selection*, *Output Folder Selection* and *Parameter Selection*. The **Step N** labels in the sidebar (Label Stores through Export to NWB) match the numbered pipeline steps below, and the unnumbered buttons between them are optional steps this tutorial does not use; choosing your data and setting parameters in the main area, covered here in Step 0, is the setup that precedes them.
 
 Before running the pipeline you pick the session folder you want to analyze, then look over (but not change) the analysis parameters that the rest of the pipeline will use.
 
 ### Select your data
 
-Open the **Root Folder Selection** card at the top of the page. It holds the two folders a project keeps for the life of its analyses, and it opens itself while either is unset. Set the **input root folder** — the folder your session folders live under — to `stubbed_testing_data/csv/`, and the **output root folder** to wherever you want results written; anywhere outside your data is fine. GuPPy mirrors each session's path below the input root into the output root, so these two decide the shape of your results tree. It remembers them, so the card folds away next time.
+Open the **Root Folder Selection** card at the top of the page. It holds the two folders a project keeps for the life of its analyses, and it opens itself while either is unset. Set the **Input Root Folder** — the folder your session folders live under — to `stubbed_testing_data/csv/`, and the **Output Root Folder** to wherever you want results written; anywhere outside your data is fine. GuPPy mirrors each session's path below the input root into the output root, so these two decide the shape of your results tree. It remembers them, so the card folds away next time.
 
 In the **Input Folder Selection** card's **Session folders** browser, navigate to `stubbed_testing_data/csv/sample_data_csv_1/` and click **`>>`** to move that folder into the **Selected files** pane on the right. The browser supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session. Every session you select has to sit under the input root folder.
 
@@ -66,14 +66,14 @@ In the **Input Folder Selection** card's **Session folders** browser, navigate t
 :align: center
 ```
 
-The **Data Source** toggle above the cards lets you switch between `local` (the default, file-system browsing) and `dandi` (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
+The **Data Source** toggle above the cards lets you switch between `Local` (the default, file-system browsing) and `DANDI` (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 ### Set parameters
 
 The **Parameter Selection** card below lists the parameters that drive the rest of the pipeline, grouped into titled sections named for the operation each one configures. Every parameter carries a **?** beside its label that explains what it does. **For this tutorial the defaults are fine**, so you do not need to change anything; the screenshot below is for orientation, not for hunting and clicking.
 
 ```{image} ../_static/images/02_parameters.png
-:alt: GuPPy Parameter Selection card showing the Parallel Execution, Control Channel Fitting, Signal Filtering and Z-score Normalization sections
+:alt: GuPPy Parameter Selection card showing the Parallel Execution, Control Channel Fitting, Signal Filtering and Z-Score Normalization sections
 :align: center
 ```
 
@@ -97,29 +97,29 @@ Click **Label Stores** in the sidebar. A Label Stores tab opens beside the form,
 :align: center
 ```
 
-The three CSV filenames appear in the left list (**Filter available options**) of the **Store Names Selection** widget. Walk through these substeps:
+The three CSV filenames appear in the left list (**Filter available options**) of the **Store Selection** widget. Walk through these substeps:
 
 1. **Move all three channels to the right list.** Click each of `Sample_Control_Channel`, `Sample_Signal_Channel`, `Sample_TTL` in the left list and use the `>>` button to move it to the right. (Or shift-click to select all three at once before clicking `>>`.)
 
-2. **Click "Select Label Stores".** A new *Configure Label Stores* section appears below, with one row per channel. Each row has a **Type** dropdown and a **Name** text field.
+2. **Click "Select Stores".** A *Label Stores* section appears below, with one row per channel under the headings **Store**, **Type** and **Name or Signal**. Each row has a **Type** dropdown, and beside it either a text box or, for a control row, a picker of the signal rows.
 
    ```{image} ../_static/images/02b_label_stores_configured.png
-   :alt: Label Stores GUI after clicking Select Label Stores, showing the Configure Label Stores section with a Type dropdown and Name field for each of the three channels
+   :alt: Label Stores GUI after clicking Select Stores, showing the Label Stores section with Store, Type and Name or Signal columns for each of the three channels
    :align: center
    ```
 
-3. **Fill out one row per channel.** The **Name** field is a *recording-site identifier*, not a description of the channel's role. The control and signal rows must use the **same Name** because GuPPy uses that match to pair the isosbestic (405 nm) control trace with the calcium-dependent (470 nm) signal trace from the same fiber, then fits and subtracts one from the other during preprocessing to remove motion artifacts and photobleaching. In a multi-fiber recording, each fiber gets its own identifier (e.g. `DMS`, `DLS`) so each control is paired with its own signal. In this single-fiber tutorial we use `A`. The event TTL row uses a free-form event name instead.
+3. **Fill out one row per channel.** For a signal row, the **Name or Signal** text box takes a *recording-site identifier*, not a description of the channel's role. For the control row, pick the signal it belongs to: GuPPy uses that pairing to match the isosbestic (405 nm) control trace with the calcium-dependent (470 nm) signal trace from the same fiber, then fits and subtracts one from the other during preprocessing to remove motion artifacts and photobleaching. In a multi-fiber recording, each fiber gets its own identifier (e.g. `DMS`, `DLS`) so each control is paired with its own signal. In this single-fiber tutorial we use `A`. The event TTL row uses a free-form event name instead.
 
    <!-- TODO: link to docs/explanation/fiber_photometry.md (signal vs. isosbestic, z-score methods) once that page exists, for the deeper "why" of pairing. -->
 
 
-   | Channel | Type | Name |
-   |---------|------|------|
-   | `Sample_Control_Channel` | `control` | `A` |
-   | `Sample_Signal_Channel` | `signal` | `A` |
-   | `Sample_TTL` | `event TTLs` | `RewardPort` |
+   | Channel | Type | Name or Signal |
+   |---------|------|----------------|
+   | `Sample_Control_Channel` | `Control` | `Sample_Signal_Channel – A` |
+   | `Sample_Signal_Channel` | `Signal` | `A` |
+   | `Sample_TTL` | `Event TTLs` | `RewardPort` |
 
-   GuPPy combines the dropdown and text field into the final store: `control` + `A` becomes `control_A`, `signal` + `A` becomes `signal_A`, and the event TTL keeps the name as-is (`RewardPort`). If the control and signal Name fields differ, saving will fail with `Mismatched signal/control recording-site pairs in storesList — Every 'signal_<recording_site>' must have a matching 'control_<recording_site>'.`
+   GuPPy combines each row's type and name into the final store: `Signal` + `A` becomes `signal_A`, the control paired with it becomes `control_A`, and the event TTL keeps the name as-is (`RewardPort`). If a control row is left on `— select signal —`, GuPPy rejects the configuration with an alert asking you to select the signal each control belongs to.
 
 4. **Click "Show Selected Configuration".** This applies your row entries to the JSON editor below, which should now read something like:
 
@@ -131,17 +131,17 @@ The three CSV filenames appear in the left list (**Filter available options**) o
    }
    ```
 
-5. **Choose where to save the store labels.** Leave **Create new run** selected, and leave the **Run name** GuPPy fills in, `1`.
+5. **Choose where to save the store labels.** Leave **Create New Run** selected, and leave the **Run Name** GuPPy fills in, `1`.
 
-   This choice picks the **run folder** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create new run** makes a fresh directory named `output_<run name>/` inside the session's mirror in the output root folder — for this tutorial, `<output root folder>/sample_data_csv_1/`. The run name GuPPy fills in is the next free integer, so the first run gets `output_1`, the second `output_2`, and so on. Your raw session folder is left exactly as it was.
+   This choice picks the **run folder** for the entire analysis pipeline. From this point on, every downstream step (Read Raw Data, Preprocess, PSTH Computation, Visualization) writes its outputs (HDF5 files, PSTH results, plots) into that directory and reads `storesList.csv` from it to know which raw channel maps to which store. **Create New Run** makes a fresh directory named `output_<run name>/` inside the session's mirror in the output root folder — for this tutorial, `<output root folder>/sample_data_csv_1/`. The run name GuPPy fills in is the next free integer, so the first run gets `output_1`, the second `output_2`, and so on. Your raw session folder is left exactly as it was.
 
    :::{note}
-   The other option, **Overwrite existing run**, is for re-running on a session that already has a run folder. It lets you pick an existing `output_<run name>/` under **Run to overwrite**, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that directory over fresh. Pick it only when you genuinely want that destructive behavior. For the tutorial, ignore it.
+   The other option, **Overwrite Existing Run**, is for re-running on a session that already has a run folder. It lets you pick an existing `output_<run name>/` under **Run to Overwrite**, deletes everything inside it (the previous `storesList.csv` plus any HDF5 and PSTH results from the previous run), and starts that directory over fresh. Pick it only when you genuinely want that destructive behavior. For the tutorial, ignore it.
    :::
 
 6. **Click Save.** GuPPy creates the run folder (`<output root folder>/sample_data_csv_1/output_1/`) and writes `storesList.csv` into it. The downstream steps will read and write inside this folder.
 
-You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing runs (steps 2–5)**, select `output_1` under `sample_data_csv_1`. Every step from here on acts on the runs selected there.
+You can close this Label Stores tab and return to the original homepage tab. Open **Output Folder Selection** and, under **Existing Runs (Steps 2–5)**, select `output_1` under `sample_data_csv_1`. Every step from here on acts on the runs selected there.
 
 ## Step 2: Load the raw data
 
@@ -169,8 +169,8 @@ Click **Preprocess**. As with Read Raw Data, a progress bar appears in the sideb
 
 GuPPy runs the following on the raw signal:
 
-1. Trims the first few seconds from both channels (the *Eliminate first few seconds* parameter, internally `timeForLightsTurnOn`).
-2. Applies a moving-average filter to reduce high-frequency noise (the *Window for Moving Average filter* parameter, internally `filter_window`).
+1. Trims the first few seconds from both channels (the *Eliminate First Few Seconds (s)* parameter, internally `timeForLightsTurnOn`).
+2. Applies a moving-average filter to reduce high-frequency noise (the *Window for Moving Average Filter* parameter, internally `filter_window`).
 3. Fits the control channel to the signal channel, then subtracts it. This removes motion artifacts and photobleaching that affect both channels equally. The fitting method is configurable (the *Control Channel Fitting Method* parameter, internally `control_fit_method`): the default `IRWLS` is a robust regression that down-weights outliers, with ordinary least-squares (`OLS`) regression available as an alternative.
 4. Computes the z-score and the dF/F (delta F over F) of the corrected signal.
 
@@ -185,7 +185,7 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 
 Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
-When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View results →** button in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Home tab and keep working, and the results tab stays open.
+When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View Results →** button in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Home tab and keep working, and the results tab stays open.
 
 <!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a tab inside the homepage, so the screenshot script will need to run Preprocess to capture it. -->
 
@@ -196,14 +196,14 @@ If the traces in that results tab show stretches you want excluded — a knocked
 
 ## Step 4: Compute the PSTH
 
-Click **Compute PSTH**. As with the previous two steps, a progress bar appears in the sidebar directly below the button and fills as the work runs.
+Click **PSTH Computation**. As with the previous two steps, a progress bar appears in the sidebar directly below the button and fills as the work runs.
 
 ```{image} ../_static/images/06_psth_progress.png
 :alt: GuPPy homepage sidebar with the PSTH Computation progress bar partially filled
 :align: center
 ```
 
-GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, extracts the window defined by the *Seconds before 0* / *Seconds after 0* parameters (internally `nSecPrev`, `nSecPost`) around each event, and averages across all trials. The result is a peri-stimulus time histogram (PSTH).
+GuPPy aligns the z-scored trace to each event timestamp in `Sample_TTL.csv`, extracts the window defined by the *Seconds Before 0* / *Seconds After 0* parameters (internally `nSecPrev`, `nSecPost`) around each event, and averages across all trials. The result is a peri-stimulus time histogram (PSTH).
 
 The default window is -10 to +20 seconds. With the sample data you will get a small number of trials (the TTL file has just a handful of timestamps), so the average will be noisy. This is expected for a minimal example dataset.
 
@@ -220,26 +220,26 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 ## Step 5: Visualize the results
 
-Click **Open Visualization GUI** in the sidebar. A Visualization tab opens with the Visualization GUI for this session, organized into two tabs.
+Click **Open Visualization GUI** in the sidebar. A Visualization tab opens with the Visualization GUI for this session, organized into tabs. This tutorial uses the first two, **PSTH** and **Heat Map**.
 
-A **Metric** selector sits with the display settings on the PSTH tab, and beside the event selector on the Heat Map tab. It lists the metrics Step 4 actually computed for this run, so here it offers only `z-score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
+A **Metric** selector sits in the *Display Settings* card at the top of both tabs. It lists the metrics Step 4 actually computed for this run, so here it offers only `Z-Score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
 
 ```{image} ../_static/images/03_visualization.png
 :alt: GuPPy Visualization GUI showing the PSTH tab with the RewardPort event selected
 :align: center
 ```
 
-The **PSTH** tab is the default view. A *Display settings* card at the top holds what every plot on the tab shares: the *Metric*, the plot *Height*, and the *Saved width* that a figure saved with *Save As…* is rendered at. On screen, each plot spans the full width of the window.
+The **PSTH** tab is the default view. A *Display Settings* card at the top holds what every plot on the tab shares: the *Metric*, the *Saved Width* that a figure saved with *Save As…* is rendered at, the plot *Height*, and a *Hide Minor Ticks* checkbox under *Style*. On screen, each plot spans the full width of the window.
 
-Below it, three cards each hold one plot, with its controls in a row above it:
+Below it, three cards each hold one plot, with a row of labeled fields above it:
 
-- *Single-event PSTH*: the *Event selector* picks which TTL channel to align to (here `RewardPort`), and *View* shows the trial average (`mean`) or an individual trial.
-- *Multi-event comparison*: overlays the mean traces of the events you move into the right-hand list.
-- *Selected trials*: overlays any combination of individual trials of the first card's event, with or without their mean.
+- *Single-Event PSTH*: *Event* picks which TTL channel to align to (here `RewardPort`), and *View* shows the trial average (`mean`) or all trials at once (`All`).
+- *Multi-Event Comparison*: overlays the mean traces of the events you move into the right-hand list of the *Events* panel beside the plot. *Palette* sets their colours, and the *Colors* button beside it opens a colour picker for each event.
+- *Selected Trials*: overlays the trials of the *Single-Event PSTH* event that you move into the right-hand list of the *Trials* panel beside the plot. *Show* draws their *Mean*, the trials themselves (*Just Trials*), or both. Each trial reads as its number and event time, such as `3 · 113.40 s`.
 
-Each card also has its own axis limits and a *Save As…* button. With a TTL file containing only a handful of timestamps, the average will be noisy; this is expected for the minimal sample dataset.
+Each card also has its own *X Range* and *Y Range* fields and a *Save Plot* field, which holds a format menu and a *Save As…* button. Each side panel can be dragged wider by the handle between it and the plot, or hidden with the button on that handle. With a TTL file containing only a handful of timestamps, the average will be noisy; this is expected for the minimal sample dataset.
 
-The **Heat Map** tab shows trials stacked vertically with colour encoding the metric, which is the better view for inspecting trial-to-trial variability. Its controls mirror the PSTH tab: event selector, *Color map* (`plasma`, `viridis`, …), saved width and height, axis and colour-scale limits, *Save As…*, and a trial picker.
+The **Heat Map** tab shows trials stacked vertically with colour encoding the metric, which is the better view for inspecting trial-to-trial variability. Its own *Display Settings* card holds the *Metric*, *Saved Width*, *Height* and *Style* checkboxes, and the *Trial Heat Map* card below it has *Event*, *Color Map* (`plasma`, `viridis`, …), *X Range*, *Color Scale* and *Save Plot* fields, with a *Trials* panel beside the plot.
 
 For this tutorial, the goal is just to reach a rendered PSTH; feel free to play with the controls. A deeper walkthrough of the visualization options will live in an upcoming how-to guide.
 

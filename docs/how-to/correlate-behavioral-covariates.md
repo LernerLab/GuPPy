@@ -73,7 +73,7 @@ the next time you open the Label Stores GUI.
 
 Open **Step 1: Label Stores**. Your file appears as a store named after the file
 (so `akinesia.csv` shows up as `akinesia`). Set its **Type** to
-**behavioral covariate** and type a **Name** for the variable — this is the name
+**Behavioral Covariate** and type a name for the variable in its **Name or Signal** box — this is the name
 that appears in the outputs and in the plots.
 
 ```{image} ../_static/images/covariate_label_stores.png
@@ -95,8 +95,8 @@ will be empty.
 
 Two combinations are rejected, because the covariate timestamps could not be
 interpreted against them: **Combine Data?**, which re-times several sessions onto
-one synthetic clock, and the `concatenate` artifact-removal method, which
-compresses the time axis where artifacts were cut. Use `replace with NaN` instead.
+one synthetic clock, and the `Concatenate` artifact-removal method, which
+compresses the time axis where artifacts were cut. Use `Replace with NaN` instead.
 
 ## 6. Read the results
 
@@ -114,11 +114,11 @@ behind the two coefficients.
 
 ## 7. View the results
 
-Open **Step 5: Visualize** and select the **Covariates** tab. Pick a recording site,
+Open **Step 5: Visualization** and select the **Covariates** tab. Pick a recording site,
 a metric and a covariate.
 
 ```{image} ../_static/images/covariate_correlations.png
-:alt: The Covariates tab: Recording site, Metric and Covariate selectors above four stacked panels - the photometry trace, its per-bin metric, the raw akinesia scores, and their per-bin means - then a scatter of the metric against akinesia with a least-squares line through it, titled with the Pearson r and bin count, and the table of every metric-covariate pair
+:alt: The Covariates tab: Recording Site, Metric and Covariate selectors above four stacked panels - the photometry trace, its per-bin metric, the raw akinesia scores, and their per-bin means - then a scatter of the metric against akinesia with a least-squares line through it, titled with the Pearson r and bin count, and the table of every metric-covariate pair
 ```
 
 Four panels stack above the scatter, sharing one time axis: the photometry trace,
