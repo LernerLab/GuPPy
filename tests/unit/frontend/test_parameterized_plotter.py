@@ -14,6 +14,8 @@ from guppy.frontend.parameterized_plotter import (
     overview_y_options,
     psth_result_paths,
     remove_cols,
+    trial_column_label,
+    trial_options,
 )
 
 
@@ -50,7 +52,7 @@ class TestBuildPlotter:
             filepath=str(one_site_output_directory), events=["RewardPort"], metric="z_score", x_min=-5.0, x_max=10.0
         )
 
-        assert plotter.Y_Label == "z-score"
+        assert plotter.Y_Label == "Z-Score"
         np.testing.assert_allclose(plotter.df_new["RewardPort_DMS"]["mean"].to_numpy(), np.full(30, 1.0))
 
     def test_dff_results_are_loaded_and_label_the_y_axis(self, one_site_output_directory, panel_extension):
@@ -282,6 +284,39 @@ def varied_heatmap_plotter(tmp_path, panel_extension):
     )
 
 
+@pytest.fixture
+def twelve_trial_plotter(tmp_path, panel_extension):
+    """Plotter whose event heatmap has twelve trial rows."""
+    trial_columns = [f"trial_{index}" for index in range(1, 13)]
+    columns = [*trial_columns, "bin_1", "timestamps", "mean", "err", "bin_err_1"]
+    timestamps = np.linspace(-5.0, 10.0, 30)
+
+    def make_event_dataframe():
+        values = {"timestamps": timestamps}
+        for offset, column in enumerate(trial_columns):
+            values[column] = np.full(30, float(offset))
+        for column in ("bin_1", "mean", "err", "bin_err_1"):
+            values[column] = np.zeros(30)
+        return pd.DataFrame(values, columns=columns)
+
+    events = ["event1", "event2"]
+    return ParameterizedPlotter(
+        event_selector_objects=events,
+        event_selector_heatmap_objects=events,
+        selector_for_multipe_events_plot_objects=events,
+        color_map_objects=["plasma", "viridis"],
+        x_objects=["timestamps"],
+        y_objects=["trial_1", "mean"],
+        heatmap_y_objects=[*[f"{index} - trial_{index}" for index in range(1, 13)], "All"],
+        psth_y_objects=None,
+        filepath=str(tmp_path),
+        columns_dict={event: columns for event in events},
+        df_new=pd.concat([make_event_dataframe() for event in events], keys=events, axis=1),
+        x_min=-5.0,
+        x_max=10.0,
+    )
+
+
 class TestParameterizedPlotter:
     def test_constructs(self, plotter):
         assert isinstance(plotter, ParameterizedPlotter)
@@ -325,7 +360,7 @@ class TestParameterizedPlotter:
         assert plotter.trials_Y is None
 
     def test_default_trace_color(self, plotter):
-        assert plotter.trace_color == "#0000ff"
+        assert plotter.trace_color == "#3A9E5C"
 
     def test_default_mean_color(self, plotter):
         assert plotter.mean_color == "#000000"
@@ -334,7 +369,7 @@ class TestParameterizedPlotter:
         assert plotter.select_trials_checkbox == ["just trials"]
 
     def test_default_y_label(self, plotter):
-        assert plotter.Y_Label == "z-score"
+        assert plotter.Y_Label == "Z-Score"
 
     def test_default_save_options(self, plotter):
         assert plotter.save_options_cont == "png"
@@ -346,7 +381,7 @@ class TestParameterizedPlotter:
         assert plotter.param["save_options_cont"].objects == ["png", "svg"]
 
     def test_default_overlay_palette(self, plotter):
-        assert plotter.overlay_palette == "Category10"
+        assert plotter.overlay_palette == "GuPPy"
 
     def test_default_height_plot(self, plotter):
         assert plotter.Height_Plot == 300
@@ -786,6 +821,20 @@ class TestParameterizedPlotter:
         refigure = hv.render(plotter.heatmap())
         assert {refigure.y_range.start, refigure.y_range.end} == {0.5, 3.5}
 
+    def test_heatmap_labels_every_trial_when_rows_have_room(self, twelve_trial_plotter):
+        # 600 px over 12 rows leaves 50 px a row, past the 18 px a label needs.
+        figure = hv.render(twelve_trial_plotter.heatmap())
+
+        assert list(figure.yaxis[0].ticker.ticks) == list(range(1, 13))
+
+    def test_heatmap_labels_every_nth_trial_when_rows_are_short(self, twelve_trial_plotter):
+        # 100 px over 12 rows leaves about 8 px a row, so every third trial is labeled (18 * 12 / 100 rounds up to 3).
+        twelve_trial_plotter.height_heatmap = 100
+
+        figure = hv.render(twelve_trial_plotter.heatmap())
+
+        assert list(figure.yaxis[0].ticker.ticks) == [1, 4, 7, 10]
+
     def test_heatmap_honours_clim_override(self, plotter):
         # A user-set colour scale survives a render whose selection is unchanged.
         plotter.heatmap()  # first render stores the selection and auto-fits clim
@@ -879,17 +928,17 @@ class TestParameterizedPlotter:
         assert plotter.overlay_color_overrides == {}
 
     def test_overlay_effective_colors_uses_palette_when_no_overrides(self, plotter):
-        # Category10 palette; two events selected in order -> its first two colors.
+        # GuPPy palette; two events selected in order -> its first two colors, green then blue.
         plotter.selector_for_multipe_events_plot = ["event1", "event2"]
 
-        assert plotter.overlay_effective_colors() == {"event1": "#1f77b4", "event2": "#ff7f0e"}
+        assert plotter.overlay_effective_colors() == {"event1": "#3A9E5C", "event2": "#1F6FD1"}
 
     def test_overlay_effective_colors_override_wins(self, plotter):
         # An explicit override replaces only that event's color; the other keeps its palette color.
         plotter.selector_for_multipe_events_plot = ["event1", "event2"]
         plotter.overlay_color_overrides = {"event2": "#123456"}
 
-        assert plotter.overlay_effective_colors() == {"event1": "#1f77b4", "event2": "#123456"}
+        assert plotter.overlay_effective_colors() == {"event1": "#3A9E5C", "event2": "#123456"}
 
     def test_overlay_effective_colors_cycles_palette_beyond_its_length(self, plotter):
         # Dark2 has 8 colors; a 9th event wraps back to the first color.
@@ -1004,3 +1053,46 @@ def capture_notifications(monkeypatch):
         staticmethod(lambda level, message: recorded.append((level, message))),
     )
     return recorded
+
+
+class TestTrialLabels:
+    def test_a_session_trial_reads_as_its_event_time_to_two_decimals(self):
+        assert trial_column_label("81.81415939331055") == "81.81 s"
+
+    def test_a_group_trial_keeps_the_name_of_the_run_it_averages(self):
+        assert trial_column_label("mouse_02_output_1") == "mouse_02_output_1"
+
+    def test_options_label_each_value_and_keep_the_value(self):
+        assert trial_options(["1 - 81.81415939331055", "2 - 147.3552384376526", "All"]) == {
+            "1 · 81.81 s": "1 - 81.81415939331055",
+            "2 · 147.36 s": "2 - 147.3552384376526",
+            "All": "All",
+        }
+
+    def test_the_trial_pickers_offer_labeled_trials(self, plotter):
+        # The fixture's trial columns are named, not timed, so they read as their names.
+        assert plotter.param["psth_y"].objects == {
+            "1 · trial_1": "1 - trial_1",
+            "2 · trial_2": "2 - trial_2",
+            "3 · trial_3": "3 - trial_3",
+        }
+        assert list(plotter.param["heatmap_y"].objects)[-1] == "All"
+
+
+class TestComparisonColors:
+    def test_each_event_is_drawn_in_the_colour_its_picker_shows(self, plotter, panel_extension):
+        # Selected out of alphabetical order: the overlay must not reorder the colours.
+        plotter.selector_for_multipe_events_plot = ["event2", "event1"]
+        plotter.overlay_color_overrides = {"event1": "#112233"}
+        expected = plotter.overlay_effective_colors()
+
+        figure = hv.render(plotter.update_selector())
+
+        drawn = {
+            item.label["value"]: renderer.glyph.line_color
+            for item in figure.legend[0].items
+            for renderer in item.renderers
+            if type(renderer.glyph).__name__ == "Line"
+        }
+        assert drawn == expected
+        assert [item.label["value"] for item in figure.legend[0].items] == ["event2", "event1"]

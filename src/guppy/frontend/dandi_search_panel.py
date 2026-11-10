@@ -230,10 +230,10 @@ class DandiSearchPanel:
         self.results_table.param.watch(self._on_row_selected, "selection")
 
         self.dandiset_details = pn.pane.Markdown("", width=width)
-        self.use_button = pn.widgets.Button(name="Analyze this dandiset", button_type="success", width=200)
+        self.use_button = pn.widgets.Button(name="Analyze This Dandiset", button_type="success", width=200)
         self.use_button.on_click(self._on_use_clicked)
         self.back_button = pn.widgets.Button(
-            name="← Back to results", width=180, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
+            name="← Back to Results", width=180, stylesheets=[SECONDARY_BUTTON_STYLESHEET]
         )
         self.back_button.on_click(self.show_results)
 

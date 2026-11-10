@@ -4,8 +4,8 @@ from pathlib import Path
 
 import panel as pn
 
-from . import nwb_form_style as style
 from .store_labeling_config import StoreLabelingConfig
+from .typography import BODY_SIZE, INK
 
 pn.extension(notifications=True)
 
@@ -34,16 +34,19 @@ class StoreLabelingSelector:
             name="Store Selection", value=[], options=allnames, sizing_mode="stretch_width"
         )
         self.multi_choice = pn.widgets.MultiChoice(
-            name="Select Stores which you want more than once (multi-choice: multiple options selection)",
+            name="Stores Used More Than Once",
             value=[],
             options=allnames,
         )
 
         self.literal_input_1 = pn.widgets.LiteralInput(
-            name="Number of times you want the above store (list)", value=[], type=list
+            name="Times Each Store Is Used",
+            value=[],
+            type=list,
+            description="One count per store above, in the same order, as a list such as [2, 3].",
         )
 
-        self.repeat_stores = pn.widgets.Checkbox(name="Stores to repeat", value=False)
+        self.repeat_stores = pn.widgets.Checkbox(name="Stores to Repeat", value=False)
         self.repeat_store_wd = pn.WidgetBox("", sizing_mode="stretch_width")
 
         self.repeat_stores.link(self.repeat_store_wd, callbacks={"value": self.callback})
@@ -59,26 +62,23 @@ class StoreLabelingSelector:
             """
 **Choose where to save these store labels:**
 
-- **Create new run** — save into a new output folder named after **Run name**.
-- **Overwrite existing run** — replace the output folder picked in **Run to overwrite**.
+- **Create New Run** — save into a new output folder named after **Run Name**.
+- **Overwrite Existing Run** — replace the output folder picked in **Run to Overwrite**.
             """,
             sizing_mode="stretch_width",
         )
 
-        self.run_name = pn.widgets.TextInput(name="Run name", value="", sizing_mode="stretch_width")
+        self.run_name = pn.widgets.TextInput(name="Run Name", value="", sizing_mode="stretch_width")
 
         self.select_location = pn.widgets.Select(
-            name="Run to overwrite", options=[], sizing_mode="stretch_width", visible=False
+            name="Run to Overwrite", options=[], sizing_mode="stretch_width", visible=False
         )
 
         self.overwrite_mode = pn.widgets.RadioBoxGroup(
-            options={"Create new run": "create_new_file", "Overwrite existing run": "over_write_file"},
+            options={"Create New Run": "create_new_file", "Overwrite Existing Run": "over_write_file"},
             value="create_new_file",
             inline=True,
-            stylesheets=[
-                f":host label {{ color: {style.INK}; font-size: 13px; }} "
-                f':host input[type="radio"] {{ accent-color: {style.ACCENT}; }}'
-            ],
+            stylesheets=[f":host label {{ color: {INK}; font-size: {BODY_SIZE}; }}"],
         )
 
         self.literal_input_2 = pn.widgets.CodeEditor(

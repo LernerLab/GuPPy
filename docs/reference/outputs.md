@@ -26,7 +26,7 @@ Three further directories can appear:
 
 | Directory | Location | Written by |
 |-----------|----------|------------|
-| `cross_correlation_output/` | inside a run folder | Step 4, when **Compute Cross-correlation** is enabled |
+| `cross_correlation_output/` | inside a run folder | Step 4, when **Compute Cross-Correlation?** is enabled |
 | `psth_significance_output/` | inside a run or group folder | Step 4 and Group Analysis, when **Compute PSTH Significance?** is enabled |
 | `<name>_group/` | in the destination directory you pick | the Label Groups step (definition) and the Group Analysis step (results) |
 
@@ -173,7 +173,7 @@ A run folder ends up with two overlapping sets of HDF5 files. Step 2 writes one 
 
 **`coordsForPreProcessing_<site>.npy`** is a float array of shape `(2M, 2)`. Column 0 holds the keep-window bounds interleaved as `[start_0, end_0, start_1, end_1, …]`; column 1 is an unused placeholder of zeros. The file records what survives, not the artifact periods you marked in the GUI. A recording site with no marked artifacts gets no file at all, and the pipeline then treats the whole recording as one keep window.
 
-Remove Artifacts does not create new files. It rewrites the Step 3 outputs in place: `data` in each `<store_label>.hdf5`, and `ts` in each `<event>_<site>.hdf5`. The `concatenate` method additionally rewrites `timestampNew` and sets `recordingStart` to `0.0` in `timeCorrection_<site>.hdf5`. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
+Remove Artifacts does not create new files. It rewrites the Step 3 outputs in place: `data` in each `<store_label>.hdf5`, and `ts` in each `<event>_<site>.hdf5`. The `Concatenate` method additionally rewrites `timestampNew` and sets `recordingStart` to `0.0` in `timeCorrection_<site>.hdf5`. See [Remove artifacts from a recording](../how-to/artifact-removal.md).
 
 ---
 
@@ -238,13 +238,13 @@ The columns are `timestamps` (the same peri-event axis as the PSTH), `estimate` 
 
 **`binned_metrics_<site>.h5` and `.csv`** are written only when **Compute Binned Metrics?** is enabled. They hold the same table: one row per fixed-width time bin, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end` (seconds of absolute session time, on the same timebase as `timestampNew`), `n_samples`, `mean_zscore`, `mean_dff`, and a `transient_count_z_score` and/or `transient_count_dff` column.
 
-Bins start at the first corrected timestamp and run in **Bin Width** steps to the last. The final bin is kept even when the session does not divide evenly, so it may be shorter than the rest — compare `bin_end - bin_start` against the others to spot it. Bins are half-open, `[bin_start, bin_end)`, except the last, which includes its own end; the transient counts follow the same convention. `n_samples` counts the samples behind the means, so a bin lost entirely to artifact removal reads `0` with `NaN` means.
+Bins start at the first corrected timestamp and run in **Bin Width (s)** steps to the last. The final bin is kept even when the session does not divide evenly, so it may be shorter than the rest — compare `bin_end - bin_start` against the others to spot it. Bins are half-open, `[bin_start, bin_end)`, except the last, which includes its own end; the transient counts follow the same convention. `n_samples` counts the samples behind the means, so a bin lost entirely to artifact removal reads `0` with `NaN` means.
 
-Which count columns appear depends on **z_score and/or ΔF/F? (transients)**: the detector only runs on the metrics you select, and only those get a count column. The two mean columns are always present.
+Which count columns appear depends on **Z-Score and/or ΔF/F (Transients)**: the detector only runs on the metrics you select, and only those get a count column. The two mean columns are always present.
 
 Two cases where a bin does not correspond to a fixed stretch of wall-clock time: with **Combine Data?** enabled the sessions are re-timed onto one synthetic timeline, so a bin can straddle the boundary between two of them; and with the `concatenate` artifact-removal method the time axis is compressed where artifacts were cut, so a 60-second bin spans more than 60 seconds of the original recording.
 
-**`binned_covariates_<site>.h5` and `.csv`** are written only when the session carries a store labeled **behavioral covariate** and **Compute Binned Metrics?** is enabled. They hold one row per time bin, on exactly the bins of the matching `binned_metrics_<site>` table, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end`, then one column per covariate holding its mean over that bin, then one `n_samples_<covariate>` column per covariate. A bin holding no score reads `NaN` with a count of `0`. Scores timestamped outside the binned span are dropped rather than folded into the first or last bin.
+**`binned_covariates_<site>.h5` and `.csv`** are written only when the session carries a store labeled **Behavioral Covariate** and **Compute Binned Metrics?** is enabled. They hold one row per time bin, on exactly the bins of the matching `binned_metrics_<site>` table, indexed `0..n-1` (index name `bin`). The columns are `bin_start` and `bin_end`, then one column per covariate holding its mean over that bin, then one `n_samples_<covariate>` column per covariate. A bin holding no score reads `NaN` with a count of `0`. Scores timestamped outside the binned span are dropped rather than folded into the first or last bin.
 
 **`covariate_correlations_<site>.h5` and `.csv`** hold one row per (metric, covariate) pair, indexed `0..n-1` (index name `pair`), with columns `metric`, `covariate`, `pearson_r`, `spearman_rho` and `n_bins`. Every column of `binned_metrics_<site>` that is not bin geometry is correlated, so both means and any transient counts appear. `n_bins` is the number of bins where the metric and the covariate are both present — the sample size actually behind the two coefficients, which is usually much smaller than the number of samples in the recording. Coefficients read `NaN` when either series is constant across the paired bins, or when fewer than three bins pair up.
 
@@ -256,7 +256,7 @@ Two cases where a bin does not correspond to a fixed stretch of wall-clock time:
 
 ## Step 5: Visualize the results
 
-Step 5 writes no data. The **Save As** buttons deliver the figure to the browser as a PNG or SVG download, so exported figures land wherever your browser saves downloads.
+Step 5 writes no data. The **Save As…** buttons deliver the figure to the browser as a PNG or SVG download, so exported figures land wherever your browser saves downloads.
 
 ---
 

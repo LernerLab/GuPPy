@@ -257,7 +257,7 @@ sample_data_csv_1_mean                  0.711019   -1.118595  0.830322    3.0387
 
 One row per trial plus a final `mean` row, matching the PSTH's columns, indexed by the session name joined to the trial label. `peak_pos_<N>`, `peak_neg_<N>` and `area_<N>` are the measurements for the Nth peak window you configured — three by default, `-5` to `0`, `0` to `3` and `5` to `10` seconds. Trial 5's later windows are NaN for the same reason its heat map row is blank.
 
-The areas look large next to the peaks because the default **AUC Units** setting integrates with one-sample spacing, so the number scales with the sampling rate. Set it to `seconds` for z-score × seconds.
+The areas look large next to the peaks because the default **AUC Units** setting integrates with one-sample spacing, so the number scales with the sampling rate. Set it to `Seconds` for z-score × seconds.
 
 ## Gotchas
 
@@ -266,7 +266,7 @@ The areas look large next to the peaks because the default **AUC Units** setting
 - **`timestamps` means three different things.** Session time in an `.hdf5`, time relative to the event in a PSTH `.h5`, and lag in seconds in a cross-correlation `.h5`.
 - **The sampling rate lives in `timeCorrection_<site>.hdf5`.** It is not an HDF5 attribute and it is not in the tables.
 - **Trial column labels are strings.** `psth["139.238440990448"]` works; `psth[139.238440990448]` does not.
-- **Expect NaN.** Trials that run off the end of the recording, and any period you removed with the `replace with NaN` artifact method, are NaN. Use `numpy.nanmean` and friends.
+- **Expect NaN.** Trials that run off the end of the recording, and any period you removed with the `Replace with NaN` artifact method, are NaN. Use `numpy.nanmean` and friends.
 
 ## Next steps
 

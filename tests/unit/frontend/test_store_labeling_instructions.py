@@ -99,7 +99,11 @@ class TestStoreLabelingInstructionsNPMConfigForm:
         assert config_form.timestamp_column_select.options == ["Timestamp", "ComputerTimestamp"]
 
     def test_unit_select_is_built_once_for_the_session(self, config_form):
-        assert config_form.time_unit_select.options == ["seconds", "milliseconds", "microseconds"]
+        assert config_form.time_unit_select.options == {
+            "Seconds": "seconds",
+            "Milliseconds": "milliseconds",
+            "Microseconds": "microseconds",
+        }
         assert config_form.time_unit_select.value == "seconds"
 
     def test_column_select_omitted_when_only_one_column_is_offered(self, single_column_config_form):

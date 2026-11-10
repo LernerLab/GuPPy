@@ -26,9 +26,28 @@ class TestCustomEventsConfig:
         config.rows[1][1].value = "3.0"
         assert config.get_rows() == [("movement_onset", "0.1\n0.2"), ("lever_press", "3.0")]
 
-    def test_set_alert_message(self, config):
+    def test_alert_is_hidden_until_there_is_a_message(self, config):
+        assert config.alert.visible is False
+
         config.set_alert_message("#### hello")
+
         assert config.alert.object == "#### hello"
+        assert config.alert.visible is True
+
+    def test_the_delete_button_removes_its_row(self, config):
+        config.add_event_row()
+        config.rows[0][0].value = "movement_onset"
+        config.rows[1][0].value = "lever_press"
+        first_delete = config.event_rows[0][2]
+
+        first_delete.clicks += 1
+
+        assert [name.value for name, _ in config.rows] == ["lever_press"]
+        assert len(config.event_rows) == 1
+
+    def test_rows_sit_under_column_headings(self, config):
+        heading = config.widget[1]
+        assert [pane.object.split(">")[1].split("<")[0] for pane in heading] == ["Event Name", "Timestamps (s)"]
 
     def test_attach_callbacks_binds_handlers(self, config):
         calls = []
@@ -41,3 +60,11 @@ class TestCustomEventsConfig:
 
     def test_widget_is_a_panel_column(self, config):
         assert isinstance(config.widget, pn.Column)
+
+    def test_page_fills_the_window_width(self, config):
+        # The name column keeps its width; the instructions, the timestamps column and
+        # the alert take whatever the window gives them.
+        name_input, timestamps_input = config.rows[0]
+        assert config.instructions.max_width is None
+        assert (name_input.width, timestamps_input.sizing_mode) == (220, "stretch_width")
+        assert [item.sizing_mode for item in (config.widget, config.event_rows, config.alert)] == ["stretch_width"] * 3

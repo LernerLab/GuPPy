@@ -168,7 +168,7 @@ class DandiPreviewPanel:
         self._rewriting_series_options = False
 
         self.summary = pn.pane.Markdown("", width=width)
-        self.series_select = pn.widgets.Select(name="Traces from series", options=[], width=400)
+        self.series_select = pn.widgets.Select(name="Traces from Series", options=[], width=400)
         self.series_select.param.watch(self._on_series_change, "value")
         self.channel_table = pn.widgets.Tabulator(
             channel_dataframe(PhotometryProbe()),

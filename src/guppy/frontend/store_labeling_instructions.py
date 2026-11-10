@@ -15,7 +15,7 @@ pn.extension()
 
 logger = logging.getLogger(__name__)
 
-TIME_UNIT_OPTIONS = list(TIME_UNIT_DIVISORS)
+TIME_UNIT_OPTIONS = {unit.capitalize(): unit for unit in TIME_UNIT_DIVISORS}
 
 
 class StoreLabelingInstructions:
@@ -65,7 +65,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
 
     Renders per-file widgets so the user can choose whether to split multiple
     behavior TTLs into separate files and which timestamp column/unit to use,
-    plus a "Confirm NPM configuration" button whose click handler is wired by
+    plus a "Confirm NPM Configuration" button whose click handler is wired by
     the orchestrator. After confirmation the orchestrator decomposes the NPM
     session and calls :meth:`set_channel_previews` to render the channel traces.
 
@@ -134,7 +134,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             for file_index, has_multiple in enumerate(multiple_event_ttls):
                 if has_multiple:
                     checkbox = pn.widgets.Checkbox(
-                        name=f"File {file_index}: create multiple files for each behavior type?",
+                        name=f"File {file_index}: Create Multiple Files for Each Behavior Type?",
                         value=False,
                         width=550,
                     )
@@ -146,14 +146,14 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             # files offer more than one to choose between; the unit always is.
             if timestamp_column_options is not None and len(timestamp_column_options) > 1:
                 self.timestamp_column_select = pn.widgets.Select(
-                    name="Select which timestamps to use",
+                    name="Select Which Timestamps to Use",
                     options=list(timestamp_column_options),
                     width=550,
                 )
                 config_form.append(self.timestamp_column_select)
 
             self.time_unit_select = pn.widgets.Select(
-                name="Select the unit of the timestamps",
+                name="Select the Unit of the Timestamps",
                 options=TIME_UNIT_OPTIONS,
                 value=DEFAULT_TIME_UNIT,
                 width=550,
@@ -161,13 +161,13 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
             config_form.append(self.time_unit_select)
 
             self.num_channels_input = pn.widgets.IntInput(
-                name="Number of channels used while recording",
+                name="Number of Channels Used While Recording",
                 value=DEFAULT_NUM_CHANNELS,
                 width=550,
             )
             config_form.append(self.num_channels_input)
 
-            self.confirm_button = pn.widgets.Button(name="Confirm NPM configuration", width=550)
+            self.confirm_button = pn.widgets.Button(name="Confirm NPM Configuration", width=550)
             config_form.append(self.confirm_button)
 
         # Preview area is filled by set_channel_previews (immediately if previews
@@ -244,7 +244,7 @@ class StoreLabelingInstructionsNPM(StoreLabelingInstructions):
         }
         channel_names = list(self.channel_preview_arrays.keys())
         self.plot_select = pn.widgets.Select(
-            name="Select channel to see correspondings channels", options=channel_names, value=channel_names[0]
+            name="Select Channel to See Corresponding Channels", options=channel_names, value=channel_names[0]
         )
         self.plot_pane = pn.pane.HoloViews(self._make_plot(self.plot_select.value), width=550)
         self.plot_select.param.watch(self._on_plot_select_change, "value")

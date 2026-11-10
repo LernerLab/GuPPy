@@ -16,6 +16,9 @@ import logging
 import panel as pn
 
 from . import nwb_form_style as style
+from .input_parameters import CARD_STYLES, SECTION_STYLES
+from .row_controls import delete_row_button
+from .typography import title_case
 from ..utils.nwb_metadata import (
     CATEGORIES,
     CHANNEL_LINKS,
@@ -74,8 +77,8 @@ def _fields(*fields: object) -> pn.FlexBox:
 
 
 def _sheets(required: bool) -> list[str]:
-    """Per-widget stylesheet list for an input (adds the accent required-mark when required)."""
-    return [style.INPUT_STYLESHEET, style.REQUIRED_STYLESHEET] if required else [style.INPUT_STYLESHEET]
+    """Per-widget stylesheet list for an input: the required mark when required, otherwise nothing."""
+    return [style.REQUIRED_STYLESHEET] if required else []
 
 
 class MetadataSelector:
@@ -83,12 +86,10 @@ class MetadataSelector:
 
     def __init__(
         self,
-        session_label: str,
         channels: list[Channel],
         initial_metadata: dict,
         require_session_start_time: bool = False,
     ) -> None:
-        self.session_label = session_label
         self.channels = channels
         # Only the formats whose raw files carry no recording start time make the user supply one,
         # so the required mark is per-session rather than a property of the field.
@@ -97,8 +98,8 @@ class MetadataSelector:
             "#### No alerts !!",
             alert_type="success",
             sizing_mode="stretch_width",
-            stylesheets=[style.ALERT_STYLESHEET],
             margin=(0, 0, 10, 0),
+            visible=False,
         )
 
         devices, channel_rows, scalars = parse_metadata_dict(metadata=initial_metadata, channels=channels)
@@ -109,7 +110,7 @@ class MetadataSelector:
         self.device_containers: dict[str, pn.Column] = {
             key: pn.Column(sizing_mode="stretch_width") for key in CATEGORIES
         }
-        self.category_cards: dict[str, pn.Card] = {}
+        self.category_sections: dict[str, pn.WidgetBox] = {}
         self.channel_records: list[dict] = []
         # Link dropdowns whose options are device names; channel ones are fixed, device ones rebuild.
         # Each entry is (select, target_category, required); required links carry no empty option.
@@ -126,34 +127,32 @@ class MetadataSelector:
         self.load_existing = pn.widgets.FileInput(accept=".yaml,.yml", width=320)
         self.load_existing.param.watch(self._on_file_upload, "value")
         load_strip = pn.Row(
-            style.help_note("Reuse metadata from another session: load any <code>nwb_metadata.yaml</code> on disk."),
+            style.intro_note("Reuse metadata from another session: load any <code>nwb_metadata.yaml</code> on disk."),
             pn.Spacer(sizing_mode="stretch_width"),
             self.load_existing,
             sizing_mode="stretch_width",
             styles={
-                "background": style.SURFACE_INSET,
-                "border": f"1px solid {style.BORDER}",
-                "border-radius": "12px",
-                "padding": "12px 18px",
+                **SECTION_STYLES,
+                "padding-top": "8px",
+                "padding-left": "12px",
+                "padding-right": "12px",
                 "align-items": "center",
-                "margin": "10px 0 6px 0",
             },
+            margin=(5, 10),
         )
         self.build_config = pn.widgets.Button(
-            name="Build & preview YAML",
+            name="Build & Preview YAML",
             sizing_mode="stretch_width",
-            stylesheets=[style.BUTTON_OUTLINE],
         )
         self.save = pn.widgets.Button(
-            name="Save metadata",
+            name="Save Metadata",
+            button_type="primary",
             sizing_mode="stretch_width",
-            stylesheets=[style.BUTTON_ACCENT],
         )
         self.path = pn.widgets.TextInput(
             name="Saved to",
             disabled=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.INPUT_STYLESHEET],
         )
 
         advanced_card = pn.Card(
@@ -162,33 +161,27 @@ class MetadataSelector:
                 "can't express something, then Save."
             ),
             self.code_editor,
-            title="Advanced — raw YAML",
+            title="Raw YAML (advanced)",
             collapsed=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
-            margin=(8, 0),
+            styles=CARD_STYLES,
         )
         action_footer = pn.Column(
             self.alert,
             pn.Row(self.build_config, self.save, sizing_mode="stretch_width"),
             self.path,
             sizing_mode="stretch_width",
-            styles={
-                "background": style.SURFACE,
-                "border": f"1px solid {style.BORDER}",
-                "border-radius": "14px",
-                "padding": "18px 20px",
-                "box-shadow": "0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.05)",
-            },
+            styles={**SECTION_STYLES, "padding-top": "8px", "padding-left": "12px", "padding-right": "12px"},
+            margin=(5, 10),
         )
 
         self.widget = pn.Column(
-            style.page_header("NWB metadata", session_label),
+            pn.pane.Markdown("## NWB Metadata", sizing_mode="stretch_width"),
             style.intro_note(
                 "Provide the metadata needed to export this session to NWB. Define each piece of hardware and "
-                "biology once under <strong>Optical hardware</strong> and <strong>Biological reagents</strong>, link "
-                "them to each channel under <strong>Fiber-photometry channels</strong>, then "
-                "<strong>Build &amp; preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
+                "biology once under <strong>Optical Hardware</strong> and <strong>Biological Reagents</strong>, link "
+                "them to each channel under <strong>Fiber Photometry Channels</strong>, then "
+                "<strong>Build &amp; Preview YAML</strong> and <strong>Save</strong>. The channels themselves are "
                 "fixed by your <code>storesList.csv</code>."
             ),
             load_strip,
@@ -198,7 +191,7 @@ class MetadataSelector:
             advanced_card,
             action_footer,
             sizing_mode="stretch_width",
-            styles={"padding": "8px 4px 40px 4px"},
+            styles={"padding": "0 0 40px 0"},
         )
 
         self.refresh_link_options()
@@ -226,12 +219,12 @@ class MetadataSelector:
             )
 
         self.session_description = pn.widgets.TextAreaInput(
-            name="Session description",
+            name="Session Description",
             value=scalars.get("session_description", ""),
             description=_SCALAR_DOCS["session_description"],
             sizing_mode="stretch_width",
-            height=70,
-            stylesheets=_sheets(True),
+            resizable=False,
+            stylesheets=[*_sheets(True), style.GROWING_TEXT_AREA_STYLESHEET],
         )
         self.identifier = text("identifier", placeholder="leave blank to auto-generate")
         self.session_start_time = text("session_start_time", placeholder="e.g. 2018-10-30T10:33:32-05:00")
@@ -241,7 +234,7 @@ class MetadataSelector:
         # Experimenter repeater.
         self.experimenter_box = _fields()
         self.experimenter_inputs: list[pn.widgets.TextInput] = []
-        add_experimenter = pn.widgets.Button(name="Add experimenter", width=180, stylesheets=[style.BUTTON_GHOST])
+        add_experimenter = pn.widgets.Button(name="Add Experimenter", width=180)
         add_experimenter.on_click(lambda event: self._add_experimenter(""))
         for name in scalars.get("experimenter") or [""]:
             self._add_experimenter(name)
@@ -267,37 +260,39 @@ class MetadataSelector:
             stylesheets=_sheets(False),
         )
         self.date_of_birth = pn.widgets.TextInput(
-            name="Date of birth (ISO 8601)",
+            name="Date of Birth (ISO 8601)",
             value=scalars.get("date_of_birth", ""),
             width=270,
             stylesheets=_sheets(False),
         )
         self.age_or_dob = pn.widgets.RadioBoxGroup(
-            name="Specify subject by",
-            options=["Age", "Date of birth"],
+            name="Specify Subject By",
+            options={"Age": "Age", "Date of Birth": "Date of birth"},
             value="Date of birth" if scalars.get("date_of_birth") else "Age",
             inline=True,
-            stylesheets=[style.RADIO_STYLESHEET],
         )
         self.age_or_dob.param.watch(lambda event: self._sync_age_dob(), "value")
         self._sync_age_dob()
 
         return pn.Card(
-            style.section_label("Session"),
-            self.session_description,
-            _fields(self.identifier, self.session_start_time, self.lab, self.institution),
-            style.section_label("Experimenter", "last name first, e.g. Doe, Jane"),
-            self.experimenter_box,
-            add_experimenter,
-            style.section_label("Subject"),
-            _fields(self.subject_id, self.sex, self.species, self.genotype, self.strain),
-            self.age_or_dob,
-            pn.Row(self.age, self.date_of_birth),
-            title="Core NWB metadata",
+            style.section_box(
+                "Session",
+                self.session_description,
+                _fields(self.identifier, self.session_start_time, self.lab, self.institution),
+            ),
+            style.section_box(
+                "Experimenter", self.experimenter_box, add_experimenter, note="Last name first, e.g. Doe, Jane."
+            ),
+            style.section_box(
+                "Subject",
+                _fields(self.subject_id, self.sex, self.species, self.genotype, self.strain),
+                self.age_or_dob,
+                pn.Row(self.age, self.date_of_birth),
+            ),
+            title="Core NWB Metadata",
             collapsed=False,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
-            margin=(8, 0),
+            styles=CARD_STYLES,
         )
 
     def _add_experimenter(self, value: str) -> None:
@@ -306,9 +301,8 @@ class MetadataSelector:
             value=value,
             placeholder="Last, First",
             width=_FIELD_WIDTH,
-            stylesheets=[style.INPUT_STYLESHEET],
         )
-        remove = pn.widgets.Button(name="✕", width=42, stylesheets=[style.BUTTON_CLOSE])
+        remove = delete_row_button(description="Delete this experimenter")
         remove.on_click(lambda event: self._remove_experimenter(row, text_input))
         row[:] = [text_input, remove]
         self.experimenter_inputs.append(text_input)
@@ -332,50 +326,41 @@ class MetadataSelector:
         hardware = [key for key in CATEGORIES if key not in _BIOLOGY_CATEGORIES]
         biology = [key for key in CATEGORIES if key in _BIOLOGY_CATEGORIES]
         groups = []
-        for group_name, keys in (("Optical hardware", hardware), ("Biological reagents", biology)):
-            category_cards = [self._build_category_card(key, devices.get(key, [])) for key in keys]
+        for group_name, keys in (("Optical Hardware", hardware), ("Biological Reagents", biology)):
+            category_sections = [self._build_category_section(key, devices.get(key, [])) for key in keys]
             groups.append(
                 pn.Card(
-                    *category_cards,
+                    *category_sections,
                     title=group_name,
                     collapsed=False,
                     sizing_mode="stretch_width",
-                    stylesheets=[style.SECTION_CARD],
-                    margin=(8, 0),
+                    styles=CARD_STYLES,
                 )
             )
         return pn.Column(*groups, sizing_mode="stretch_width")
 
-    def _build_category_card(self, key: str, entries: list[dict]) -> pn.Card:
+    def _build_category_section(self, key: str, entries: list[dict]) -> pn.WidgetBox:
         category = CATEGORIES[key]
         add_button = pn.widgets.Button(
-            name=f"Add {category.singular}",
+            name=f"Add {title_case(category.singular)}",
             width=240,
-            stylesheets=[style.BUTTON_OUTLINE],
         )
         add_button.on_click(lambda event, k=key: (self._add_device(k, {}), self.refresh_link_options()))
-        card = pn.Card(
-            self.device_containers[key],
-            add_button,
-            title=category.label,
-            collapsed=True,
-            sizing_mode="stretch_width",
-            stylesheets=[style.CATEGORY_CARD],
-            margin=(4, 0),
-        )
-        self.category_cards[key] = card
+        section = style.section_box(title_case(category.label), self.device_containers[key], add_button)
+        self.category_sections[key] = section
         for entry in entries:
             self._add_device(key, entry)
         self._retitle_category(key)
-        return card
+        return section
 
     def _retitle_category(self, key: str) -> None:
-        """Show the live instance count on a category card so the library is scannable when collapsed."""
-        card = self.category_cards.get(key)
-        if card is None:
+        """Show the live instance count in a category's heading so the library is scannable."""
+        section = self.category_sections.get(key)
+        if section is None:
             return
         count = len(self.device_entry_records[key])
-        card.title = f"{CATEGORIES[key].label}  ·  {count}" if count else CATEGORIES[key].label
+        label = title_case(CATEGORIES[key].label)
+        section[0].object = f"### {label}  ·  {count}" if count else f"### {label}"
 
     def _add_device(self, category_key: str, entry: dict) -> None:
         fields: list[tuple[FieldSpec, object]] = []  # (spec, widget or list-row)
@@ -383,29 +368,33 @@ class MetadataSelector:
         name_widget = None
         for spec in field_specs(category_key):
             if spec.target == "insertion" and len(rows) == 1:
-                rows.extend([style.subgroup_label("Fiber insertion (optional)"), _fields()])
+                rows.extend([style.subgroup_label("Fiber Insertion (optional)"), _fields()])
             widget = self._make_field_widget(spec, entry)
             fields.append((spec, widget))
             rows[-1].append(widget)
             if spec.name == "name":
                 name_widget = widget
 
-        remove = pn.widgets.Button(name="Remove", width=110, stylesheets=[style.BUTTON_GHOST])
+        remove = pn.widgets.Button(name="Remove", width=110)
         # Each instance is its own collapsible card, titled by its name so a category with many is navigable.
+        title = name_widget.value or "(unnamed)"
+        header = style.item_title(title)
         card = pn.Card(
-            *rows,
-            remove,
-            title=(name_widget.value or "(unnamed)"),
+            pn.Column(*rows, remove, sizing_mode="stretch_width", styles=style.BOTTOM_BUFFER_STYLES),
+            title=title,
+            header=header,
+            header_background=style.ITEM_HEADER_BACKGROUND,
+            active_header_background=style.ITEM_HEADER_BACKGROUND,
             collapsed=True,
             sizing_mode="stretch_width",
-            stylesheets=[style.INSTANCE_CARD],
-            margin=(4, 0),
+            styles=style.COLLAPSIBLE_CARD_STYLES,
+            stylesheets=[style.FLAT_CARD_STYLESHEET],
         )
         if name_widget is not None:
 
-            def _on_name_change(event: object, card: pn.Card = card) -> None:
+            def _on_name_change(event: object, card: pn.Card = card, header: pn.pane.HTML = header) -> None:
                 # Retitle the card and propagate the new name into every link dropdown that points here.
-                card.title = event.new or "(unnamed)"
+                card.title = header.object = event.new or "(unnamed)"
                 self.refresh_link_options()
 
             name_widget.param.watch(_on_name_change, "value")
@@ -451,7 +440,7 @@ class MetadataSelector:
                 chosen = current
             return pn.widgets.Select(
                 name=label,
-                options=choices,
+                options={title_case(choice): choice for choice in choices},
                 value=chosen,
                 description=spec.doc,
                 width=_FIELD_WIDTH,
@@ -503,13 +492,13 @@ class MetadataSelector:
             saved = channel_rows[index] if index < len(channel_rows) else {}
             fields: dict[str, object] = {}
             excitation = pn.widgets.FloatInput(
-                name="Excitation wavelength in nm",
+                name="Excitation Wavelength (nm)",
                 value=_as_float(saved.get("excitation_wavelength_in_nm")),
                 width=184,
                 stylesheets=_sheets(True),
             )
             emission = pn.widgets.FloatInput(
-                name="Emission wavelength in nm",
+                name="Emission Wavelength (nm)",
                 value=_as_float(saved.get("emission_wavelength_in_nm")),
                 width=184,
                 stylesheets=_sheets(True),
@@ -535,29 +524,21 @@ class MetadataSelector:
                 _fields(excitation, emission, *link_widgets),
                 hide_header=True,
                 sizing_mode="stretch_width",
-                stylesheets=[style.INSTANCE_CARD],
-                margin=(6, 0),
+                styles=style.ITEM_CARD_STYLES,
+                stylesheets=[style.FLAT_CARD_STYLESHEET],
             )
             recording_site_to_cards.setdefault(channel.recording_site, []).append(instance_card)
 
-        recording_site_cards = [
-            pn.Card(
-                *instance_cards,
-                title=recording_site.upper(),
-                collapsed=False,
-                sizing_mode="stretch_width",
-                stylesheets=[style.CATEGORY_CARD],
-                margin=(6, 0),
-            )
+        recording_site_sections = [
+            style.section_box(recording_site.upper(), *instance_cards)
             for recording_site, instance_cards in recording_site_to_cards.items()
         ]
         return pn.Card(
-            *recording_site_cards,
-            title="Fiber-photometry channels",
+            *recording_site_sections,
+            title="Fiber Photometry Channels",
             collapsed=False,
             sizing_mode="stretch_width",
-            stylesheets=[style.SECTION_CARD],
-            margin=(8, 0),
+            styles=CARD_STYLES,
         )
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -712,6 +693,7 @@ class MetadataSelector:
         """Set the alert text, colored red when it reports a problem and green otherwise."""
         self.alert.object = message
         self.alert.alert_type = "danger" if is_error else "success"
+        self.alert.visible = message != "#### No alerts !!"
 
     def set_path(self, value: str) -> None:
         """Set the displayed save path."""

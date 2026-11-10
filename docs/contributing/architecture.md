@@ -79,6 +79,10 @@ return HoloViews objects; the page they land on is assembled in `frontend/`.
 so a multi-million-sample trace stays server-side and re-renders on zoom, which is what keeps
 full-length recordings plottable.
 
+`labels.py` names what the plots show. `TIME_LABEL` is the one time axis every trace and PSTH is
+drawn against, so plots that share it link their x-axes, and `trace_title` turns a trace's file
+name into its plot title, `"Z-Score (dms)"` for `z_score_dms`.
+
 ### `frontend/`
 
 The Panel widget components: the sidebar, the folder and run selectors, the parameter form, the
@@ -89,6 +93,19 @@ own widgets and exposes their values.
 Validation at this layer covers only what the form can judge by itself — a required folder that was
 not selected, a missing DANDI URI. Anything needing cross-parameter context belongs in orchestration
 instead.
+
+A few modules hold the pieces the pages share, so every page is laid out and set the same way:
+
+- `typography.py` sets the type: the bundled Inter and JetBrains Mono fonts, the four text sizes
+  and two weights, and `title_case` for labels, buttons and options.
+- `plot_card.py` lays out a plot: a short note, one toolbar of labeled fields (`toolbar_field`)
+  that wraps in a narrow window, then the plot. A tab or page with several plots puts each in a
+  homepage card (`plot_card`), and one with a single plot uses the same layout with no card
+  (`plot_page`). A picker that chooses what a plot shows sits beside it (`plot_with_side_panel`).
+- `side_panel_split.py` is that side panel: a handle between the plot and the panel drags to
+  resize the panel and hides it with its button.
+- `row_controls.py` holds the column headings and delete button of the editable tables, such as
+  the artifact windows, the tonic epochs and the custom events.
 
 The folder and run selectors start in the user's home directory. Choosing an input root folder
 re-points the session selector into it, which is how the testing API and the screenshot scripts

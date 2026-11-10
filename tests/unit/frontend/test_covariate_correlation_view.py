@@ -100,14 +100,14 @@ class TestCovariateCorrelationView:
     def test_metric_menu_labels_are_human_readable(self, session):
         view = CovariateCorrelationView(session)
 
-        assert view.metric_select.options == {"Mean z-score": "mean_zscore"}
+        assert view.metric_select.options == {"Mean Z-Score": "mean_zscore"}
 
     def test_changing_site_rebuilds_both_menus(self, session):
         view = CovariateCorrelationView(session)
 
         view.site_select.value = "nac"
 
-        assert view.metric_select.options == {"Mean z-score": "mean_zscore", "Mean ΔF/F": "mean_dff"}
+        assert view.metric_select.options == {"Mean Z-Score": "mean_zscore", "Mean ΔF/F": "mean_dff"}
         assert view.covariate_select.options == ["akinesia", "tremor"]
 
     def test_changing_covariate_redraws_the_plot(self, session):
@@ -124,7 +124,7 @@ class TestCovariateCorrelationView:
         points = view.plot_pane.object.Points.I
 
         np.testing.assert_allclose(points.dimension_values("akinesia"), [2.0, 4.0, 10.0])
-        np.testing.assert_allclose(points.dimension_values("mean z-score"), [1.5, 5.5, 9.0])
+        np.testing.assert_allclose(points.dimension_values("Mean Z-Score"), [1.5, 5.5, 9.0])
 
     def test_plot_draws_the_least_squares_line(self, session):
         view = CovariateCorrelationView(session)
@@ -133,7 +133,7 @@ class TestCovariateCorrelationView:
         line = view.plot_pane.object.Curve.I
 
         np.testing.assert_allclose(line.dimension_values("akinesia"), [2.0, 10.0])
-        np.testing.assert_allclose(line.dimension_values("mean z-score"), [2.480769, 9.326923], rtol=1e-5)
+        np.testing.assert_allclose(line.dimension_values("Mean Z-Score"), [2.480769, 9.326923], rtol=1e-5)
 
     def test_trace_layout_stacks_photometry_and_covariate_panels(self, session):
         view = CovariateCorrelationView(session)
@@ -144,7 +144,7 @@ class TestCovariateCorrelationView:
         view = CovariateCorrelationView(session)
         raw_covariate = view.trace_pane.object[2].Curve.I
 
-        np.testing.assert_allclose(raw_covariate.dimension_values("time (s)"), [0.0, 5.0, 9.0])
+        np.testing.assert_allclose(raw_covariate.dimension_values("Time (s)"), [0.0, 5.0, 9.0])
         np.testing.assert_allclose(raw_covariate.dimension_values("akinesia"), [2.0, 4.0, 10.0])
 
     def test_covariate_bins_match_the_photometry_bins(self, session):
@@ -152,12 +152,12 @@ class TestCovariateCorrelationView:
         metric_bars = view.trace_pane.object[1]
         covariate_bars = view.trace_pane.object[3]
 
-        np.testing.assert_allclose(covariate_bars.dimension_values("time (s)"), [0.0, 4.0, 8.0])
-        np.testing.assert_allclose(covariate_bars.dimension_values("time (s) end"), [4.0, 8.0, 10.0])
+        np.testing.assert_allclose(covariate_bars.dimension_values("Time (s)"), [0.0, 4.0, 8.0])
+        np.testing.assert_allclose(covariate_bars.dimension_values("Time (s) end"), [4.0, 8.0, 10.0])
         np.testing.assert_allclose(
-            covariate_bars.dimension_values("time (s)"), metric_bars.dimension_values("time (s)")
+            covariate_bars.dimension_values("Time (s)"), metric_bars.dimension_values("Time (s)")
         )
-        np.testing.assert_allclose(covariate_bars.dimension_values("mean akinesia end"), [2.0, 4.0, 10.0])
+        np.testing.assert_allclose(covariate_bars.dimension_values("Mean akinesia end"), [2.0, 4.0, 10.0])
 
     def test_changing_covariate_redraws_the_trace_layout(self, session):
         view = CovariateCorrelationView(session)
@@ -173,7 +173,7 @@ class TestCovariateCorrelationView:
 
         view.metric_select.value = "mean_dff"
 
-        assert view.trace_pane.object[1].kdims[1].name == "mean ΔF/F"
+        assert view.trace_pane.object[1].kdims[1].name == "Mean ΔF/F"
 
     def test_widget_shows_the_full_correlations_table(self, session):
         view = CovariateCorrelationView(session)
@@ -197,4 +197,4 @@ class TestBuildCovariateCorrelationView:
     def test_renders_both_plots_when_covariates_exist(self, session):
         result = build_covariate_correlation_view(session)
 
-        assert sum(isinstance(pane, pn.pane.HoloViews) for pane in result) == 2
+        assert len(result.select(pn.pane.HoloViews)) == 2

@@ -1,5 +1,7 @@
+import holoviews as hv
 import numpy as np
 import pandas as pd
+import panel as pn
 import pytest
 
 from guppy.analysis.standard_io import write_tonic_to_hdf5
@@ -7,6 +9,7 @@ from guppy.frontend.tonic_epochs import (
     TonicEpochConfig,
     TonicResultsView,
     build_tonic_results_view,
+    epoch_color,
 )
 from guppy.utils._hdf5_io import write_hdf5
 
@@ -31,11 +34,26 @@ def site_traces():
 class TestTonicEpochConfig:
     @pytest.fixture
     def config(self, panel_extension, run_folder, site_traces):
-        config = TonicEpochConfig(str(run_folder), site_traces, label="output_1")
+        config = TonicEpochConfig(str(run_folder), site_traces, run_field=pn.Column())
         # Adding, removing, and the live preview act on the selected site; pin it so the
         # tests do not depend on dict iteration order.
         config.site_select.value = "DMS"
         return config
+
+    def test_toolbar_holds_the_run_and_recording_site(self, config):
+        run_field, site_field = config.widget[1]
+        assert site_field[1][0] is config.site_select
+        assert site_field[0].object.split(">")[1].split("<")[0] == "Recording Site"
+
+    def test_epochs_render_under_column_headings(self, config):
+        config.set_epochs("DMS", [("baseline", 1.0, 3.0)])
+
+        heading = config.rows_container.objects[0]
+        assert [item.object for item in heading[:3]] == [
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>Label</div>",
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>Start (s)</div>",
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>End (s)</div>",
+        ]
 
     def test_starts_with_no_epoch_windows(self, config, run_folder):
         assert config.epochs_for("DMS") == []
@@ -46,7 +64,7 @@ class TestTonicEpochConfig:
             run_folder / "tonic_epochs_DMS.csv", index=False
         )
 
-        config = TonicEpochConfig(str(run_folder), site_traces, label="output_1")
+        config = TonicEpochConfig(str(run_folder), site_traces, run_field=pn.Column())
 
         assert config.epochs_for("DMS") == [("baseline", 0.0, 2.0)]
         assert config.epochs_for("DLS") == []
@@ -140,15 +158,26 @@ class TestTonicEpochConfig:
 
         assert config.epochs_for("DLS") == [("baseline", 0.0, 2.0)]
 
+    def test_each_epoch_window_is_shaded_in_its_own_color(self, config):
+        config.set_epochs("DMS", [("baseline", 0.0, 2.0), ("drug", 4.0, 6.0), ("washout", 8.0, 10.0)])
+
+        assert config.spans_pipe.data == [(0.0, 2.0, "#6E56CF"), (4.0, 6.0, "#1F7FC4"), (8.0, 10.0, "#14A39A")]
+
     def test_editing_a_bound_repaints_the_spans_without_rebuilding_the_plot(self, config, run_folder):
         config.set_epochs("DMS", [("baseline", 0.0, 2.0)])
         plot = config.plot_pane.object
 
         config.site_to_rows["DMS"][0].end_input.value = 4.0
 
-        assert config.spans_pipe.data == [(0.0, 4.0)]
+        # The first epoch takes the first epoch color, violet.
+        assert config.spans_pipe.data == [(0.0, 4.0, "#6E56CF")]
         # The traces are density-shaded server-side, so a bound edit must not re-aggregate them.
         assert config.plot_pane.object is plot
+
+
+class TestEpochColor:
+    def test_epochs_take_the_logo_gradient_in_order_and_wrap_after_four(self):
+        assert [epoch_color(index) for index in range(5)] == ["#6E56CF", "#1F7FC4", "#14A39A", "#9BC53D", "#6E56CF"]
 
 
 def _write_tonic_results(filepath, site):
@@ -171,13 +200,13 @@ def _write_tonic_results(filepath, site):
 
 class TestTonicResultsView:
     def test_build_returns_note_when_no_results(self, panel_extension, run_folder):
-        panel_column = build_tonic_results_view(str(run_folder), label="output_1")
+        panel_column = build_tonic_results_view(str(run_folder))
         markdown = panel_column.objects[0]
         assert "No tonic" in markdown.object
 
     def test_diff_table_is_relative_to_selected_baseline(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         table = view.table_pane.object
         # Baseline defaults to the first epoch ("baseline"), so its diff is 0 and
@@ -194,7 +223,7 @@ class TestTonicResultsView:
 
     def test_bars_plot_the_change_from_baseline_not_the_absolute_means(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         bars = view.bars_pane.object
         # One panel for z-score, one for dF/F — the two differ by an order of magnitude,
@@ -202,28 +231,38 @@ class TestTonicResultsView:
         assert len(bars) == 2
 
         zscore_bars = bars[0].Bars.I
-        assert list(zscore_bars.dimension_values("epoch")) == ["baseline", "post"]
+        assert list(zscore_bars.dimension_values("Epoch")) == ["baseline", "post"]
         # Means are 1.0 and 9.0; against the default "baseline" epoch the bars carry the
         # change, so the reference epoch sits at zero and "post" carries the full step.
-        np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [0.0, 8.0])
+        np.testing.assert_allclose(zscore_bars.dimension_values("Δ Mean Z-Score"), [0.0, 8.0])
 
         dff_bars = bars[1].Bars.I
-        np.testing.assert_allclose(dff_bars.dimension_values("Δ mean ΔF/F"), [0.0, 0.8])
+        np.testing.assert_allclose(dff_bars.dimension_values("Δ Mean ΔF/F"), [0.0, 0.8])
+
+    def test_each_epoch_bar_matches_its_window_color(self, panel_extension, run_folder):
+        _write_tonic_results(run_folder, "DMS")
+        view = TonicResultsView(str(run_folder))
+
+        zscore_bars = view.bars_pane.object[0].Bars.I
+        bar_colors = hv.Store.lookup_options("bokeh", zscore_bars, "style").kwargs["color"].apply(zscore_bars)
+
+        assert list(bar_colors) == ["#6E56CF", "#1F7FC4"]
+        assert view.spans_pipe.data == [(0.0, 2.0, "#6E56CF"), (8.0, 10.0, "#1F7FC4")]
 
     def test_bars_rebase_when_the_baseline_epoch_changes(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         view.baseline_select.value = "post"
 
         # Re-basing on "post" puts it at zero and sends "baseline" negative by the step.
         zscore_bars = view.bars_pane.object[0].Bars.I
-        np.testing.assert_allclose(zscore_bars.dimension_values("Δ mean z-score"), [-8.0, 0.0])
-        assert view.bars_pane.object[0].Bars.I.kdims[0].name == "epoch"
+        np.testing.assert_allclose(zscore_bars.dimension_values("Δ Mean Z-Score"), [-8.0, 0.0])
+        assert view.bars_pane.object[0].Bars.I.kdims[0].name == "Epoch"
 
     def test_bars_mark_no_change_at_zero(self, panel_extension, run_folder):
         _write_tonic_results(run_folder, "DMS")
-        view = TonicResultsView(str(run_folder), label="output_1")
+        view = TonicResultsView(str(run_folder))
 
         # Bars run either side of zero, so the dashed line is pinned to no-change
         # regardless of which epoch is the baseline.

@@ -11,11 +11,14 @@ import logging
 import holoviews as hv
 import numpy as np
 
+from .labels import TIME_LABEL
+from .palette import HIGHLIGHT, REFERENCE_LINE, SIGNAL
+
 logger = logging.getLogger(__name__)
 
-ESTIMATE_COLOR = "#1f77b4"
-BAND_COLOR = "#1f77b4"
-SIGNIFICANT_COLOR = "#d62728"
+ESTIMATE_COLOR = SIGNAL
+BAND_COLOR = SIGNAL
+SIGNIFICANT_COLOR = HIGHLIGHT
 
 # Fraction of the plotted vertical range the significance bar occupies.
 _BAR_HEIGHT_FRACTION = 0.04
@@ -72,7 +75,7 @@ def build_significance_bar(
         for start, end in significant_intervals(timestamps=timestamps, significant=significant)
     ]
 
-    return hv.Rectangles(bars, kdims=["Time (s)", "value", "Time (s) end", "value end"])
+    return hv.Rectangles(bars, kdims=[TIME_LABEL, "value", f"{TIME_LABEL} end", "value end"])
 
 
 def build_significance_panel(
@@ -125,20 +128,20 @@ def build_significance_panel(
 
     band = hv.Spread(
         (timestamps, estimate, estimate - ci_lower, ci_upper - estimate),
-        kdims=["Time (s)"],
+        kdims=[TIME_LABEL],
         vdims=[value_label, "lower", "upper"],
-        label=f"{int(round((1 - significance_level) * 100))}% confidence interval",
+        label=f"{int(round((1 - significance_level) * 100))}% Confidence Interval",
     ).opts(fill_alpha=0.3, fill_color=BAND_COLOR, line_width=0, show_legend=True)
 
     estimate_curve = hv.Curve(
-        (timestamps, estimate), kdims=["Time (s)"], vdims=[value_label], label=estimate_label
+        (timestamps, estimate), kdims=[TIME_LABEL], vdims=[value_label], label=estimate_label
     ).opts(color=ESTIMATE_COLOR, show_legend=True)
 
-    zero_line = hv.HLine(0).opts(color="black", line_dash="dashed", line_width=1)
+    zero_line = hv.HLine(0).opts(color=REFERENCE_LINE, line_dash="dashed", line_width=1)
 
     bar = (
         build_significance_bar(timestamps=timestamps, significant=significant, bottom=bottom, top=top)
-        .relabel(f"significant (alpha = {significance_level:g})")
+        .relabel(f"Significant (alpha = {significance_level:g})")
         .opts(color=SIGNIFICANT_COLOR, line_color=None, show_legend=True)
     )
 

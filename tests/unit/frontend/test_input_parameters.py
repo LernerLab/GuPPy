@@ -129,7 +129,7 @@ class TestParameterFormInitialState:
 
     def test_pair_timestamps_channel_default(self, parameter_form):
         assert parameter_form.pair_timestamps_channel.value == "signal"
-        assert parameter_form.pair_timestamps_channel.options == ["signal", "control"]
+        assert parameter_form.pair_timestamps_channel.options == {"Signal": "signal", "Control": "control"}
 
     def test_moving_avg_filter_default(self, parameter_form):
         assert parameter_form.moving_avg_filter.value == 100
@@ -145,7 +145,10 @@ class TestParameterFormInitialState:
 
     def test_transient_detection_method_default(self, parameter_form):
         assert parameter_form.transient_detection_method.value == "MAD threshold"
-        assert parameter_form.transient_detection_method.options == ["MAD threshold", "minimum rise"]
+        assert parameter_form.transient_detection_method.options == {
+            "MAD Threshold": "MAD threshold",
+            "Minimum Rise": "minimum rise",
+        }
 
     def test_transient_minimum_rise_default(self, parameter_form):
         assert parameter_form.transient_minimum_rise.value == 2.0
@@ -194,18 +197,18 @@ class TestParameterFormInitialState:
 
     def test_compute_psth_default(self, parameter_form):
         assert parameter_form.computePsth.value == "z_score"
-        assert "z_score" in parameter_form.computePsth.options
-        assert "dff" in parameter_form.computePsth.options
-        assert "Both" in parameter_form.computePsth.options
+        assert parameter_form.computePsth.options == {"Z-Score": "z_score", "\u0394F/F": "dff", "Both": "Both"}
 
     def test_transients_default(self, parameter_form):
         assert parameter_form.transients.value == "z_score"
 
     def test_z_score_computation_default(self, parameter_form):
         assert parameter_form.z_score_computation.value == "standard z-score"
-        assert "standard z-score" in parameter_form.z_score_computation.options
-        assert "baseline z-score" in parameter_form.z_score_computation.options
-        assert "modified z-score" in parameter_form.z_score_computation.options
+        assert parameter_form.z_score_computation.options == {
+            "Standard Z-Score": "standard z-score",
+            "Baseline Z-Score": "baseline z-score",
+            "Modified Z-Score": "modified z-score",
+        }
 
     def test_compute_corr_default(self, parameter_form):
         assert parameter_form.computeCorr.value is False
@@ -217,12 +220,12 @@ class TestParameterFormInitialState:
 
     def test_auc_units_default(self, parameter_form):
         assert parameter_form.auc_units.value == "samples"
-        assert parameter_form.auc_units.options == ["samples", "seconds"]
+        assert parameter_form.auc_units.options == {"Samples": "samples", "Seconds": "seconds"}
 
     def test_use_time_or_trials_default(self, parameter_form):
         assert parameter_form.use_time_or_trials.value == "Time (min)"
         assert "Time (min)" in parameter_form.use_time_or_trials.options
-        assert "# of trials" in parameter_form.use_time_or_trials.options
+        assert parameter_form.use_time_or_trials.options["Number of Trials"] == "# of trials"
 
     def test_comparison_table_starts_with_a_single_blank_row(self, parameter_form):
         # A fixed block of slots is mostly blank rows for anyone running two comparisons.
@@ -1394,7 +1397,8 @@ class TestTitledBox:
             contents=[],
         )
 
-        assert box.objects[1].object == "*Read by Step 3 and Group Analysis*"
+        assert box.objects[1].object == "Read by Step 3 and Group Analysis"
+        assert box.objects[1].css_classes == ["small"]
 
     def test_contents_share_one_wrapping_row_after_the_heading(self, panel_extension):
         first = pn.widgets.IntInput(name="Cores", value=2, width=150)
@@ -1478,7 +1482,7 @@ class TestParameterSections:
             "### Parallel Execution": 1,
             "### Control Channel Fitting": 1,
             "### Signal Filtering": 1,
-            "### Z-score Normalization": 1,
+            "### Z-Score Normalization": 1,
             "### PSTH Computation": 1,
             "### Peak and AUC Measurement": 1,
             "### Transient Detection": 1,
@@ -1493,7 +1497,7 @@ class TestParameterSections:
             "### Parallel Execution",
             "### Control Channel Fitting",
             "### Signal Filtering",
-            "### Z-score Normalization",
+            "### Z-Score Normalization",
             "### PSTH Computation",
             "### Peak and AUC Measurement",
             "### Transient Detection",

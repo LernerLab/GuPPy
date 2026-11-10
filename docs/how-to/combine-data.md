@@ -33,11 +33,11 @@ GuPPy groups sessions to combine by their **run name** — the suffix on the
 halves must use the same run name.
 
 1. Run **Step 1: Label Stores** on the first half, labeling its recording
-   sites as usual. Leave **Run name** at the `1` GuPPy fills in (or set an
+   sites as usual. Leave **Run Name** at the `1` GuPPy fills in (or set an
    explicit name if you prefer — the second half just needs to match it).
 
    ```{image} ../_static/images/combine_data_run_name.png
-   :alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create new run selected and the Run name field holding the default 1
+   :alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create New Run selected and the Run Name field holding the default 1
    :width: 70%
    ```
 
@@ -51,7 +51,7 @@ halves must use the same run name.
    :width: 100%
    ```
 
-4. Open **Output Folder Selection** and, in **Existing runs (steps 2–5)**,
+4. Open **Output Folder Selection** and, in **Existing Runs (Steps 2–5)**,
    pick each session's matching output run (e.g. both `output_1`).
 5. In the **Input Folder Selection** card, set **Combine Data?** to `True`
    (below the file browser, where it qualifies the sessions you just picked).

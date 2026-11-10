@@ -25,6 +25,8 @@ from ..analysis.io_utils import (
     recording_sites_for_output_directory,
 )
 from ..utils.utils import read_Df
+from ..visualization.labels import TIME_LABEL
+from ..visualization.palette import SIGNAL
 
 pn.extension()
 
@@ -39,7 +41,54 @@ logging.getLogger("bokeh.io.export").setLevel(logging.ERROR)
 PSTH_METRICS = ("z_score", "dff")
 
 # Metric name on disk -> how it is written in menus and on plot axes.
-METRIC_LABELS = {"z_score": "z-score", "dff": "\u0394F/F"}
+METRIC_LABELS = {"z_score": "Z-Score", "dff": "\u0394F/F"}
+
+# A trial column named by its event time in seconds, which is how a session's trials are named;
+# a group's trials are named by the run they average.
+_EVENT_TIME = re.compile(r"-?\d+(\.\d+)?([eE][-+]?\d+)?")
+
+
+def trial_column_label(column: str) -> str:
+    """Name one trial column for display: its event time to two decimals, or a group run's name as is.
+
+    Parameters
+    ----------
+    column : str
+        A trial column of a PSTH table, such as ``"81.81415939331055"``.
+
+    Returns
+    -------
+    str
+        The column for display, such as ``"81.81 s"``.
+    """
+    return f"{float(column):.2f} s" if _EVENT_TIME.fullmatch(column) else column
+
+
+def trial_options(values: list[str]) -> dict[str, str]:
+    """Label trial picker values for display, keeping the values the plots read.
+
+    Parameters
+    ----------
+    values : list of str
+        Picker values, each ``"<trial number> - <trial column>"``, or ``"All"``.
+
+    Returns
+    -------
+    dict
+        Display label -> value, such as ``{"1 · 81.81 s": "1 - 81.81415939331055"}``.
+    """
+    options = {}
+    for value in values:
+        if value == "All":
+            options[value] = value
+            continue
+        number, column = value.split(" - ", 1)
+        options[f"{number} · {trial_column_label(column)}"] = value
+    return options
+
+
+# Vertical room, in pixels, a heat map row needs before its trial number can be labeled.
+TRIAL_TICK_SPACING = 18
 
 
 # remove unnecessary column names
@@ -120,32 +169,36 @@ class ParameterizedPlotter(param.Parameterized):
 
     filepath = param.Path(default=None)
     # create different options and selectors
-    event_selector = param.ObjectSelector(default=None)
-    event_selector_heatmap = param.ObjectSelector(default=None)
+    event_selector = param.ObjectSelector(default=None, label="Event Selector")
+    event_selector_heatmap = param.ObjectSelector(default=None, label="Event Selector")
     selector_for_multipe_events_plot = param.ListSelector(default=None)
     columns_dict = param.Dict(default=None)
     df_new = param.DataFrame(default=None)
     x_min = param.Number(default=None)
     x_max = param.Number(default=None)
-    select_trials_checkbox = param.ListSelector(default=["just trials"], objects=["mean", "just trials"])
+    select_trials_checkbox = param.ListSelector(
+        default=["just trials"], objects={"Mean": "mean", "Just Trials": "just trials"}
+    )
     # Y-axis label for the PSTH plots: the metric whose results were loaded, not a
     # user choice. build_plotter sets it from the metric it read.
-    Y_Label = param.String(default="z-score")
+    Y_Label = param.String(default="Z-Score")
     _SAVE_FORMATS: ClassVar[list[str]] = ["png", "svg"]
     # Independent save-format selector per plot so each can be exported on its own.
     save_options_cont = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_overlay = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_trials = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
     save_options_heatmap = param.ObjectSelector(default="png", objects=_SAVE_FORMATS)
-    color_map = param.ObjectSelector(default="plasma")
-    trace_color = param.Color(default="#0000ff")
-    mean_color = param.Color(default="#000000")
+    color_map = param.ObjectSelector(default="plasma", label="Color Map")
+    trace_color = param.Color(default=SIGNAL, label="Trace Color")
+    mean_color = param.Color(default="#000000", label="Mean Color")
     # When True, hide the minor tick marks between axis numbers on the PSTH line plots
     # for a cleaner look. Ticks are shown by default; the user opts in to hide them.
     hide_minor_ticks = param.Boolean(default=False)
     # Categorical palette used to colour the per-event curves in the comparison plot.
     overlay_palette = param.ObjectSelector(
-        default="Category10", objects=["Category10", "Category20", "Colorblind", "Dark2", "Set1"]
+        default="GuPPy",
+        objects=["GuPPy", "Category10", "Category20", "Colorblind", "Dark2", "Set1"],
+        label="Overlay Palette",
     )
     # Per-event colour overrides for the comparison plot, keyed by the selection label
     # (the entries of ``selector_for_multipe_events_plot``). Only events the user has
@@ -194,7 +247,7 @@ class ParameterizedPlotter(param.Parameterized):
         self.param.color_map.objects = self.color_map_objects
         self.param.x.objects = self.x_objects
         self.param.y.objects = self.y_objects
-        self.param.heatmap_y.objects = self.heatmap_y_objects
+        self.param.heatmap_y.objects = trial_options(self.heatmap_y_objects)
         self.param.psth_y.objects = self.psth_y_objects
 
         # Set defaults
@@ -530,7 +583,7 @@ class ParameterizedPlotter(param.Parameterized):
         columns = self.columns_dict[self.event_selector_heatmap]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
         trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2], strict=True)] + ["All"]
-        self.param["heatmap_y"].objects = trial_ts
+        self.param["heatmap_y"].objects = trial_options(trial_ts)
         self.heatmap_y = [trial_ts[-1]]
 
     @param.depends("event_selector", watch=True)
@@ -538,7 +591,7 @@ class ParameterizedPlotter(param.Parameterized):
         columns = self.columns_dict[self.event_selector]
         trial_no = range(1, len(remove_cols(columns)[:-2]) + 1)
         trial_ts = [f"{i} - {j}" for i, j in zip(trial_no, remove_cols(columns)[:-2], strict=True)]
-        self.param["psth_y"].objects = trial_ts
+        self.param["psth_y"].objects = trial_options(trial_ts)
         self.psth_y = [trial_ts[0]]
 
         # function to plot multiple PSTHs into one plot
@@ -596,9 +649,9 @@ class ParameterizedPlotter(param.Parameterized):
                 columns_spread.append(selected_events[i])
             else:
                 data_curve.append(event_dataframes[selected_events[i]]["mean"])
-                columns_curve.append(selected_events[i] + "_" + "mean")
+                columns_curve.append(selected_events[i])
                 data_spread.append(event_dataframes[selected_events[i]]["err"])
-                columns_spread.append(selected_events[i] + "_" + "mean")
+                columns_spread.append(selected_events[i])
 
         if len(selected_events) > 0:
             self._reset_y_on_selection_change("overlay", "overlay_Y", tuple(selected_events))
@@ -626,41 +679,39 @@ class ParameterizedPlotter(param.Parameterized):
             index = np.arange(0, timestamps.shape[0], 3)
             df_curve = df_curve.loc[index, :]
             df_spread = df_spread.loc[index, :]
+            # Each event's curve and spread carry its own colour (its override, else its palette
+            # colour). The overlays keep the selection order, so the legend lists events in the
+            # order they were chosen.
+            effective_colors = self.overlay_effective_colors()
             overlay = hv.NdOverlay(
                 {
-                    curve_column: hv.Curve((df_curve["timestamps"], df_curve[curve_column]), kdims=["Time (s)"]).opts(
+                    event: hv.Curve((df_curve["timestamps"], df_curve[event]), kdims=[TIME_LABEL]).opts(
                         **self._psth_size(),
                         xlim=self.overlay_X,
                         ylim=self.overlay_Y,
+                        color=effective_colors[event],
                     )
-                    for curve_column in columns_curve[:-1]
-                }
+                    for event in columns_curve[:-1]
+                },
+                sort=False,
             )
             spread = hv.NdOverlay(
                 {
-                    spread_column: hv.Spread(
+                    event: hv.Spread(
                         (
                             df_spread["timestamps"],
-                            df_curve[spread_column],
-                            df_spread[spread_column],
-                            df_spread[spread_column],
+                            df_curve[event],
+                            df_spread[event],
+                            df_spread[event],
                         ),
                         vdims=["y", "yerrpos", "yerrneg"],
-                    ).opts(line_width=0, fill_alpha=0.3)
-                    for spread_column in columns_spread[:-1]
-                }
+                    ).opts(line_width=0, fill_alpha=0.3, fill_color=effective_colors[event])
+                    for event in columns_spread[:-1]
+                },
+                sort=False,
             )
-            # Colour each event's curve (and its matching spread) from its effective
-            # colour (per-event override, else the chosen palette). Curves and spreads
-            # are built in the same selection order, so a positional cycle over this
-            # list assigns consistent per-event colours.
-            effective_colors = self.overlay_effective_colors()
-            palette_colors = hv.Cycle([effective_colors[event] for event in selected_events])
             plot_combine = (
-                (overlay * spread)
-                .opts(opts.NdOverlay(xlabel="Time (s)", ylabel=self.Y_Label))
-                .opts(opts.Curve(color=palette_colors), opts.Spread(fill_color=palette_colors))
-                .opts(shared_axes=False)
+                (overlay * spread).opts(opts.NdOverlay(xlabel=TIME_LABEL, ylabel=self.Y_Label)).opts(shared_axes=False)
             )
             plot_combine = plot_combine.opts(
                 hooks=[
@@ -722,7 +773,7 @@ class ParameterizedPlotter(param.Parameterized):
                     color=self.trace_color,
                     xlim=self.cont_X,
                     ylim=self.cont_Y,
-                    xlabel="Time (s)",
+                    xlabel=TIME_LABEL,
                     ylabel=self.Y_Label,
                 )
             )
@@ -755,7 +806,7 @@ class ParameterizedPlotter(param.Parameterized):
                 xlim=self.cont_X,
                 ylim=self.cont_Y,
                 color=self.trace_color,
-                xlabel="Time (s)",
+                xlabel=TIME_LABEL,
                 ylabel=self.Y_Label,
             )
             ropts_spread = dict(
@@ -787,7 +838,7 @@ class ParameterizedPlotter(param.Parameterized):
                 xlim=self.cont_X,
                 ylim=self.cont_Y,
                 color=self.trace_color,
-                xlabel="Time (s)",
+                xlabel=TIME_LABEL,
                 ylabel=self.Y_Label,
             )
             plot = hv.Curve((xpoints, ypoints)).opts({"Curve": ropts_curve})
@@ -847,7 +898,7 @@ class ParameterizedPlotter(param.Parameterized):
             **self._psth_size(),
             xlim=self.trials_X,
             ylim=self.trials_Y,
-            xlabel="Time (s)",
+            xlabel=TIME_LABEL,
             ylabel=self.Y_Label,
         )
 
@@ -855,9 +906,12 @@ class ParameterizedPlotter(param.Parameterized):
         if show_trials:
             overlay = hv.NdOverlay(
                 {
-                    trial: hv.Curve((timestamps[index], df_psth[trial][index]), kdims=["Time (s)"])
+                    trial_column_label(trial): hv.Curve((timestamps[index], df_psth[trial][index]), kdims=[TIME_LABEL])
                     for trial in selected_trials
-                }
+                },
+                kdims=["Trial"],
+                # Keep the trials in picker order; sorted, the event times would order as text.
+                sort=False,
             )
             layers.append(overlay.opts(**axis_opts))
         if show_mean:
@@ -941,6 +995,9 @@ class ParameterizedPlotter(param.Parameterized):
             event_ts_for_each_event = np.arange(1, z_score.shape[0] + 1)
             yticks = list(event_ts_for_each_event)
 
+        # Label every trial only while the rows leave room for a tick label; past that, every nth trial.
+        yticks = yticks[:: max(1, math.ceil(TRIAL_TICK_SPACING * len(yticks) / int(self.height_heatmap)))]
+
         # Auto-fit the colour scale to the current selection on first render (or
         # after a selection change reset it above). ``trial_numbers`` is captured
         # before the single-trial duplication below so the Y range and ticks reflect
@@ -953,7 +1010,6 @@ class ParameterizedPlotter(param.Parameterized):
         # Always span the full cell edges so the first and last trial rows render at
         # full height; recomputed every render so no stale/zoomed range can clip them.
         ylim = (float(trial_numbers.min()) - 0.5, float(trial_numbers.max()) + 0.5)
-        font_size = {"labels": 16, "yticks": 6}
 
         # A single-trial heatmap (e.g. a group average with only one contributing
         # session) cannot be datashaded (datashade needs >=2 rows to infer cell
@@ -970,8 +1026,7 @@ class ParameterizedPlotter(param.Parameterized):
         ropts = dict(
             **self._heatmap_size(),
             ylabel="Trials",
-            xlabel="Time (s)",
-            fontsize=font_size,
+            xlabel=TIME_LABEL,
             yticks=yticks,
             invert_yaxis=True,
             xlim=self.heatmap_X,

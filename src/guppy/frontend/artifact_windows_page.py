@@ -14,6 +14,8 @@ import numpy as np
 import panel as pn
 
 from .artifact_removal import build_run_folder_page, load_pair_traces
+from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
+from .row_controls import column_heading, delete_row_button
 from ..analysis.io_utils import fetchCoords
 from ..orchestration.save_parameters import record_artifact_provenance
 from ..utils.artifact_windows import (
@@ -23,6 +25,8 @@ from ..utils.artifact_windows import (
     windows_to_coords,
 )
 from ..utils.utils import parse_run_name, sibling_run_folders
+from ..visualization.labels import trace_title
+from ..visualization.palette import CONTROL, SIGNAL
 from ..visualization.preprocessing import (
     build_markable_trace,
     make_spans_pipe,
@@ -33,9 +37,9 @@ pn.extension(notifications=True)
 
 logger = logging.getLogger(__name__)
 
-ARTIFACT_REMOVAL_METHODS = ["replace with NaN", "concatenate"]
+ARTIFACT_REMOVAL_METHODS = {"Replace with NaN": "replace with NaN", "Concatenate": "concatenate"}
 
-MARK_MODE = "Mark artifacts"
+MARK_MODE = "Mark Artifacts"
 NAVIGATE_MODE = "Navigate"
 INTERACTION_MODES = [MARK_MODE, NAVIGATE_MODE]
 
@@ -54,7 +58,7 @@ _INSTRUCTIONS = (
     "nudged the rest of the way with the arrow keys. Everything outside the marked "
     "periods is kept — mark nothing to keep the entire recording.\n\n"
     "Switch to **Navigate** to drag the view around instead of marking; the scroll wheel "
-    "zooms in either mode, and switching back to **Mark artifacts** keeps wherever you "
+    "zooms in either mode, and switching back to **Mark Artifacts** keeps wherever you "
     "have zoomed to. The **Trace** selector chooses which of the site's three traces you "
     "mark on — the periods belong to the recording site, so it makes no difference which "
     "one you mark from.\n\n"
@@ -72,11 +76,10 @@ _COPY_HELP = (
 _NO_WINDOWS_HINT = "_No artifact periods marked — the entire recording will be kept._"
 
 _METHOD_HELP = (
-    "How the marked periods are applied. **replace with NaN** (recommended) blanks them "
-    "while preserving the recording timeline. **concatenate** splices the kept segments "
-    "together; this re-times the kept samples onto a new timeline, breaks alignment to the "
-    "acquisition clock, is unsupported by NWB export, and is incompatible with "
-    "cross-correlation."
+    "How the marked periods are applied. Replace with NaN (recommended) blanks them and keeps the "
+    "recording's timeline. Concatenate splices the kept segments together, which moves them onto a "
+    "new timeline, breaks alignment with the acquisition clock, can't be exported to NWB, and "
+    "doesn't work with cross-correlation."
 )
 
 
@@ -200,9 +203,7 @@ class ArtifactWindowRow:
         low, high = span
         self.start_input = pn.widgets.FloatInput(value=start, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
         self.end_input = pn.widgets.FloatInput(value=end, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
-        self.remove_button = pn.widgets.Button(
-            icon="trash", button_type="light", width=40, height=38, description="Delete this period"
-        )
+        self.remove_button = delete_row_button(description="Delete this period")
 
         self.start_input.param.watch(lambda event: on_change(), "value")
         self.end_input.param.watch(lambda event: on_change(), "value")
@@ -226,9 +227,10 @@ class ArtifactWindowSelector:
     one ``coordsForPreProcessing_<site>.npy`` per site holding the keep-windows.
     """
 
-    def __init__(self, filepath: str, pair_traces: dict[str, dict[str, object]], *, label: str) -> None:
+    def __init__(
+        self, filepath: str, pair_traces: dict[str, dict[str, object]], *, run_field: pn.viewable.Viewable
+    ) -> None:
         self.filepath = filepath
-        self.label = label
         self.pair_traces = pair_traces
         self.sites = list(pair_traces.keys())
 
@@ -240,28 +242,31 @@ class ArtifactWindowSelector:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
         self.trace_select = pn.widgets.Select(
-            name="Trace", options=self._trace_options(self.sites[0]), value=SIGNAL_TRACE, width=200
+            options=self._trace_options(self.sites[0]), value=SIGNAL_TRACE, width=200, margin=CONTROL_MARGIN
         )
         self.mode_toggle = pn.widgets.RadioButtonGroup(
-            name="Drag gesture",
             options=INTERACTION_MODES,
             value=MARK_MODE,
             button_type="primary",
             button_style="outline",
             width=240,
-            align="end",
+            margin=CONTROL_MARGIN,
         )
         self.runs_with_windows = _runs_with_saved_windows(filepath)
         self.copy_from_select = pn.widgets.Select(
-            name="Copy windows from run", options=list(self.runs_with_windows), width=200
+            name="Copy Windows from Run", options=list(self.runs_with_windows), width=200
         )
         self.copy_from_button = pn.widgets.Button(name="Load", button_type="default", icon="copy", align="end")
-        self.add_row_button = pn.widgets.Button(name="Add period", button_type="default", icon="plus")
-        self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
+        self.add_row_button = pn.widgets.Button(name="Add Period", button_type="default", icon="plus")
+        self.apply_to_all_button = pn.widgets.Button(name="Apply to All Recording Sites", button_type="default")
         self.method_select = pn.widgets.Select(
-            name="Removal method", options=ARTIFACT_REMOVAL_METHODS, value=ARTIFACT_REMOVAL_METHODS[0], width=200
+            name="Removal Method",
+            options=ARTIFACT_REMOVAL_METHODS,
+            value="replace with NaN",
+            width=200,
+            description=_METHOD_HELP,
         )
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
@@ -284,18 +289,22 @@ class ArtifactWindowSelector:
             if self.runs_with_windows
             else []
         )
-        self.widget = pn.Column(
-            f"# Select Artifact Windows — {self.label}",
-            pn.pane.Markdown(_INSTRUCTIONS),
-            *copy_from_section,
-            pn.Row(self.site_select, self.trace_select, self.mode_toggle),
-            self.marking_pane,
-            self.rows_container,
-            pn.Row(self.add_row_button, self.apply_to_all_button),
-            self.method_select,
-            pn.pane.Markdown(_METHOD_HELP),
-            self.save_button,
-            sizing_mode="stretch_width",
+        self.widget = plot_page(
+            note=_INSTRUCTIONS,
+            fields=[
+                run_field,
+                toolbar_field("Recording Site", self.site_select),
+                toolbar_field("Trace", self.trace_select),
+                toolbar_field("Drag Gesture", self.mode_toggle),
+            ],
+            body=[
+                *copy_from_section,
+                self.marking_pane,
+                self.rows_container,
+                pn.Row(self.add_row_button, self.apply_to_all_button),
+                self.method_select,
+                self.save_button,
+            ],
         )
 
     def _build_row(self, site: str, start: float | None, end: float | None) -> ArtifactWindowRow:
@@ -309,8 +318,8 @@ class ArtifactWindowSelector:
 
     def _column_header(self) -> pn.Row:
         return pn.Row(
-            pn.pane.HTML("<b>start (s)</b>", width=_INPUT_WIDTH),
-            pn.pane.HTML("<b>end (s)</b>", width=_INPUT_WIDTH),
+            column_heading(text="Start (s)", width=_INPUT_WIDTH),
+            column_heading(text="End (s)", width=_INPUT_WIDTH),
             pn.Spacer(width=40),
             margin=(0, 0, 2, 0),
         )
@@ -492,9 +501,13 @@ class ArtifactWindowSelector:
         self._rebuild_marking_plot()
 
     def _trace_options(self, site: str) -> dict[str, str]:
-        """Label each of the site's three traces by the store it came from."""
+        """Label each of the site's three traces by what it is and the site it was recorded at."""
         control_name, signal_name, fit_name = self.pair_traces[site]["plot_name"]
-        return {control_name: CONTROL_TRACE, signal_name: SIGNAL_TRACE, fit_name: FIT_TRACE}
+        return {
+            trace_title(control_name): CONTROL_TRACE,
+            trace_title(signal_name): SIGNAL_TRACE,
+            trace_title(fit_name): FIT_TRACE,
+        }
 
     def _rebuild_marking_plot(self) -> None:
         """Redraw the plot for the selected site and trace, on a fresh span stream.
@@ -509,19 +522,20 @@ class ArtifactWindowSelector:
         trace = self.pair_traces[self.site_select.value]
         control_name, signal_name, fit_name = trace["plot_name"]
         choice = self.trace_select.value
-        values, overlay, title = {
-            CONTROL_TRACE: (trace["control"], None, control_name),
-            SIGNAL_TRACE: (trace["signal"], None, signal_name),
-            FIT_TRACE: (trace["signal"], trace["fit"], fit_name),
+        values, overlay, title, color = {
+            CONTROL_TRACE: (trace["control"], None, trace_title(control_name), CONTROL),
+            SIGNAL_TRACE: (trace["signal"], None, trace_title(signal_name), SIGNAL),
+            FIT_TRACE: (trace["signal"], trace["fit"], trace_title(fit_name), SIGNAL),
         }[choice]
         return build_markable_trace(
             x=trace["x"],
             values=values,
             overlay=overlay,
-            title=f"{self.label} — {title}",
+            title=title,
             spans=self.spans_pipe,
             on_x_select=self._on_drag,
             hooks=[self._capture_figure],
+            color=color,
         )
 
     def _capture_figure(self, plot: object, element: object) -> None:
@@ -583,7 +597,7 @@ def build_artifact_window_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, label: ArtifactWindowSelector(
-            filepath, load_pair_traces(filepath), label=label
+        build_folder_page=lambda filepath, run_field: ArtifactWindowSelector(
+            filepath, load_pair_traces(filepath), run_field=run_field
         ).widget,
     )

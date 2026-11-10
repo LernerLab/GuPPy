@@ -33,10 +33,11 @@ def run_folder(tmp_path):
 
 
 class TestLoadPeaks:
-    def test_loads_entry_per_trace(self, run_folder):
-        entries = load_peaks([str(run_folder)], "z_score")
-        assert list(entries.keys()) == ["output_1 / z_score_DMS"]
-        entry = entries["output_1 / z_score_DMS"]
+    def test_loads_traces_under_their_run(self, run_folder):
+        runs = load_peaks([str(run_folder)], "z_score")
+        assert list(runs) == ["output_1"]
+        assert list(runs["output_1"]) == ["z_score_DMS"]
+        entry = runs["output_1"]["z_score_DMS"]
         np.testing.assert_array_equal(entry["timestamps"], TIMESTAMPS)
         np.testing.assert_array_equal(entry["peaksInd"], PEAKS_INDEX)
 
@@ -48,6 +49,44 @@ class TestPeaksReviewView:
         assert isinstance(overlay, hv.Overlay)
         # Peaks at index 2 and 7 -> t = 2.0, 7.0.
         np.testing.assert_array_equal(overlay.Scatter.I.dimension_values(0), np.array([2.0, 7.0]))
+
+
+class TestPeaksReviewViewSelectors:
+    @pytest.fixture
+    def two_runs(self, tmp_path):
+        folders = []
+        for session, traces in (("session_a", ["z_score_DMS", "z_score_DLS"]), ("session_b", ["z_score_DLS"])):
+            folder = tmp_path / session / "output_1"
+            folder.mkdir(parents=True)
+            for trace in traces:
+                _write_transient_outputs(folder, trace)
+            folders.append(str(folder))
+        return folders
+
+    def test_toolbar_offers_the_run_then_its_traces(self, panel_extension, two_runs):
+        view = PeaksReviewView(load_peaks(two_runs, "z_score"))
+
+        assert view.run_select.options == ["session_a/output_1", "session_b/output_1"]
+        assert view.trace_select.options == {"Z-Score (DMS)": "z_score_DMS", "Z-Score (DLS)": "z_score_DLS"}
+        assert [field[0].object.split(">")[1].split("<")[0] for field in view.widget[1]] == ["Run Folder", "Trace"]
+
+    def test_switching_run_keeps_the_trace_when_the_run_has_it(self, panel_extension, two_runs):
+        view = PeaksReviewView(load_peaks(two_runs, "z_score"))
+        view.trace_select.value = "z_score_DLS"
+
+        view.run_select.value = "session_b/output_1"
+
+        assert view.trace_select.options == {"Z-Score (DLS)": "z_score_DLS"}
+        assert view.trace_select.value == "z_score_DLS"
+
+    def test_switching_run_falls_back_to_its_first_trace(self, panel_extension, two_runs):
+        view = PeaksReviewView(load_peaks(two_runs, "z_score"))
+        view.run_select.value = "session_b/output_1"
+        view.trace_select.value = "z_score_DLS"
+
+        view.run_select.value = "session_a/output_1"
+
+        assert view.trace_select.value == "z_score_DLS"
 
 
 class TestBuildPeaksViewPage:

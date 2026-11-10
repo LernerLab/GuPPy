@@ -8,9 +8,9 @@ single `.nwb` file.
 Two **optional** steps handle this, and they follow *Step 5: Visualization* in
 the sidebar:
 
-- **Step 6 : Input Metadata** — describe the hardware, the reagents and the
+- **Step 6: Input Metadata** — describe the hardware, the reagents and the
   subject. Writes `nwb_metadata.yaml` into the run folder.
-- **Step 7 : Export to NWB** — write the file.
+- **Step 7: Export to NWB** — write the file.
 
 If you only need GuPPy's plots and tables, skip both.
 
@@ -39,9 +39,9 @@ anything and refuse the whole batch:
 - **Combine Data? = True.** Combining collapses a run group into one output
   directory, so there is no single session the outputs belong to. Re-run the
   pipeline with **Combine Data?** set to false.
-- **Artifacts removed with `concatenate`.** That method re-times the surviving
+- **Artifacts removed with `Concatenate`.** That method re-times the surviving
   samples onto a fresh timeline, which breaks alignment to the acquisition
-  clock. Re-run **Remove Artifacts** after choosing *replace with NaN* on the
+  clock. Re-run **Remove Artifacts** after choosing *Replace with NaN* on the
   **Select Artifact Windows** page, or re-run *Step 3: Preprocess* to drop the
   removal entirely. See
   [Choosing a removal method](artifact-removal.md#choosing-a-removal-method).
@@ -60,43 +60,43 @@ each selected session, named `<session> (<run>)`.
 :width: 50%
 ```
 
-1. Fill in **Core NWB metadata**: the *Session*, *Experimenter* and *Subject*
+1. Fill in **Core NWB Metadata**: the *Session*, *Experimenter* and *Subject*
    fields. Required fields are marked with a red asterisk, and the `?` beside a
    field explains what it expects.
 
-   **Session start time** is required for every acquisition format except TDT
+   **Session Start Time** is required for every acquisition format except TDT
    and NWB, whose files record it themselves. Give it in ISO 8601, e.g.
    `2018-10-30T10:33:32-05:00`.
 
    ```{image} ../_static/images/input_metadata.png
-   :alt: The top of the NWB metadata page: the page header, the strip for reusing metadata from another session, and the Core NWB metadata card with its Session, Experimenter and Subject fields filled in, above the collapsed Optical hardware and Biological reagents groups
+   :alt: The top of the NWB metadata page: the page header, the strip for reusing metadata from another session, and the Core NWB Metadata card with its Session, Experimenter and Subject sections filled in, above the Optical Hardware and Biological Reagents cards
    :width: 100%
    ```
 
-2. Define your **Optical hardware**. Each category holds *models* (the part as
+2. Define your **Optical Hardware**. Each category holds *models* (the part as
    the manufacturer sells it — a fiber model, an LED model) and *instances* (the
    one in your rig, pointing at its model). Add each model first, then the
    instances that use it. The fields come from the NWB fiber-photometry schema
    itself, so they match what the format expects.
 
-3. Define your **Biological reagents** in order: a **Virus**, then a **Virus
-   injection** that references it, then an **Indicator** that references the
+3. Define your **Biological Reagents** in order: a **Virus**, then a **Virus
+   Injection** that references it, then an **Indicator** that references the
    injection. Each link is a dropdown listing what you have already defined.
 
-4. Link everything under **Fiber-photometry channels**. These rows are *fixed* —
+4. Link everything under **Fiber Photometry Channels**. These rows are *fixed* —
    they come from your `storesList.csv`, one group per recording site, each with
-   its control and signal channel. For every channel, give the **excitation**
-   and **emission wavelength**, and choose its indicator, optical fiber,
+   its control and signal channel. For every channel, give the **Excitation Wavelength (nm)**
+   and **Emission Wavelength (nm)**, and choose its indicator, optical fiber,
    excitation source and photodetector. The dichroic mirror and the two filters
    are optional.
 
    ```{image} ../_static/images/input_metadata_channels.png
-   :alt: The Fiber-photometry channels card showing one recording site group containing a control and a signal channel card, each with excitation and emission wavelength fields and dropdowns linking the indicator, optical fiber, excitation source and photodetector
+   :alt: The Fiber Photometry Channels card showing one recording site section containing a control and a signal channel card, each with excitation and emission wavelength fields and dropdowns linking the indicator, optical fiber, excitation source and photodetector
    :width: 100%
    ```
 
-5. Click **Build & preview YAML**, then **Save metadata**. The alert pane above
-   the buttons turns red and names every missing field by name; **Save metadata**
+5. Click **Build & Preview YAML**, then **Save Metadata**. The alert pane above
+   the buttons turns red and names every missing field by name; **Save Metadata**
    refuses until it is clean. On success the file lands at
    `<run_folder>/nwb_metadata.yaml` and the path appears below the buttons.
 
@@ -121,7 +121,7 @@ Subject:
   species: Mus musculus
 ```
 
-The **Advanced — raw YAML** card at the bottom of the page shows the same
+The **Raw YAML (advanced)** card at the bottom of the page shows the same
 document live. Edit it directly if the form cannot express something, then save.
 
 ## Step 7: Export to NWB

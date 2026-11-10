@@ -27,7 +27,7 @@ By the end you will have:
   first tutorial. You need the same setup: GuPPy installed from source, and the sample
   session at `stubbed_testing_data/csv/sample_data_csv_1/` pulled down with Git LFS.
 
-Launch GuPPy, and in the **Parameter Selection** card select
+Launch GuPPy, and in the **Input Folder Selection** card select
 `stubbed_testing_data/csv/sample_data_csv_1/` as before:
 
 ```bash
@@ -39,17 +39,17 @@ guppy
 Click **Label Stores** in the sidebar and label the three channels exactly as you did in
 the first tutorial:
 
-| Channel | Type | Name |
-|---------|------|------|
-| `Sample_Control_Channel` | `control` | `A` |
-| `Sample_Signal_Channel` | `signal` | `A` |
-| `Sample_TTL` | `event TTLs` | `RewardPort` |
+| Channel | Type | Name or Signal |
+|---------|------|----------------|
+| `Sample_Control_Channel` | `Control` | `Sample_Signal_Channel – A` |
+| `Sample_Signal_Channel` | `Signal` | `A` |
+| `Sample_TTL` | `Event TTLs` | `RewardPort` |
 
-Click **Select Label Stores**, fill in the rows, and click **Show Selected
+Click **Select Stores**, fill in the rows, and click **Show Selected
 Configuration**.
 
-Now the part that is new. Leave **Create new run** selected, and instead of keeping the
-**Run name** GuPPy filled in, replace it with `filter_100`. Click **Save**.
+Now the part that is new. Leave **Create New Run** selected, and instead of keeping the
+**Run Name** GuPPy filled in, replace it with `filter_100`. Click **Save**.
 
 A run's name is the suffix on its run folder, `output_<run name>`, so this one creates
 `output_filter_100/` in the session's mirror inside the output root folder. The name GuPPy
@@ -61,11 +61,11 @@ Run names may not be empty, contain path separators or `..`, or contain the subs
 
 ## Analyze it with the default filter window
 
-Back on the homepage, open **Output Folder Selection** and, under **Existing runs (steps
+Back on the homepage, open **Output Folder Selection** and, under **Existing Runs (Steps
 2–5)**, navigate into `sample_data_csv_1/` and select `output_filter_100` — and only that one. Every step you
 run acts on the runs selected here.
 
-Leave the parameters at their defaults; **Window for Moving Average filter (int)** is
+Leave the parameters at their defaults; **Window for Moving Average Filter** is
 already `100`, which is the parameter set this run is named for.
 
 Run **Step 2: Read Raw Data**, then **Step 3: Preprocess**, then **Step 4: PSTH
@@ -78,21 +78,21 @@ Click **Label Stores** again and label the channels a second time, with exactly 
 names as before — `control_A`, `signal_A`, `RewardPort`. The stores must match for the
 comparison to mean anything; only the analysis parameters should differ.
 
-Leave **Create new run** selected again, replace the **Run name** with `filter_250`, and
+Leave **Create New Run** selected again, replace the **Run Name** with `filter_250`, and
 click **Save**.
 
 ```{image} ../_static/images/compare_parameters_run_name.png
-:alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create new run selected and the Run name field filled in with filter_250
+:alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create New Run selected and the Run Name field filled in with filter_250
 :width: 70%
 ```
 
-Leave **Overwrite existing run** alone here. It deletes the contents of an existing run
+Leave **Overwrite Existing Run** alone here. It deletes the contents of an existing run
 folder, which would throw away the result you just computed.
 
 ## Analyze it with a wider filter window
 
 Back on the homepage, open **Output Folder Selection** again. Both runs are now listed
-under **Existing runs (steps 2–5)**. Select `output_filter_250`, and make sure the first
+under **Existing Runs (Steps 2–5)**. Select `output_filter_250`, and make sure the first
 run is *not* selected.
 
 ```{image} ../_static/images/compare_parameters_existing_runs.png
@@ -105,7 +105,7 @@ start from the new run rather than editing the form first.
 
 In the **Parameter Selection** card, change the one parameter you are testing:
 
-- **Window for Moving Average filter (int)** → `250`
+- **Window for Moving Average Filter** → `250`
 
 The window is a number of **samples**, not seconds. This session is sampled at about
 1017 Hz, so the default `100` smooths over roughly a tenth of a second and `250` over
@@ -125,7 +125,7 @@ defeat the comparison.
 
 ## Compare the two runs
 
-Select **both** runs under **Existing runs (steps 2–5)**, then click **Open Visualization
+Select **both** runs under **Existing Runs (Steps 2–5)**, then click **Open Visualization
 GUI**. GuPPy opens one Visualization tab with a dashboard per selected run, each in its own
 inner tab, so you can flip between them with the same event and view selected.
 
@@ -133,12 +133,11 @@ Selecting two runs whose saved parameters differ shows the notification "Selecte
 runs have different saved parameters; the form was left unchanged." That is expected here:
 each run's parameters are already saved in its outputs, and Step 5 only reads them.
 
-Each inner tab is named after its run folder, which is also the heading at the top of its
-dashboard. Put the two tabs on the same z-score PSTH and the trade-off is there to see: the
+Each inner tab is named after its run folder. Put the two tabs on the same z-score PSTH and the trade-off is there to see: the
 wider window gives a smoother curve, at the cost of a lower peak amplitude and coarser
 timing.
 
-To keep a figure, use **Save As...** above each plot; the file arrives through your
+To keep a figure, use the **Save As…** button in the **Save Plot** field above each plot; the file arrives through your
 browser's downloads.
 
 ## What landed on disk

@@ -17,7 +17,9 @@ from guppy.frontend.artifact_windows_page import (
     ArtifactWindowSelector,
     build_artifact_window_page,
 )
+from guppy.frontend.plot_card import RUN_FOLDER_WIDTH
 from guppy.utils._hdf5_io import write_hdf5
+from guppy_test_data import inked_color, resolve_plot
 
 # The keep-window span is widened by one sample, so it runs from -1.0 to 11.0.
 TIMESTAMPS = np.arange(0.0, 11.0, 1.0)
@@ -64,7 +66,7 @@ def rendered_figure(selector):
 
 @pytest.fixture
 def selector(panel_extension, run_folder):
-    selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), label="output_1")
+    selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), run_field=pn.Column())
     # Adding, removing, and the live preview act on the selected site; pin it so the tests
     # do not depend on which site load_pair_traces happens to yield first.
     selector.site_select.value = "DMS"
@@ -245,7 +247,7 @@ class TestClampingBoundsIntoTheRecording:
             np.array([[-1.0, 0.0], [3.0, 0.0], [5.0, 0.0], [11.0, 0.0]]),
         )
 
-        reopened = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), label="output_1")
+        reopened = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), run_field=pn.Column())
 
         assert reopened.windows_for("DMS") == [(3.0, 5.0)]
         assert reopened.windows_for("DLS") == []
@@ -261,7 +263,33 @@ class TestClampingBoundsIntoTheRecording:
         rendered = selector.rows_container.objects
         # One header row plus one row per marked period.
         assert len(rendered) == 3
+        assert [heading.object for heading in rendered[0][:2]] == [
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>Start (s)</div>",
+            "<div style='font-size: 12px; font-weight: 600; color: #6C757D;'>End (s)</div>",
+        ]
         assert [row.widget for row in selector.site_to_rows["DMS"]] == list(rendered[1:])
+
+    def test_toolbar_holds_the_run_site_trace_and_gesture(self, selector):
+        assert [field[0].object.split(">")[1].split("<")[0] for field in selector.widget[1][1:]] == [
+            "Recording Site",
+            "Trace",
+            "Drag Gesture",
+        ]
+
+    def test_removal_method_is_explained_in_its_tooltip(self, selector):
+        assert selector.method_select.description.startswith("How the marked periods are applied. Replace with NaN")
+        assert selector.method_select in selector.widget.objects
+        assert not any(
+            isinstance(item, pn.pane.Markdown) and "How the marked periods" in item.object
+            for item in selector.widget.objects
+        )
+
+    def test_each_period_is_deleted_with_the_trash_button(self, selector):
+        selector.set_windows("DMS", [(1.0, 2.0)])
+
+        (row,) = selector.site_to_rows["DMS"]
+        assert row.remove_button.icon == "trash"
+        assert row.remove_button.description == "Delete this period"
 
     def test_switching_site_shows_that_site_periods(self, selector):
         selector.set_windows("DMS", [(1.0, 2.0)])
@@ -418,12 +446,12 @@ class TestBuildArtifactWindowPage:
 
     def test_page_offers_an_add_control(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add period"]
+        assert [button for button in page.select(pn.widgets.Button) if button.name == "Add Period"]
 
-    def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
+    def test_single_folder_still_offers_its_run(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
-        assert run_folder_selectors == []
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.width == RUN_FOLDER_WIDTH]
+        assert [list(select.options.values()) for select in run_folder_selectors] == [[str(run_folder)]]
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
         folder_a = tmp_path / "session_a_output_1"
@@ -432,8 +460,8 @@ class TestBuildArtifactWindowPage:
             folder.mkdir()
             _write_site(folder, "DMS")
         page = build_artifact_window_page(run_folders=[str(folder_a), str(folder_b)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
-        assert len(run_folder_selectors) == 1
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.width == RUN_FOLDER_WIDTH]
+        assert [set(select.options.values()) for select in run_folder_selectors] == [{str(folder_a), str(folder_b)}]
 
 
 class TestCopyWindowsFromAnotherRun:
@@ -453,7 +481,7 @@ class TestCopyWindowsFromAnotherRun:
     @pytest.fixture
     def unmarked_selector(self, panel_extension, session_folder, marked_run):
         run_folder = str(session_folder / "mySession_output_2")
-        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="output_1")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), run_field=pn.Column())
         selector.site_select.value = "DMS"
         return selector
 
@@ -462,13 +490,13 @@ class TestCopyWindowsFromAnotherRun:
 
     def test_does_not_offer_a_run_with_no_windows_saved(self, panel_extension, session_folder):
         run_folder = str(session_folder / "mySession_output_2")
-        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="output_1")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), run_field=pn.Column())
 
         assert selector.runs_with_windows == {}
 
     def test_control_is_hidden_when_no_other_run_has_windows(self, panel_extension, session_folder):
         run_folder = str(session_folder / "mySession_output_2")
-        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="output_1")
+        selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), run_field=pn.Column())
 
         assert selector.copy_from_select not in selector.widget.select(pn.widgets.Select)
 
@@ -542,7 +570,7 @@ class TestCopyWindowsAcrossMismatchedSites:
     def selector_for_run_2(self, panel_extension, session_folder):
         def build():
             run_folder = str(session_folder / "mySession_output_2")
-            selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), label="output_1")
+            selector = ArtifactWindowSelector(run_folder, load_pair_traces(run_folder), run_field=pn.Column())
             selector.site_select.value = "DMS"
             return selector
 
@@ -590,27 +618,49 @@ class TestCopyWindowsAcrossMismatchedSites:
 class TestTraceSelection:
     """One trace is marked at a time, so there is a single plot and a single toolbar."""
 
-    def test_offers_the_three_traces_by_store_name(self, selector):
+    def test_offers_the_three_traces_by_name_and_site(self, selector):
         assert selector.trace_select.options == {
-            "control_DMS": CONTROL_TRACE,
-            "signal_DMS": SIGNAL_TRACE,
-            "cntrl_sig_fit_DMS": FIT_TRACE,
+            "Control (DMS)": CONTROL_TRACE,
+            "Signal (DMS)": SIGNAL_TRACE,
+            "Control Fit (DMS)": FIT_TRACE,
         }
 
     def test_starts_on_the_signal_trace(self, selector):
         assert selector.trace_select.value == SIGNAL_TRACE
-        assert rendered_figure(selector).title.text.endswith("— signal_DMS")
+        assert rendered_figure(selector).title.text == "Signal (DMS)"
 
     def test_choosing_a_trace_redraws_the_plot_on_it(self, selector):
         selector.trace_select.value = CONTROL_TRACE
 
-        assert rendered_figure(selector).title.text.endswith("— control_DMS")
+        assert rendered_figure(selector).title.text == "Control (DMS)"
+
+    def test_the_control_is_drawn_blue_and_the_signal_green(self, panel_extension, tmp_path):
+        # A flat trace shades to an empty image, so these traces rise across the recording.
+        run_folder = tmp_path / "rising_output_1"
+        run_folder.mkdir()
+        rising = np.arange(TIMESTAMPS.shape[0], dtype=float)
+        write_hdf5(TIMESTAMPS, "timeCorrection_DMS", str(run_folder), "timestampNew")
+        for name, offset in (("control_DMS", 0.0), ("signal_DMS", 10.0), ("cntrl_sig_fit_DMS", 20.0)):
+            write_hdf5(rising + offset, name, str(run_folder), "data")
+        selector = ArtifactWindowSelector(str(run_folder), load_pair_traces(str(run_folder)), run_field=pn.Column())
+
+        def shown_trace_color():
+            (image,) = [
+                item for item in resolve_plot(selector.marking_pane.object).values() if isinstance(item, hv.RGB)
+            ]
+            return inked_color(image)
+
+        selector.trace_select.value = CONTROL_TRACE
+        control_color = shown_trace_color()
+        selector.trace_select.value = SIGNAL_TRACE
+
+        assert (control_color, shown_trace_color()) == ("#1F6FD1", "#3A9E5C")
 
     def test_the_fit_trace_draws_the_fit_over_the_signal(self, selector):
         selector.trace_select.value = FIT_TRACE
         figure = rendered_figure(selector)
 
-        assert figure.title.text.endswith("— cntrl_sig_fit_DMS")
+        assert figure.title.text == "Control Fit (DMS)"
         # The signal and the fit are separate shaded layers over the same axes.
         assert len(figure.renderers) == 3
 
@@ -620,8 +670,12 @@ class TestTraceSelection:
         selector.site_select.value = "DLS"
 
         assert selector.trace_select.value == CONTROL_TRACE
-        assert list(selector.trace_select.options) == ["control_DLS", "signal_DLS", "cntrl_sig_fit_DLS"]
-        assert rendered_figure(selector).title.text.endswith("— control_DLS")
+        assert list(selector.trace_select.options) == [
+            "Control (DLS)",
+            "Signal (DLS)",
+            "Control Fit (DLS)",
+        ]
+        assert rendered_figure(selector).title.text == "Control (DLS)"
 
     def test_a_drag_marks_the_same_period_whichever_trace_is_shown(self, selector):
         """The periods belong to the recording site, not to the trace they were drawn on."""

@@ -5,7 +5,9 @@ import holoviews as hv
 import numpy as np
 from bokeh.models import BoxSelectTool, PanTool
 
-from .shading import FIT_COLOR, shade_trace
+from .labels import TIME_LABEL
+from .palette import HIGHLIGHT
+from .shading import FIT_COLOR, TRACE_COLOR, shade_trace
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,9 @@ def make_spans_pipe(*, windows: list[tuple[float, float]]) -> hv.streams.Pipe:
 
     Parameters
     ----------
-    windows : list of (float, float)
-        Initial ``(start, end)`` windows to shade.
+    windows : list of tuple
+        Initial ``(start, end)`` windows to shade, in the highlight color, or ``(start, end, color)``
+        windows to shade each in its own color.
 
     Returns
     -------
@@ -38,9 +41,20 @@ def make_spans_pipe(*, windows: list[tuple[float, float]]) -> hv.streams.Pipe:
     return hv.streams.Pipe(data=list(windows))
 
 
+def _draw_spans(data: list[tuple]) -> hv.VSpans:
+    """Shade each window in the color it carries as a third value, or in the highlight color.
+
+    The argument is named ``data`` because that is the name the ``Pipe`` stream passes it under.
+    """
+    windows = list(data)
+    if windows and len(windows[0]) == 3:
+        return hv.VSpans(windows, vdims=["color"]).opts(color="color", alpha=0.25)
+    return hv.VSpans(windows).opts(color=HIGHLIGHT, alpha=0.2)
+
+
 def _spans_overlay(*, curve: hv.DynamicMap, spans: hv.streams.Pipe) -> hv.DynamicMap:
     """Overlay pipe-driven shaded vertical spans on a curve."""
-    return curve * hv.DynamicMap(lambda data: hv.VSpans(list(data)).opts(color="orange", alpha=0.2), streams=[spans])
+    return curve * hv.DynamicMap(_draw_spans, streams=[spans])
 
 
 def _shaded_panel(*, curve: hv.DynamicMap, title: str, spans: hv.streams.Pipe | None) -> hv.DynamicMap:
@@ -58,7 +72,6 @@ def build_stacked_traces(
     *,
     x: np.ndarray,
     traces: dict[str, np.ndarray],
-    suptitle: str,
     spans: hv.streams.Pipe | None = None,
 ) -> hv.Layout:
     """Build density-shaded curves stacked over a shared time axis.
@@ -72,8 +85,6 @@ def build_stacked_traces(
         Time axis values shared by all curves.
     traces : dict
         Panel title → trace values against the same ``x``, stacked in iteration order.
-    suptitle : str
-        Session-level title prefix applied to the first panel.
     spans : hv.streams.Pipe, optional
         Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
         the traces unshaded.
@@ -84,9 +95,9 @@ def build_stacked_traces(
         Vertically stacked curves, one per trace.
     """
     panels = []
-    for index, (title, values) in enumerate(traces.items()):
-        curve = shade_trace(hv.Curve((x, values), "time (s)", title))
-        panels.append(_shaded_panel(curve=curve, title=f"{suptitle} — {title}" if index == 0 else title, spans=spans))
+    for title, values in traces.items():
+        curve = shade_trace(hv.Curve((x, values), TIME_LABEL, title))
+        panels.append(_shaded_panel(curve=curve, title=title, spans=spans))
     return hv.Layout(panels).cols(1)
 
 
@@ -97,7 +108,6 @@ def build_control_signal_fit(
     signal: np.ndarray,
     fit: np.ndarray,
     titles: list[str],
-    suptitle: str,
     spans: hv.streams.Pipe | None = None,
     extra_traces: dict[str, np.ndarray] | None = None,
 ) -> hv.Layout:
@@ -118,8 +128,6 @@ def build_control_signal_fit(
         Fitted control trace overlaid on the signal (bottom).
     titles : list[str]
         Titles for the three curves (control, signal, fit).
-    suptitle : str
-        Session-level title prefix applied to the control curve.
     spans : hv.streams.Pipe, optional
         Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
         the traces unshaded.
@@ -131,22 +139,22 @@ def build_control_signal_fit(
     hv.Layout
         Vertically stacked curves, one per trace.
     """
-    control_curve = shade_trace(hv.Curve((x, control), "time (s)", titles[0]))
-    signal_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[1]))
-    fit_curve = shade_trace(hv.Curve((x, signal), "time (s)", titles[2])) * shade_trace(
-        hv.Curve((x, fit), "time (s)", titles[2]), color=FIT_COLOR
+    control_curve = shade_trace(hv.Curve((x, control), TIME_LABEL, titles[0]), color=FIT_COLOR)
+    signal_curve = shade_trace(hv.Curve((x, signal), TIME_LABEL, titles[1]))
+    fit_curve = shade_trace(hv.Curve((x, signal), TIME_LABEL, titles[2])) * shade_trace(
+        hv.Curve((x, fit), TIME_LABEL, titles[2]), color=FIT_COLOR
     )
 
     def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
         return _shaded_panel(curve=curve, title=title, spans=spans)
 
     panels = [
-        panel(control_curve, f"{suptitle} — {titles[0]}"),
+        panel(control_curve, titles[0]),
         panel(signal_curve, titles[1]),
         panel(fit_curve, titles[2]),
     ]
     for title, values in (extra_traces or {}).items():
-        panels.append(panel(shade_trace(hv.Curve((x, values), "time (s)", title)), title))
+        panels.append(panel(shade_trace(hv.Curve((x, values), TIME_LABEL, title)), title))
 
     return hv.Layout(panels).cols(1)
 
@@ -160,6 +168,7 @@ def build_markable_trace(
     on_x_select: Callable[[float, float], None],
     overlay: np.ndarray | None = None,
     hooks: list[Callable[[object, object], None]] | None = None,
+    color: str = TRACE_COLOR,
 ) -> hv.DynamicMap:
     """Build one density-shaded trace whose horizontal drags report the times they cover.
 
@@ -179,20 +188,22 @@ def build_markable_trace(
         A second trace against the same ``x``, drawn over the first in the fit hue.
     hooks : list of callable, optional
         Bokeh hooks run against the rendered figure, as ``(plot, element)``.
+    color : str, optional
+        Hue of the trace: the signal's by default, the control's for a control trace.
 
     Returns
     -------
     hv.DynamicMap
         The shaded trace with its span layer.
     """
-    curve = shade_trace(hv.Curve((x, values), "time (s)", title))
+    curve = shade_trace(hv.Curve((x, values), TIME_LABEL, title), color=color)
     # Both the select tool and the drag stream ride on the trace layer: bokeh builds a
     # figure's toolbar from what its individual layers ask for, and holoviews matches a
     # stream only to the layer named as its source.
     curve = curve.opts(tools=["xbox_select"])
     hv.streams.BoundsX(source=curve).add_subscriber(lambda boundsx: on_x_select(*boundsx))
     if overlay is not None:
-        curve = curve * shade_trace(hv.Curve((x, overlay), "time (s)", title), color=FIT_COLOR)
+        curve = curve * shade_trace(hv.Curve((x, overlay), TIME_LABEL, title), color=FIT_COLOR)
     return _spans_overlay(curve=curve, spans=spans).opts(
         title=title,
         responsive=True,

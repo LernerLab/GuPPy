@@ -1,6 +1,7 @@
 import panel as pn
 import pytest
 
+from guppy.frontend.input_parameters import CARD_STYLES, SECTION_STYLES
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
 
 BASENAME = "test_session"
@@ -20,8 +21,19 @@ class _FakeFigure:
 
 
 def metric_selectors(tab):
-    """Return the "Metric" selectors rendered inside one dashboard tab."""
-    return [widget for widget in tab.select(pn.widgets.Select) if widget.name == "Metric"]
+    """Return the metric selectors rendered inside one dashboard tab."""
+    return [widget for widget in tab.select(pn.widgets.Select) if "z_score" in widget.values]
+
+
+def field_labels(layout):
+    """Return the text of the toolbar field labels shown inside a layout, in order."""
+    labels = [pane.object for pane in layout.select(pn.pane.HTML) if "white-space: nowrap" in pane.object]
+    return [label.split(">")[1].split("<")[0] for label in labels]
+
+
+def toolbar(card):
+    """Return a card's toolbar row, which follows the note in its white section."""
+    return card[0][1]
 
 
 @pytest.fixture
@@ -55,27 +67,41 @@ class TestVisualizationDashboard:
     def test_metric_selector_offers_every_available_metric(self, dashboard):
         for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
             (selector,) = metric_selectors(tab)
-            assert selector.options == {"z-score": "z_score", "\u0394F/F": "dff"}
+            assert selector.options == {"Z-Score": "z_score", "\u0394F/F": "dff"}
             assert selector.value == "z_score"
 
     def test_metric_selector_offers_the_one_metric_that_was_computed(self, single_metric_dashboard):
         for tab in (single_metric_dashboard._psth_tab, single_metric_dashboard._heatmap_tab):
             (selector,) = metric_selectors(tab)
-            assert selector.options == {"z-score": "z_score"}
+            assert selector.options == {"Z-Score": "z_score"}
             assert selector.value == "z_score"
             assert selector.disabled is False
 
-    def test_metric_selector_leads_the_psth_display_settings(self, dashboard):
-        display_settings = dashboard._psth_tab[1]
+    def test_metric_selector_leads_each_tabs_display_settings(self, dashboard):
+        for tab in (dashboard._psth_tab, dashboard._heatmap_tab):
+            display_settings = tab[0]
+            first_field = toolbar(display_settings)[0]
 
-        assert display_settings.title == "Display settings (all plots)"
-        assert display_settings[0][0] is metric_selectors(dashboard._psth_tab)[0]
+            assert display_settings.title == "Display Settings"
+            assert field_labels(first_field)[0] == "Metric"
+            assert first_field[1][0] is metric_selectors(tab)[0]
 
-    def test_metric_selector_follows_the_heatmap_event_selector(self, dashboard):
-        heatmap_card = dashboard._heatmap_tab[1]
+    def test_cards_are_titled_in_title_case_without_numbers(self, dashboard):
+        titles = [card.title for card in [*dashboard._psth_tab, *dashboard._heatmap_tab]]
 
-        assert heatmap_card.title == "Trial heatmap"
-        assert heatmap_card[0][1] is metric_selectors(dashboard._heatmap_tab)[0]
+        assert titles == [
+            "Display Settings",
+            "Single-Event PSTH",
+            "Multi-Event Comparison",
+            "Selected Trials",
+            "Display Settings",
+            "Trial Heat Map",
+        ]
+
+    def test_cards_match_the_homepage_cards(self, dashboard):
+        for card in [*dashboard._psth_tab, *dashboard._heatmap_tab]:
+            assert card.styles == CARD_STYLES
+            assert card[0].styles == SECTION_STYLES
 
     def test_the_y_axis_label_is_not_a_display_setting(self, dashboard):
         """The label follows the metric, so no widget offers to change it."""
@@ -142,26 +168,43 @@ class TestVisualizationDashboard:
         # its note rather than failing -- which is what lets it be added unconditionally.
         assert "No PSTH significance results" in dashboard._significance_tab[0].object
 
+    def test_each_tab_is_drawn_when_first_opened(self, dashboard):
+        # Drawn while hidden, the multi-panel Tonic, Binned and Covariates plots size
+        # themselves to zero width and stay blank once the tab is opened.
+        assert dashboard._tabs.dynamic is True
+
     def test_the_tabs_stretch_to_the_page_width(self, dashboard):
         assert dashboard._tabs.sizing_mode == "stretch_width"
         assert dashboard._psth_tab.sizing_mode == "stretch_width"
         assert dashboard._heatmap_tab.sizing_mode == "stretch_width"
 
-    def test_each_card_flows_its_controls_through_one_row(self, dashboard):
-        # Controls stacked one per line leave a wide card mostly empty, so each card's
-        # controls share one wrapping row.
-        cards = [*dashboard._psth_tab[1:], dashboard._heatmap_tab[1]]
+    def test_each_card_opens_on_one_toolbar_row(self, dashboard):
+        cards = [*dashboard._psth_tab, *dashboard._heatmap_tab]
 
-        assert [card.sizing_mode for card in cards] == ["stretch_width"] * 5
-        assert [sum(isinstance(item, pn.FlexBox) for item in card) for card in cards] == [1] * 5
+        assert [card.sizing_mode for card in cards] == ["stretch_width"] * 6
+        assert [type(toolbar(card)) for card in cards] == [pn.FlexBox] * 6
+
+    def test_pickers_sit_beside_their_plots_at_the_plot_height(self, dashboard, plotter):
+        # Height_Plot defaults to 300 and height_heatmap to 600; each picker leaves 30px for its label.
+        event_picker, trial_picker = dashboard._psth_tab.select(pn.widgets.CrossSelector)
+        (heatmap_trial_picker,) = dashboard._heatmap_tab.select(pn.widgets.MultiSelect)
+
+        assert (event_picker.height, trial_picker.height, heatmap_trial_picker.height) == (270, 270, 570)
+
+        plotter.Height_Plot = 400
+
+        assert (event_picker.height, trial_picker.height) == (370, 370)
+
+    def test_side_panel_pickers_stretch_with_their_panel(self, dashboard):
+        # Built at 300px, each list keeps that as its minimum and grows as the panel is dragged wider.
+        for picker in dashboard._psth_tab.select(pn.widgets.CrossSelector):
+            assert (picker.width, picker.sizing_mode) == (300, "stretch_width")
 
     def test_psth_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._psth_tab, pn.Column)
 
-    def test_psth_tab_title_contains_basename(self, dashboard):
-        first_object = dashboard._psth_tab.objects[0]
-        content = first_object.object if hasattr(first_object, "object") else str(first_object)
-        assert BASENAME in content
+    def test_psth_tab_opens_on_its_settings_without_a_title(self, dashboard):
+        assert isinstance(dashboard._psth_tab.objects[0], pn.Card)
 
     def test_psth_tab_embeds_reactive_plots(self, dashboard, plotter):
         # Panel wraps each reactive method in a ParamMethod pane. Each plot now lives
@@ -177,10 +220,8 @@ class TestVisualizationDashboard:
     def test_heatmap_tab_is_panel_column(self, dashboard):
         assert isinstance(dashboard._heatmap_tab, pn.Column)
 
-    def test_heatmap_tab_title_contains_basename(self, dashboard):
-        first_object = dashboard._heatmap_tab.objects[0]
-        content = first_object.object if hasattr(first_object, "object") else str(first_object)
-        assert BASENAME in content
+    def test_heatmap_tab_opens_on_its_card_without_a_title(self, dashboard):
+        assert isinstance(dashboard._heatmap_tab.objects[0], pn.Card)
 
     def test_psth_tab_uses_number_inputs_for_axis_limits(self, dashboard):
         # 3 plots x 2 axes x (min, max) = 12 FloatInput boxes.
@@ -188,16 +229,20 @@ class TestVisualizationDashboard:
         assert len(number_inputs) == 12
 
     def test_psth_tab_has_trace_and_mean_color_pickers(self, dashboard):
-        # trace_color and mean_color are exposed by name; per-event pickers add a
-        # dynamic number on top, so assert these two static pickers are present
-        # rather than a fixed total count.
-        picker_names = {picker.name for picker in dashboard._psth_tab.select(pn.widgets.ColorPicker)}
-        assert {"Trace color", "Mean color"} <= picker_names
+        assert {"Trace Color", "Mean Color"} <= set(field_labels(dashboard._psth_tab))
 
-    def test_per_event_color_pickers_card_is_collapsed(self, dashboard):
-        card = dashboard._per_event_color_pickers()
-        assert isinstance(card, pn.Card)
-        assert card.collapsed is True
+    def test_per_event_color_pickers_start_hidden(self, dashboard):
+        strip = dashboard._per_event_color_pickers()
+        assert strip.visible is False
+
+    def test_colors_toggle_opens_the_per_event_color_pickers(self, dashboard):
+        (toggle,) = dashboard._psth_tab.select(pn.widgets.Toggle)
+        (strip,) = [box for box in dashboard._psth_tab.select(pn.FlexBox) if box.select(pn.widgets.Button)]
+
+        toggle.value = True
+
+        assert toggle.name == "Colors"
+        assert strip.visible is True
 
     def test_per_event_color_pickers_one_per_selected_event(self, dashboard):
         dashboard.plotter.selector_for_multipe_events_plot = ["event1", "event2"]
@@ -222,7 +267,7 @@ class TestVisualizationDashboard:
         dashboard.plotter.selector_for_multipe_events_plot = ["event1", "event2"]
         dashboard.plotter.overlay_color_overrides = {"event1": "#111111"}
         card = dashboard._per_event_color_pickers()
-        reset_button = next(iter(card.select(pn.widgets.Button)))
+        (reset_button,) = card.select(pn.widgets.Button)
 
         reset_button.clicks += 1
 
@@ -238,6 +283,12 @@ class TestVisualizationDashboard:
         # Both the event picker and the trial picker are CrossSelectors.
         cross_selectors = list(dashboard._psth_tab.select(pn.widgets.CrossSelector))
         assert len(cross_selectors) == 2
+
+    def test_save_controls_are_labeled_save_plot(self, dashboard):
+        field = dashboard._save_controls(
+            options_name="save_options_cont", callback=dashboard.plotter.download_cont, base_name="psth"
+        )
+        assert field_labels(field) == ["Save Plot"]
 
     def test_save_controls_expose_format_and_download(self, dashboard):
         row = dashboard._save_controls(
@@ -256,7 +307,7 @@ class TestVisualizationDashboard:
         assert download.filename == "psth.svg"
 
     def test_range_number_inputs_param_updates_boxes(self, dashboard):
-        row = dashboard._range_number_inputs(name="cont_X", label="X")
+        row = dashboard._range_number_inputs(name="cont_X")
         minimum, maximum = row[0], row[1]
 
         dashboard.plotter.cont_X = (1.0, 2.0)
@@ -265,7 +316,7 @@ class TestVisualizationDashboard:
         assert maximum.value == 2.0
 
     def test_range_number_inputs_boxes_update_param(self, dashboard):
-        row = dashboard._range_number_inputs(name="cont_Y", label="Y")
+        row = dashboard._range_number_inputs(name="cont_Y")
         minimum, maximum = row[0], row[1]
 
         minimum.value = -3.0
@@ -277,7 +328,7 @@ class TestVisualizationDashboard:
         # End-to-end: typing a box value moves the already-rendered figure in place.
         figure = _FakeFigure()
         dashboard.plotter._figures["cont"] = figure
-        row = dashboard._range_number_inputs(name="cont_X", label="X")
+        row = dashboard._range_number_inputs(name="cont_X")
         minimum, maximum = row[0], row[1]
 
         minimum.value = 0.0
@@ -287,9 +338,9 @@ class TestVisualizationDashboard:
 
     def test_psth_tab_has_hide_minor_ticks_checkbox(self, dashboard, plotter):
         checkboxes = {box.name: box for box in dashboard._psth_tab.select(pn.widgets.Checkbox)}
-        assert "Hide minor tick marks" in checkboxes
+        assert "Hide Minor Ticks" in checkboxes
 
-        checkbox = checkboxes["Hide minor tick marks"]
+        checkbox = checkboxes["Hide Minor Ticks"]
         assert checkbox.value is False  # ticks shown by default
 
         checkbox.value = True
@@ -311,9 +362,9 @@ class TestVisualizationDashboard:
 
     def test_heatmap_tab_has_hide_minor_ticks_checkbox(self, dashboard, plotter):
         checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
-        assert "Hide minor tick marks" in checkboxes
+        assert "Hide Minor Ticks" in checkboxes
 
-        checkbox = checkboxes["Hide minor tick marks"]
+        checkbox = checkboxes["Hide Minor Ticks"]
         assert checkbox.value is False  # ticks shown by default
 
         checkbox.value = True
@@ -321,9 +372,9 @@ class TestVisualizationDashboard:
 
     def test_heatmap_tab_has_ticks_inside_checkbox(self, dashboard, plotter):
         checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
-        assert "Ticks inside" in checkboxes
+        assert "Ticks Inside" in checkboxes
 
-        checkbox = checkboxes["Ticks inside"]
+        checkbox = checkboxes["Ticks Inside"]
         assert checkbox.value is False  # ticks point outward by default
 
         checkbox.value = True
@@ -331,15 +382,15 @@ class TestVisualizationDashboard:
 
     def test_heatmap_tab_has_hide_outer_border_checkbox(self, dashboard, plotter):
         checkboxes = {box.name: box for box in dashboard._heatmap_tab.select(pn.widgets.Checkbox)}
-        assert "Hide top/right border" in checkboxes
+        assert "Hide Top/Right Border" in checkboxes
 
-        checkbox = checkboxes["Hide top/right border"]
+        checkbox = checkboxes["Hide Top/Right Border"]
         assert checkbox.value is False  # full border shown by default
 
         checkbox.value = True
         assert plotter.hide_outer_border_heatmap is True
 
     def test_heatmap_tab_has_save_controls(self, dashboard):
-        assert list(dashboard._heatmap_tab.select(pn.widgets.FileDownload))
-        selects = {select.name for select in dashboard._heatmap_tab.select(pn.widgets.Select)}
-        assert "Format" in selects
+        (download,) = dashboard._heatmap_tab.select(pn.widgets.FileDownload)
+        assert download.filename == "heatmap.png"
+        assert "Save Plot" in field_labels(dashboard._heatmap_tab)

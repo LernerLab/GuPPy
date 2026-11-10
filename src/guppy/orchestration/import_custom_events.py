@@ -61,7 +61,7 @@ def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTempl
             written.append(Path(csv_path).name)
 
         if not written:
-            config.set_alert_message("#### No events to save — continue to the Label Stores GUI.")
+            config.set_alert_message("#### No events to save. Go on to Label Stores.")
             return
         message = "#### Saved: " + ", ".join(written)
         if warnings:

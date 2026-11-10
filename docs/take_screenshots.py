@@ -41,6 +41,7 @@ from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
+from guppy.frontend.plot_card import RUN_FOLDER_WIDTH, toolbar_field
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.tonic_epochs import TonicEpochConfig, TonicResultsView
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
@@ -78,6 +79,11 @@ SAMPLE_DATA_DIR = REPO_ROOT / "stubbed_testing_data" / "csv" / "sample_data_csv_
 DANDI_DEMO_DANDISET_ID = "000971"
 DANDI_DEMO_SUBJECT = "sub-112-283"
 DANDI_DEMO_ASSET = "sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
+
+
+def _run_field(run_label: str) -> pn.Column:
+    """The "Run Folder" toolbar field a run-folder page shows, offering the one run."""
+    return toolbar_field("Run Folder", pn.widgets.Select(options=[run_label], width=RUN_FOLDER_WIDTH))
 
 
 def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
@@ -223,7 +229,9 @@ def screenshot_select_artifact_windows(page: Page, tmp_path: Path) -> None:
     run_folder.mkdir(parents=True, exist_ok=True)
 
     selector = ArtifactWindowSelector(
-        str(run_folder), _synthetic_pair_traces(recording_sites=["DMS", "DLS"]), label="sample_data_csv_1/output_1"
+        str(run_folder),
+        _synthetic_pair_traces(recording_sites=["DMS", "DLS"]),
+        run_field=_run_field("sample_data_csv_1/output_1"),
     )
     selector.set_windows("DMS", [(128.0, 140.0)])
 
@@ -294,7 +302,7 @@ def screenshot_tonic_analysis(page: Page, tmp_path: Path) -> None:
     config = TonicEpochConfig(
         str(run_folder),
         _synthetic_site_traces(recording_sites=["DMS", "DLS"]),
-        label="sample_data_csv_injection_1/output_1",
+        run_field=_run_field("sample_data_csv_injection_1/output_1"),
     )
     config.set_epochs("DMS", TONIC_EPOCHS)
 
@@ -342,12 +350,12 @@ def screenshot_tonic_results(page: Page, tmp_path: Path) -> None:
     )
 
     template = pn.template.BootstrapTemplate(title="GuPPy — Visualization")
-    template.main.append(TonicResultsView(str(run_folder), label=run_folder.name).widget)
+    template.main.append(TonicResultsView(str(run_folder)).widget)
     url = _serve(template)
 
     page.set_viewport_size({"width": 1280, "height": 1500})
     page.goto(url)
-    page.get_by_text("Tonic / basal analysis").first.wait_for()
+    page.get_by_text("Baseline Epoch").first.wait_for()
     page.wait_for_timeout(3000)
     page.screenshot(
         path=OUTPUT_DIR / "tonic_results.png",
@@ -562,7 +570,7 @@ def screenshot_label_groups_page(page: Page) -> None:
     # The page lays out two 640px columns side by side, so it needs a wide viewport.
     page.set_viewport_size({"width": 1600, "height": 1300})
     page.goto(url)
-    page.get_by_text("Group name").first.wait_for()
+    page.get_by_text("Group Name").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "label_groups_page.png",
@@ -815,7 +823,7 @@ def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
 
     page.set_viewport_size(WIDE_VIEWPORT)
     page.goto(url)
-    page.get_by_text("DANDI source").first.wait_for()
+    page.get_by_text("DANDI Source").first.wait_for()
     # The search's status line anchors the bottom of the crop, so wait for it rather than
     # for a fixed interval that a slow archive response would outlast.
     page.get_by_text("Select one to see its metadata").first.wait_for(timeout=60000)
@@ -878,7 +886,7 @@ def screenshot_compare_parameters_existing_runs(page: Page) -> None:
         # The card stretches to the page, so the viewport sets how wide it renders.
         page.set_viewport_size({"width": 1060, "height": VIEWPORT["height"]})
         page.goto(url)
-        page.get_by_text("Existing runs (steps 2–5)").first.wait_for()
+        page.get_by_text("Existing Runs (Steps 2–5)").first.wait_for()
         page.wait_for_timeout(1500)
         page.screenshot(
             path=OUTPUT_DIR / "compare_parameters_existing_runs.png",
@@ -977,7 +985,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
         mirror_root,
         root_directory=mirror_root,
         file_pattern="*.nwb",
-        name="NWB assets",
+        name="NWB Assets",
         value=[str(Path(mirror_root) / DANDI_DEMO_SUBJECT / DANDI_DEMO_ASSET)],
         width=950,
     )
@@ -993,7 +1001,7 @@ def screenshot_dandi_asset_browser(page: Page) -> None:
     page.set_viewport_size({"width": 1280, "height": 1700})
     page.set_viewport_size(WIDE_VIEWPORT)
     page.goto(url)
-    page.get_by_text("Back to dandisets").first.wait_for()
+    page.get_by_text("Back to Dandisets").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "dandi_asset_browser.png",
@@ -1074,7 +1082,7 @@ def screenshot_input_metadata(page: Page) -> None:
     url = _serve(_metadata_template())
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
     page.goto(url)
-    page.get_by_text("NWB metadata").first.wait_for()
+    page.get_by_text("NWB Metadata").first.wait_for()
     page.wait_for_timeout(1500)
     page.screenshot(
         path=OUTPUT_DIR / "input_metadata.png",
@@ -1082,7 +1090,7 @@ def screenshot_input_metadata(page: Page) -> None:
             "x": 0,
             "y": 0,
             "width": VIEWPORT["width"],
-            "height": _card_top(page, "Optical hardware") - 8,
+            "height": _card_top(page, "Optical Hardware") - 8,
         },
     )
     print("Saved input_metadata.png")
@@ -1102,9 +1110,9 @@ def screenshot_input_metadata_channels(page: Page) -> None:
     url = _serve(_metadata_template())
     page.set_viewport_size({"width": VIEWPORT["width"], "height": 1400})
     page.goto(url)
-    page.get_by_text("NWB metadata").first.wait_for()
+    page.get_by_text("NWB Metadata").first.wait_for()
     page.wait_for_timeout(1500)
-    card = page.locator(".card").filter(has_text="Fiber-photometry channels").first
+    card = page.locator(".card").filter(has_text="Fiber Photometry Channels").first
     card.wait_for(timeout=15000)
     card.screenshot(path=OUTPUT_DIR / "input_metadata_channels.png", timeout=30000)
     print("Saved input_metadata_channels.png")
@@ -1132,7 +1140,7 @@ def main() -> None:
                 page,
                 "import_custom_events_button.png",
                 top_label="Import Custom Events (optional)",
-                bottom_label="Step 2 : Read Raw Data",
+                bottom_label="Step 2: Read Raw Data",
             ),
             lambda page: screenshot_import_custom_events(page),
             lambda page: screenshot_data_selection(page, tmp_path),
@@ -1146,7 +1154,7 @@ def main() -> None:
             lambda page: screenshot_sidebar(
                 page,
                 "04_read_progress.png",
-                top_label="Step 1 : Label Stores",
+                top_label="Step 1: Label Stores",
                 bottom_label="Select Artifact Windows (optional)",
                 running="read_rawData",
                 opened=("open_label_stores",),
@@ -1154,7 +1162,7 @@ def main() -> None:
             lambda page: screenshot_sidebar(
                 page,
                 "05_preprocess_progress.png",
-                top_label="Step 1 : Label Stores",
+                top_label="Step 1: Label Stores",
                 bottom_label="Select Artifact Windows (optional)",
                 running="preprocess",
                 done=("read_rawData",),
@@ -1163,7 +1171,7 @@ def main() -> None:
             lambda page: screenshot_sidebar(
                 page,
                 "06_psth_progress.png",
-                top_label="Step 4 : PSTH Computation",
+                top_label="Step 4: PSTH Computation",
                 bottom_label="Label Groups (optional)",
                 running="psth_computation",
                 viewport_height=1200,
@@ -1171,8 +1179,8 @@ def main() -> None:
             lambda page: screenshot_sidebar(
                 page,
                 "select_artifact_windows_button.png",
-                top_label="Step 3 : Preprocess",
-                bottom_label="Step 4 : PSTH Computation",
+                top_label="Step 3: Preprocess",
+                bottom_label="Step 4: PSTH Computation",
                 include_bottom_label=True,
                 viewport_height=1200,
             ),
@@ -1180,7 +1188,7 @@ def main() -> None:
             lambda page: screenshot_sidebar(
                 page,
                 "tonic_analysis_button.png",
-                top_label="Step 3 : Preprocess",
+                top_label="Step 3: Preprocess",
                 bottom_label="Label Groups (optional)",
                 viewport_height=1200,
             ),
@@ -1199,14 +1207,14 @@ def main() -> None:
             lambda page: screenshot_sidebar(
                 page,
                 "export_to_nwb_button.png",
-                top_label="Step 5 : Visualization",
+                top_label="Step 5: Visualization",
                 bottom_label=None,
                 viewport_height=1800,
             ),
             lambda page: screenshot_sidebar(
                 page,
                 "export_to_nwb_progress.png",
-                top_label="Step 5 : Visualization",
+                top_label="Step 5: Visualization",
                 bottom_label=None,
                 running="export_nwb",
                 viewport_height=1800,

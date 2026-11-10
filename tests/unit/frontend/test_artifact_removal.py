@@ -26,6 +26,16 @@ def _write_site(filepath, site):
     write_hdf5(TIMESTAMPS / 10.0, "dff_" + site, str(filepath), "data")
 
 
+def toolbar_labels(page):
+    """The labels of a review page's toolbar fields, which open the page."""
+    return [field[0].object.split(">")[1].split("<")[0] for field in page[0]]
+
+
+def run_folder_selectors(page):
+    """The run folder selectors on a page: the selects offering run folders by label."""
+    return [select for select in page.select(pn.widgets.Select) if isinstance(select.options, dict)]
+
+
 @pytest.fixture
 def run_folder(tmp_path):
     folder = tmp_path / "session_a" / "output_1"
@@ -41,19 +51,7 @@ def preprocessing_review(panel_extension, run_folder):
         str(run_folder),
         load_pair_traces(str(run_folder)),
         load_preprocessed_traces(str(run_folder)),
-        label="output_1",
-        artifacts_removed=False,
-    )
-
-
-@pytest.fixture
-def artifact_review(panel_extension, run_folder):
-    return PreprocessingReviewView(
-        str(run_folder),
-        load_pair_traces(str(run_folder)),
-        load_preprocessed_traces(str(run_folder)),
-        label="output_1",
-        artifacts_removed=True,
+        run_field=pn.Column(),
     )
 
 
@@ -74,10 +72,11 @@ class TestBuildPreprocessViewPage:
         page = build_preprocess_view_page(run_folders=[str(run_folder)])
         assert not page.select(pn.widgets.Tabulator), "the Step-3 view is read-only — no editable table"
 
-    def test_single_folder_has_no_folder_selector(self, panel_extension, run_folder):
+    def test_single_folder_still_names_its_run_in_the_toolbar(self, panel_extension, run_folder):
         page = build_preprocess_view_page(run_folders=[str(run_folder)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
-        assert run_folder_selectors == []
+        (review,) = page
+        assert toolbar_labels(review) == ["Run Folder", "Recording Site"]
+        assert [list(select.options.values()) for select in run_folder_selectors(page)] == [[str(run_folder)]]
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
         folder_a = tmp_path / "session_a" / "output_1"
@@ -86,9 +85,23 @@ class TestBuildPreprocessViewPage:
             folder.mkdir(parents=True)
             _write_site(folder, "DMS")
         page = build_preprocess_view_page(run_folders=[str(folder_a), str(folder_b)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.name == "Run folder"]
-        assert len(run_folder_selectors) == 1
-        assert set(run_folder_selectors[0].options.values()) == {str(folder_a), str(folder_b)}
+        (selector,) = run_folder_selectors(page)
+        assert set(selector.options.values()) == {str(folder_a), str(folder_b)}
+
+    def test_choosing_another_run_rebuilds_the_page_with_the_same_selector(self, panel_extension, tmp_path):
+        folder_a = tmp_path / "session_a" / "output_1"
+        folder_b = tmp_path / "session_b" / "output_1"
+        for folder in (folder_a, folder_b):
+            folder.mkdir(parents=True)
+            _write_site(folder, "DMS")
+        page = build_preprocess_view_page(run_folders=[str(folder_a), str(folder_b)])
+        (selector,) = run_folder_selectors(page)
+        first_review = page[0]
+
+        selector.value = str(folder_b)
+
+        assert page[0] is not first_review
+        assert run_folder_selectors(page) == [selector]
 
 
 class TestBuildArtifactReviewPage:
@@ -131,11 +144,11 @@ class TestPreprocessingReviewView:
     def test_stacks_all_five_traces_for_the_selected_site(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DMS"
         assert _panel_titles(preprocessing_review) == [
-            f"output_1 — control_DMS",
-            "signal_DMS",
-            "cntrl_sig_fit_DMS",
-            "z_score_DMS",
-            "dff_DMS",
+            "Control (DMS)",
+            "Signal (DMS)",
+            "Control Fit (DMS)",
+            "Z-Score (DMS)",
+            "ΔF/F (DMS)",
         ]
 
     def test_zscore_and_dff_panels_show_their_own_data(self, preprocessing_review):
@@ -148,11 +161,11 @@ class TestPreprocessingReviewView:
     def test_site_selector_switches_every_panel_together(self, preprocessing_review, run_folder):
         preprocessing_review.site_select.value = "DLS"
         assert _panel_titles(preprocessing_review) == [
-            f"output_1 — control_DLS",
-            "signal_DLS",
-            "cntrl_sig_fit_DLS",
-            "z_score_DLS",
-            "dff_DLS",
+            "Control (DLS)",
+            "Signal (DLS)",
+            "Control Fit (DLS)",
+            "Z-Score (DLS)",
+            "ΔF/F (DLS)",
         ]
 
     def test_shades_nothing_even_when_windows_are_saved(self, preprocessing_review, run_folder):
@@ -161,10 +174,3 @@ class TestPreprocessingReviewView:
         preprocessing_review.site_select.value = "DMS"
 
         assert _span_elements(preprocessing_review) == []
-
-    def test_shades_nothing_after_removal(self, artifact_review, run_folder):
-        """Once the artifacts are gone from the data, shading the kept region says nothing."""
-        np.save(str(run_folder / "coordsForPreProcessing_DMS.npy"), np.array([[2.0, 0.0], [5.0, 0.0]]))
-        artifact_review.site_select.value = "DMS"
-
-        assert _span_elements(artifact_review) == []

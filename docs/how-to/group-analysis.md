@@ -32,12 +32,12 @@ step that touches them.
 
 1. Click **Label Groups** in the sidebar. A Label Groups tab opens beside the form.
 2. Leave the mode at **create_new_group**.
-3. Under **1 · What goes into the group?**, pick the member runs. These are the
+3. Under **1 · What Goes into the Group?**, pick the member runs in **Member Runs to Average**. These are the
    run directories under the output root folder. They may live under different
    parent directories.
-4. Under **2 · Where does the group go?**, type a **Group name** and pick the destination
-   directory. The name may not contain path separators, `..`, `_output_`, or `_group`.
-5. Click **Save group definition**.
+4. Under **2 · Where Does the Group Go?**, type a **Group Name** and pick the destination
+   directory in **Destination Directory for the New Group**. The name may not contain path separators, `..`, `_output_`, or `_group`.
+5. Click **Save Group Definition**.
 
    ```{image} ../_static/images/label_groups_page.png
    :alt: The Label Groups page, with the member-runs browser on the left and the group name and destination browser on the right
@@ -49,7 +49,7 @@ records the group's membership. The group has no results at this point, much lik
 that holds `storesList.csv` before Step 2 fills it.
 
 To change a group later, open Label Groups again and switch the mode to **edit_existing_group**.
-Section 2 becomes a browser for the group itself. Navigate to the `<name>_group` directory you
+Section 2 becomes **2 · Which Group Are You Editing?**, a browser for the group itself. Navigate to the `<name>_group` directory you
 want to change and its recorded members load into the member browser, ready to adjust. Editing
 works whether or not anything is selected on the homepage.
 

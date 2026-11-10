@@ -62,7 +62,7 @@ COMPLETE_SCALARS = {
 class TestMetadataSelector:
     @pytest.fixture
     def selector(self, panel_extension) -> MetadataSelector:
-        return MetadataSelector(session_label="Photo (run1)", channels=CHANNELS, initial_metadata={})
+        return MetadataSelector(channels=CHANNELS, initial_metadata={})
 
     # -- Layout --------------------------------------------------------------------------------------------------------
     def test_the_form_has_no_width_cap(self, selector):
@@ -72,9 +72,9 @@ class TestMetadataSelector:
     def test_each_channel_flows_its_fields_through_one_row(self, selector):
         # One wrapping row per channel, so a wide page fits all nine fields on fewer lines.
         channel_card = next(
-            card for card in selector.widget if getattr(card, "title", None) == "Fiber-photometry channels"
+            card for card in selector.widget if getattr(card, "title", None) == "Fiber Photometry Channels"
         )
-        instance_cards = [instance for site_card in channel_card for instance in site_card]
+        instance_cards = [instance for site in channel_card for instance in site if isinstance(instance, pn.Card)]
 
         for instance_card, record in zip(instance_cards, selector.channel_records, strict=True):
             (fields,) = [item for item in instance_card if isinstance(item, pn.FlexBox)]
@@ -84,6 +84,12 @@ class TestMetadataSelector:
     def test_starts_with_one_blank_experimenter(self, selector):
         assert len(selector.experimenter_inputs) == 1
         assert selector.get_scalars()["experimenter"] == []
+
+    def test_each_experimenter_is_deleted_with_the_trash_button(self, selector):
+        (row,) = selector.experimenter_box
+        remove = row[1]
+        assert remove.icon == "trash"
+        assert remove.description == "Delete this experimenter"
 
     def test_add_and_read_experimenters_strips_blanks(self, selector):
         selector.experimenter_inputs[0].value = "Doe, Jane"
@@ -118,7 +124,6 @@ class TestMetadataSelector:
 
     def test_marked_required_when_the_format_supplies_none(self, panel_extension):
         selector = MetadataSelector(
-            session_label="Photo (run1)",
             channels=CHANNELS,
             initial_metadata={},
             require_session_start_time=True,
@@ -159,7 +164,7 @@ class TestMetadataSelector:
         records = selector.device_entry_records["optical_fiber_model"]
         assert len(records) == 1
         assert selector._entry_name(records[0]) == "fmodel"
-        assert selector.category_cards["optical_fiber_model"].title.endswith("·  1")
+        assert selector.category_sections["optical_fiber_model"][0].object == "### Optical Fiber Models  ·  1"
 
     def test_get_devices_returns_only_named_entries(self, selector):
         selector._add_device("optical_fiber_model", {"name": "fmodel", "numerical_aperture": 0.48})
@@ -172,7 +177,7 @@ class TestMetadataSelector:
         record = selector.device_entry_records["optical_fiber_model"][0]
         selector._remove_device("optical_fiber_model", record)
         assert selector.device_entry_records["optical_fiber_model"] == []
-        assert selector.category_cards["optical_fiber_model"].title == "Optical fiber models"
+        assert selector.category_sections["optical_fiber_model"][0].object == "### Optical Fiber Models"
 
     def test_device_name_change_retitles_card(self, selector):
         selector._add_device("optical_fiber_model", {"name": "old"})
@@ -180,6 +185,7 @@ class TestMetadataSelector:
         name_widget = next(widget for spec, widget in record["fields"] if spec.name == "name")
         name_widget.value = "new"
         assert record["container"].title == "new"
+        assert record["container"].header.object == "new"
 
     # -- Link-dropdown refresh -----------------------------------------------------------------------------------------
     def test_refresh_link_options_required_omits_empty_optional_keeps_it(self, selector):
@@ -272,6 +278,54 @@ class TestMetadataSelector:
         metadata = {"NWBFile": {"lab": "Lerner"}}
         selector.set_yaml(metadata)
         assert selector.get_yaml() == metadata
+
+    def test_session_description_is_sized_by_the_browser_to_its_text(self, selector):
+        assert selector.session_description.resizable is False
+        assert (
+            ":host textarea { field-sizing: content; min-height: 3lh; resize: vertical; }"
+            in selector.session_description.stylesheets
+        )
+
+    def test_a_collapsed_device_card_keeps_its_bottom_buffer_inside_its_body(self, selector):
+        selector._add_device("optical_fiber", {"name": "fiber"})
+        (record,) = selector.device_entry_records["optical_fiber"]
+        card = record["container"]
+        assert "padding-bottom" not in card.styles
+        assert card[0].styles == {"padding-bottom": "12px"}
+
+    def test_alert_is_hidden_until_there_is_something_to_report(self, selector):
+        assert selector.alert.visible is False
+        selector.set_alert_message("####Alert !! \n something missing", is_error=True)
+        assert selector.alert.visible is True
+        selector.set_alert_message("#### No alerts !!", is_error=False)
+        assert selector.alert.visible is False
+
+    def test_cards_use_the_homepage_card_and_section_styles(self, selector):
+        core_card = selector.widget[3]
+        assert core_card.title == "Core NWB Metadata"
+        assert core_card.styles == {"background": "WhiteSmoke"}
+        assert [section[0].object for section in core_card] == ["### Session", "### Experimenter", "### Subject"]
+        category_section = selector.category_sections["optical_fiber"]
+        assert isinstance(category_section, pn.WidgetBox)
+        assert category_section.styles["background"] == "White"
+        assert category_section.styles["border"] == "1px solid #C8CCD0"
+
+    def test_each_device_is_a_flat_card_with_a_darker_border_and_a_semibold_title(self, selector):
+        selector._add_device("optical_fiber", {"name": "fiber"})
+        (record,) = selector.device_entry_records["optical_fiber"]
+        card = record["container"]
+        assert card.styles["border"] == "1px solid #ADB5BD"
+        assert card.header_background == "#F1F3F5"
+        assert card.stylesheets == [":host { box-shadow: none !important; }"]
+        assert card.header.styles == {"font-size": "14px", "font-weight": "600", "color": "#212529"}
+
+    def test_enumerated_values_show_title_case_names(self, selector):
+        selector._add_device("virus_injection", {"hemisphere": "left"})
+
+        (record,) = selector.device_entry_records["virus_injection"]
+        hemisphere = next(widget for spec, widget in record["fields"] if spec.name == "hemisphere")
+        assert hemisphere.options == {"Left": "left", "Right": "right"}
+        assert hemisphere.value == "left"
 
     def test_set_alert_message_colors_errors_red(self, selector):
         selector.set_alert_message("####Alert !! \n something missing", is_error=True)

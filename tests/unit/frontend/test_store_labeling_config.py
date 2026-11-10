@@ -1,7 +1,11 @@
 import panel as pn
 import pytest
 
-from guppy.frontend.store_labeling_config import NO_SIGNAL_OPTION, StoreLabelingConfig
+from guppy.frontend.store_labeling_config import (
+    NAME_OR_SIGNAL_HELP,
+    NO_SIGNAL_OPTION,
+    StoreLabelingConfig,
+)
 
 
 @pytest.fixture
@@ -39,22 +43,46 @@ class TestStoreLabelingConfig:
     # ── Single store_id, no cache ────────────────────────────────────────────
 
     def test_single_store_id_widget_count(self, panel_extension, show_config_button):
-        # markdown header + 1 row + spacer + show button + instructions markdown = 5
+        # intro markdown + column heading + store rows + spacer + show button + instructions markdown = 6
         config, _, _, _ = build_config(show_config_button, ["Dv1A"])
-        assert len(config.config_widgets) == 5
+        assert len(config.config_widgets) == 6
 
-    def test_every_store_shares_one_wrapping_row(self, panel_extension, show_config_button):
-        # One tile per store in a single FlexBox, so a wide page holds several stores side by side.
+    def test_each_store_is_one_row_of_equal_width(self, panel_extension, show_config_button):
         config, dropdowns, _, _ = build_config(show_config_button, ["Dv1A", "Dv2A", "PrtN"])
 
-        store_tiles = config.config_widgets[1]
-        assert isinstance(store_tiles, pn.FlexBox)
-        assert [tile.width for tile in store_tiles] == [430, 430, 430]
-        assert [tile[1][0][1] for tile in store_tiles] == [
+        store_entries = config.config_widgets[2]
+        assert type(store_entries) is pn.Column
+        assert [type(entry) for entry in store_entries] == [pn.Row, pn.Row, pn.Row]
+        assert [entry.width for entry in store_entries] == [650, 650, 650]
+        assert [entry[1] for entry in store_entries] == [
             dropdowns["Dv1A_0"],
             dropdowns["Dv2A_1"],
             dropdowns["PrtN_2"],
         ]
+
+    def test_store_id_is_a_semibold_title(self, panel_extension, show_config_button):
+        config, _, _, _ = build_config(show_config_button, ["Dv1A"])
+
+        store_label = config.config_widgets[2][0][0]
+        assert store_label.object == "<div style='font-size: 14px; font-weight: 600; padding-top: 7px;'>Dv1A</div>"
+
+    def test_column_heading_explains_the_name_column_in_a_tooltip(self, panel_extension, show_config_button):
+        config, _, _, _ = build_config(show_config_button, ["Dv1A"])
+
+        heading = config.config_widgets[1]
+        style = "font-size: 12px; font-weight: 600; color: #6C757D;"
+        assert heading[0].object == f"<div style='{style}'>Store</div>"
+        assert heading[1].object == f"<div style='{style}'>Type</div>"
+        assert heading[2][0].object == f"<div style='{style}'>Name or Signal</div>"
+        assert isinstance(heading[2][1], pn.widgets.TooltipIcon)
+        assert heading[2][1].value == NAME_OR_SIGNAL_HELP
+
+    def test_instructions_are_small_text(self, panel_extension, show_config_button):
+        config, _, _, _ = build_config(show_config_button, ["Dv1A"])
+
+        instructions = config.config_widgets[-1]
+        assert instructions.object == "Click Show Selected Configuration to apply your selections."
+        assert instructions.css_classes == ["small"]
 
     def test_single_store_id_dropdown_in_dict(self, panel_extension, show_config_button):
         _, dropdowns, _, _ = build_config(show_config_button, ["Dv1A"])
@@ -85,19 +113,19 @@ class TestStoreLabelingConfig:
     def test_parse_cached_value_empty_string(self, store_labeling_config_instance):
         assert store_labeling_config_instance._parse_cached_value("") == ("", "")
 
-    # ── _get_help_text ────────────────────────────────────────────────────────
+    # ── _name_placeholder ─────────────────────────────────────────────────────
 
-    def test_get_help_text_control(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._get_help_text("control") == "*Select the signal this control belongs to*"
+    def test_name_placeholder_signal(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._name_placeholder("signal") == "Enter the recording site"
 
-    def test_get_help_text_signal(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._get_help_text("signal") == "*Type appropriate recording-site name*"
+    def test_name_placeholder_event_ttls(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._name_placeholder("event TTLs") == "Enter the event name"
 
-    def test_get_help_text_event_ttls(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._get_help_text("event TTLs") == "*Type event name for the TTLs*"
+    def test_name_placeholder_covariate(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._name_placeholder("behavioral covariate") == "Enter the variable name"
 
-    def test_get_help_text_empty(self, store_labeling_config_instance):
-        assert store_labeling_config_instance._get_help_text("") == ""
+    def test_name_placeholder_empty(self, store_labeling_config_instance):
+        assert store_labeling_config_instance._name_placeholder("") == ""
 
     # ── Cache pre-population ──────────────────────────────────────────────────
 
@@ -128,21 +156,16 @@ class TestStoreLabelingConfig:
         )
         assert control_refs["Dv1A_0"].value == "Dv2A_1"
 
-    # ── Dropdown change triggers help pane + visibility ───────────────────────
+    # ── Dropdown change updates placeholder + visibility ──────────────────────
 
-    def test_dropdown_change_updates_help_pane(self, panel_extension, show_config_button):
-        config, dropdowns, _, _ = build_config(show_config_button, ["Dv1A"])
-        dropdown = dropdowns["Dv1A_0"]
-        help_pane = config._dropdown_help_map[dropdown]
-        dropdown.value = "control"
-        assert help_pane.object == "*Select the signal this control belongs to*"
+    def test_cached_type_sets_the_name_placeholder(self, panel_extension, show_config_button):
+        _, _, textboxes, _ = build_config(show_config_button, ["Dv2A"], {"Dv2A": ["signal_DLS"]})
+        assert textboxes["Dv2A_0"].placeholder == "Enter the recording site"
 
-    def test_dropdown_change_to_event_updates_help_pane(self, panel_extension, show_config_button):
-        config, dropdowns, _, _ = build_config(show_config_button, ["PrtR"])
-        dropdown = dropdowns["PrtR_0"]
-        help_pane = config._dropdown_help_map[dropdown]
-        dropdown.value = "event TTLs"
-        assert help_pane.object == "*Type event name for the TTLs*"
+    def test_dropdown_change_to_event_updates_placeholder(self, panel_extension, show_config_button):
+        _, dropdowns, textboxes, _ = build_config(show_config_button, ["PrtR"])
+        dropdowns["PrtR_0"].value = "event TTLs"
+        assert textboxes["PrtR_0"].placeholder == "Enter the event name"
 
     def test_control_row_shows_signal_picker_hides_name_box(self, panel_extension, show_config_button):
         _, dropdowns, textboxes, control_refs = build_config(show_config_button, ["Dv1A"])
@@ -173,7 +196,13 @@ class TestStoreLabelingConfig:
     def test_behavioral_covariate_is_offered(self, panel_extension, show_config_button):
         _, dropdowns, _, _ = build_config(show_config_button, ["akinesia"])
 
-        assert dropdowns["akinesia_0"].options == ["", "control", "signal", "event TTLs", "behavioral covariate"]
+        assert dropdowns["akinesia_0"].options == {
+            "": "",
+            "Control": "control",
+            "Signal": "signal",
+            "Event TTLs": "event TTLs",
+            "Behavioral Covariate": "behavioral covariate",
+        }
 
     def test_covariate_row_shows_name_box_hides_signal_picker(self, panel_extension, show_config_button):
         _, dropdowns, textboxes, control_refs = build_config(show_config_button, ["akinesia"])

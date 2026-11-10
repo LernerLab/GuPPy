@@ -97,13 +97,13 @@ def test_heat_map_tab_visible(page, visualization_server_url):
 @pytest.mark.ui
 def test_trials_checkbox_options_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    expect(page.get_by_text("just trials").first).to_be_visible()
+    expect(page.get_by_text("Just Trials").first).to_be_visible()
 
 
 @pytest.mark.ui
-def test_trials_to_show_picker_visible(page, visualization_server_url):
+def test_selected_trials_card_visible(page, visualization_server_url):
     page.goto(visualization_server_url)
-    expect(page.get_by_text("Move trials into the right-hand column to plot them:").first).to_be_visible()
+    expect(page.get_by_text("Selected Trials", exact=True).first).to_be_visible()
 
 
 @pytest.mark.ui

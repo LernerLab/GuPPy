@@ -20,6 +20,7 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
+from .plot_card import CONTROL_MARGIN, RUN_FOLDER_WIDTH, plot_page, toolbar_field
 from ..analysis.io_utils import (
     decide_naming_convention,
     read_hdf5,
@@ -27,6 +28,7 @@ from ..analysis.io_utils import (
     recording_site_from_preprocessed_label,
 )
 from ..utils.utils import relative_output_labels
+from ..visualization.labels import trace_title
 from ..visualization.preprocessing import build_control_signal_fit
 
 # Load the bokeh HoloViews backend these components rely on for the trace plots.
@@ -106,25 +108,20 @@ class PreprocessingReviewView:
         pair_traces: dict[str, dict[str, object]],
         preprocessed_traces: dict[str, dict[str, np.ndarray]],
         *,
-        label: str,
-        artifacts_removed: bool,
+        run_field: pn.viewable.Viewable,
     ) -> None:
         self.filepath = filepath
-        self.label = label
         self.pair_traces = pair_traces
         self.preprocessed_traces = preprocessed_traces
         self.sites = list(pair_traces.keys())
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.site_select.param.watch(self._refresh, "value")
 
-        heading = "Artifact removal review" if artifacts_removed else "Preprocessing review"
-        self.widget = pn.Column(
-            f"## {heading} — {self.label}",
-            self.site_select,
-            self.plot_pane,
-            sizing_mode="stretch_width",
+        self.widget = plot_page(
+            fields=[run_field, toolbar_field("Recording Site", self.site_select)],
+            body=[self.plot_pane],
         )
 
     def _make_plot(self) -> hv.Layout:
@@ -136,11 +133,10 @@ class PreprocessingReviewView:
             control=trace["control"],
             signal=trace["signal"],
             fit=trace["fit"],
-            titles=trace["plot_name"],
-            suptitle=self.label,
+            titles=[trace_title(name) for name in trace["plot_name"]],
             extra_traces={
-                f"z_score_{site}": preprocessed["y_zscore"],
-                f"dff_{site}": preprocessed["y_dff"],
+                trace_title(f"z_score_{site}"): preprocessed["y_zscore"],
+                trace_title(f"dff_{site}"): preprocessed["y_dff"],
             },
         )
 
@@ -149,51 +145,51 @@ class PreprocessingReviewView:
 
 
 def build_run_folder_page(
-    *, run_folders: list[str], build_folder_page: Callable[[str, str], pn.viewable.Viewable]
+    *,
+    run_folders: list[str],
+    build_folder_page: Callable[[str, pn.viewable.Viewable], pn.viewable.Viewable],
 ) -> pn.viewable.Viewable:
-    """Compose a per-folder page across all run folders, with a folder selector.
+    """Compose a per-folder page across all run folders, with a run folder selector.
 
     Parameters
     ----------
     run_folders : list of str
         Session output (run) directories to offer.
     build_folder_page : callable
-        Builds the page content for one run folder, given its path and the label
-        naming it among the folders on offer.
+        Builds the page content for one run folder, given its path and the "Run Folder"
+        toolbar field to place among the page's own controls.
 
     Returns
     -------
     pn.viewable.Viewable
-        A single page; when there is more than one run folder a selector switches
-        between them so only the selected folder is rendered at a time.
+        A single page; the selector switches between run folders so only the selected
+        folder is rendered at a time.
     """
     run_folders = list(run_folders)
     # Run folders are named for the run alone, so a basename does not say which session
     # a run came from. The label is the run's real path below whatever the folders on
     # offer have in common, which is as much of it as it takes to tell them apart.
     labels = relative_output_labels(run_folders)
-    content = pn.Column(build_folder_page(run_folders[0], labels[str(run_folders[0])]), sizing_mode="stretch_width")
-    if len(run_folders) == 1:
-        return content
-
-    options = {labels[str(folder)]: folder for folder in run_folders}
-    folder_select = pn.widgets.Select(name="Run folder", options=options, value=run_folders[0])
+    folder_select = pn.widgets.Select(
+        options={labels[str(folder)]: folder for folder in run_folders},
+        value=run_folders[0],
+        width=RUN_FOLDER_WIDTH,
+        margin=CONTROL_MARGIN,
+    )
+    run_field = toolbar_field("Run Folder", folder_select)
+    content = pn.Column(build_folder_page(run_folders[0], run_field), sizing_mode="stretch_width")
 
     def _on_folder_change(event: object) -> None:
-        content[:] = [build_folder_page(folder_select.value, labels[str(folder_select.value)])]
+        content[:] = [build_folder_page(folder_select.value, run_field)]
 
     folder_select.param.watch(_on_folder_change, "value")
-    return pn.Column(folder_select, content, sizing_mode="stretch_width")
+    return content
 
 
-def _build_review_page(filepath: str, label: str, *, artifacts_removed: bool) -> pn.viewable.Viewable:
+def _build_review_page(filepath: str, run_field: pn.viewable.Viewable) -> pn.viewable.Viewable:
     """Compose one run folder's preprocessing review."""
     return PreprocessingReviewView(
-        filepath,
-        load_pair_traces(filepath),
-        load_preprocessed_traces(filepath),
-        label=label,
-        artifacts_removed=artifacts_removed,
+        filepath, load_pair_traces(filepath), load_preprocessed_traces(filepath), run_field=run_field
     ).widget
 
 
@@ -212,7 +208,7 @@ def build_preprocess_view_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, label: _build_review_page(filepath, label, artifacts_removed=False),
+        build_folder_page=_build_review_page,
     )
 
 
@@ -231,5 +227,5 @@ def build_artifact_review_page(*, run_folders: list[str]) -> pn.viewable.Viewabl
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, label: _build_review_page(filepath, label, artifacts_removed=True),
+        build_folder_page=_build_review_page,
     )

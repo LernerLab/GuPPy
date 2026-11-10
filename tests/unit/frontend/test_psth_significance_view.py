@@ -69,11 +69,11 @@ class TestMetricLabelFor:
     @pytest.mark.parametrize(
         "name, expected",
         [
-            ("rewarded_dms_z_score_dms", "z-score"),
+            ("rewarded_dms_z_score_dms", "Z-Score"),
             ("rewarded_vs_unrewarded_dms_dff_dms", "\u0394F/F"),
             # An event whose own label contains a metric token must not shadow the
             # basename, which is always the rightmost one.
-            ("my_dff_event_dms_z_score_dms", "z-score"),
+            ("my_dff_event_dms_z_score_dms", "Z-Score"),
         ],
     )
     def test_names_the_metric_the_comparison_ran_on(self, name, expected):
@@ -131,18 +131,18 @@ class TestPsthSignificanceView:
         view = PsthSignificanceView(results_folder)
 
         # The one-sample file is a z-score comparison, so the axis says so outright.
-        assert view.plot_pane.object.dimensions()[1].name == "z-score"
+        assert view.plot_pane.object.dimensions()[1].name == "Z-Score"
 
         view.comparison_select.value = "rewarded_vs_unrewarded_dms_z_score_dms"
-        assert view.plot_pane.object.dimensions()[1].name == "difference in z-score"
+        assert view.plot_pane.object.dimensions()[1].name == "Difference in Z-Score"
 
     def test_legend_names_the_band_the_estimate_and_the_significance_bar(self, results_folder, panel_extension):
         view = PsthSignificanceView(results_folder)
 
         labels = [element.label for element in view.plot_pane.object]
-        assert "mean PSTH" in labels
-        assert "95% confidence interval" in labels
-        assert "significant (alpha = 0.05)" in labels
+        assert "Mean PSTH" in labels
+        assert "95% Confidence Interval" in labels
+        assert "Significant (alpha = 0.05)" in labels
 
     def test_legend_reports_the_alpha_the_comparison_ran_at(self, tmp_path, panel_extension):
         folder = tmp_path / "strict_output_1"
@@ -152,8 +152,8 @@ class TestPsthSignificanceView:
         view = PsthSignificanceView(str(folder))
 
         labels = [element.label for element in view.plot_pane.object]
-        assert "99% confidence interval" in labels
-        assert "significant (alpha = 0.01)" in labels
+        assert "99% Confidence Interval" in labels
+        assert "Significant (alpha = 0.01)" in labels
 
     def test_a_comparison_with_nothing_significant_draws_no_bars(self, tmp_path, panel_extension):
         folder = tmp_path / "quiet_output_1"
@@ -170,7 +170,8 @@ class TestBuildPsthSignificanceView:
         result = build_psth_significance_view(results_folder)
 
         assert isinstance(result, pn.Column)
-        assert isinstance(result[0], pn.widgets.Select)
+        assert not result.select(pn.Card)
+        assert len(result.select(pn.widgets.Select)) == 1
 
     def test_returns_an_empty_state_note_when_there_are_no_results(self, tmp_path, panel_extension):
         result = build_psth_significance_view(str(tmp_path))

@@ -51,11 +51,11 @@ class TestBuildBinBars:
         np.testing.assert_allclose(data[0, 3], -1.5)
 
     def test_time_is_the_first_key_dimension(self, bins, panel_extension):
-        # The trace panel plots against "time (s)"; matching that name is what
+        # The trace panel plots against "Time (s)"; matching that name is what
         # makes bokeh link the two axes in the stacked layout.
         bars = build_bin_bars(**bins, values=np.array([1.5, 5.5, 9.0]), value_label="mean z-score")
 
-        assert [dimension.name for dimension in bars.kdims][:2] == ["time (s)", "mean z-score"]
+        assert [dimension.name for dimension in bars.kdims][:2] == ["Time (s)", "mean z-score"]
 
 
 class TestBuildBinnedMetricsPanel:
@@ -74,7 +74,7 @@ class TestBuildBinnedMetricsPanel:
         assert len(layout) == 2
 
     def test_both_panels_share_one_time_axis(self, bins, panel_extension):
-        # Naming both panels' x dimension "time (s)" is what makes bokeh give them
+        # Naming both panels' x dimension "Time (s)" is what makes bokeh give them
         # a single shared x_range, so zooming the bars zooms the trace with them.
         timestamps = np.arange(0, 11, 1, dtype=float)
         layout = build_binned_metrics_panel(

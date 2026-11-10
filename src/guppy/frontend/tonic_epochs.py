@@ -19,6 +19,8 @@ import pandas as pd
 import panel as pn
 
 from .artifact_removal import build_run_folder_page
+from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
+from .row_controls import column_heading, delete_row_button
 from ..analysis.io_utils import read_hdf5, recording_site_from_preprocessed_label
 from ..analysis.standard_io import (
     read_tonic_epochs,
@@ -30,6 +32,7 @@ from ..analysis.tonic import (
     compute_tonic_means,
     validate_tonic_epochs,
 )
+from ..visualization.palette import EPOCH_COLORS, REFERENCE_LINE
 from ..visualization.preprocessing import build_stacked_traces, make_spans_pipe
 
 pn.extension(notifications=True)
@@ -45,7 +48,7 @@ _INPUT_WIDTH = 110
 _INSTRUCTIONS = (
     "Define named epoch windows for each recording site: enter a label and the start and "
     "end time (seconds) of each window, and the shaded spans update to match. Use "
-    "**Apply to all recording sites** when the injection is systemic.\n\n"
+    "**Apply to All Recording Sites** when the injection is systemic.\n\n"
     "Click **Save** to compute and store each window's mean z-score and ΔF/F; the results "
     "appear on the Tonic tab of the visualization. Clearing a site's windows drops it from "
     "the results."
@@ -54,9 +57,7 @@ _INSTRUCTIONS = (
 _NO_WINDOWS_HINT = "_No epoch windows defined — this recording site will not appear in the results._"
 
 # Bar hues for the results view: the baseline epoch is the reference the others read against.
-_EPOCH_BAR_COLOR = "#1f77b4"
-_BASELINE_BAR_COLOR = "#ff7f0e"
-_ZERO_LINE_COLOR = "#666666"
+_ZERO_LINE_COLOR = REFERENCE_LINE
 
 _BASELINE_HINT = (
     "Bars show each epoch's **change from the baseline epoch**, which sits at zero by "
@@ -98,6 +99,11 @@ def _saved_epoch_windows(filepath: str, site: str) -> list[tuple[str, float, flo
     return [(str(row["label"]), float(row["start"]), float(row["end"])) for _, row in epochs.iterrows()]
 
 
+def epoch_color(index: int) -> str:
+    """Return the color of the epoch at ``index`` in a site's list of epochs, for its window and its bar."""
+    return EPOCH_COLORS[index % len(EPOCH_COLORS)]
+
+
 class TonicEpochRow:
     """One epoch window: a label, a start bound, an end bound, and a delete button.
 
@@ -120,9 +126,7 @@ class TonicEpochRow:
         self.label_input = pn.widgets.TextInput(value=label, width=_LABEL_WIDTH)
         self.start_input = pn.widgets.FloatInput(value=start, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
         self.end_input = pn.widgets.FloatInput(value=end, start=low, end=high, step=_NUDGE_STEP, width=_INPUT_WIDTH)
-        self.remove_button = pn.widgets.Button(
-            icon="trash", button_type="light", width=40, height=38, description="Delete this epoch"
-        )
+        self.remove_button = delete_row_button(description="Delete this epoch")
 
         self.start_input.param.watch(lambda event: on_change(), "value")
         self.end_input.param.watch(lambda event: on_change(), "value")
@@ -159,9 +163,10 @@ class TonicEpochConfig:
     On save, writes each site's windows and their per-epoch means.
     """
 
-    def __init__(self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]], *, label: str) -> None:
+    def __init__(
+        self, filepath: str, site_traces: dict[str, dict[str, np.ndarray]], *, run_field: pn.viewable.Viewable
+    ) -> None:
         self.filepath = filepath
-        self.label = label
         self.site_traces = site_traces
         self.sites = list(site_traces.keys())
 
@@ -172,12 +177,12 @@ class TonicEpochConfig:
             for site in self.sites
         }
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
-        self.add_row_button = pn.widgets.Button(name="Add epoch", button_type="default", icon="plus")
-        self.apply_to_all_button = pn.widgets.Button(name="Apply to all recording sites", button_type="default")
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
+        self.add_row_button = pn.widgets.Button(name="Add Epoch", button_type="default", icon="plus")
+        self.apply_to_all_button = pn.widgets.Button(name="Apply to All Recording Sites", button_type="default")
         self.save_button = pn.widgets.Button(name="Save", button_type="primary")
 
-        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.sites[0]))
+        self.spans_pipe = make_spans_pipe(windows=self.colored_windows_for(self.sites[0]))
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
         self.rows_container = pn.Column()
         self._render_rows()
@@ -187,15 +192,15 @@ class TonicEpochConfig:
         self.apply_to_all_button.on_click(lambda event: self.apply_epochs_to_all_sites())
         self.save_button.on_click(self._on_save)
 
-        self.widget = pn.Column(
-            f"# Tonic Analysis — {self.label}",
-            pn.pane.Markdown(_INSTRUCTIONS),
-            self.site_select,
-            self.plot_pane,
-            self.rows_container,
-            pn.Row(self.add_row_button, self.apply_to_all_button),
-            self.save_button,
-            sizing_mode="stretch_width",
+        self.widget = plot_page(
+            note=_INSTRUCTIONS,
+            fields=[run_field, toolbar_field("Recording Site", self.site_select)],
+            body=[
+                self.plot_pane,
+                self.rows_container,
+                pn.Row(self.add_row_button, self.apply_to_all_button),
+                self.save_button,
+            ],
         )
 
     def _build_row(self, site: str, label: str, start: float | None, end: float | None) -> TonicEpochRow:
@@ -211,9 +216,9 @@ class TonicEpochConfig:
 
     def _column_header(self) -> pn.Row:
         return pn.Row(
-            pn.pane.HTML("<b>label</b>", width=_LABEL_WIDTH),
-            pn.pane.HTML("<b>start (s)</b>", width=_INPUT_WIDTH),
-            pn.pane.HTML("<b>end (s)</b>", width=_INPUT_WIDTH),
+            column_heading(text="Label", width=_LABEL_WIDTH),
+            column_heading(text="Start (s)", width=_INPUT_WIDTH),
+            column_heading(text="End (s)", width=_INPUT_WIDTH),
             pn.Spacer(width=40),
             margin=(0, 0, 2, 0),
         )
@@ -233,6 +238,14 @@ class TonicEpochConfig:
         """The ``(start, end)`` bounds of one recording site's fully-entered windows."""
         return [row.window for row in self.site_to_rows[site] if row.window is not None]
 
+    def colored_windows_for(self, site: str) -> list[tuple[float, float, str]]:
+        """The ``(start, end, color)`` of one recording site's fully-entered windows, colored by row."""
+        return [
+            (*row.window, epoch_color(index))
+            for index, row in enumerate(self.site_to_rows[site])
+            if row.window is not None
+        ]
+
     def set_epochs(self, site: str, epochs: list[tuple[str, float, float]]) -> None:
         """Replace one recording site's epoch windows."""
         self.site_to_rows[site] = [self._build_row(site, label, start, end) for label, start, end in epochs]
@@ -242,7 +255,7 @@ class TonicEpochConfig:
 
     def refresh_spans(self) -> None:
         """Repaint the shaded spans from the current rows, leaving the traces untouched."""
-        self.spans_pipe.send(self.windows_for(self.site_select.value))
+        self.spans_pipe.send(self.colored_windows_for(self.site_select.value))
 
     def add_epoch_row(self) -> None:
         """Append a blank epoch window to the selected site."""
@@ -304,7 +317,7 @@ class TonicEpochConfig:
         self._render_rows()
         # A new site means new traces, so the layout is rebuilt; give it a fresh pipe
         # so the discarded plot stops receiving updates.
-        self.spans_pipe = make_spans_pipe(windows=self.windows_for(self.site_select.value))
+        self.spans_pipe = make_spans_pipe(windows=self.colored_windows_for(self.site_select.value))
         self.plot_pane.object = self._make_plot()
 
     def _make_plot(self) -> object:
@@ -312,8 +325,7 @@ class TonicEpochConfig:
         trace = self.site_traces[site]
         return build_stacked_traces(
             x=trace["x"],
-            traces={"z-score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
-            suptitle=self.label,
+            traces={"Z-Score": trace["y_zscore"], "ΔF/F": trace["y_dff"]},
             spans=self.spans_pipe,
         )
 
@@ -345,8 +357,8 @@ def build_tonic_epoch_page(*, run_folders: list[str]) -> pn.viewable.Viewable:
     """
     return build_run_folder_page(
         run_folders=run_folders,
-        build_folder_page=lambda filepath, label: TonicEpochConfig(
-            filepath, load_site_traces(filepath), label=label
+        build_folder_page=lambda filepath, run_field: TonicEpochConfig(
+            filepath, load_site_traces(filepath), run_field=run_field
         ).widget,
     )
 
@@ -369,15 +381,14 @@ class TonicResultsView:
     the selector re-bases the bars and the ``diff_zscore`` / ``diff_dff`` columns.
     """
 
-    def __init__(self, filepath: str, *, label: str) -> None:
+    def __init__(self, filepath: str) -> None:
         self.filepath = filepath
-        self.label = label
         self.sites = _tonic_result_sites(filepath)
 
-        self.site_select = pn.widgets.Select(name="Recording site", options=self.sites, value=self.sites[0])
+        self.site_select = pn.widgets.Select(options=self.sites, value=self.sites[0], width=220, margin=CONTROL_MARGIN)
         means = self._means(self.sites[0])
         self.baseline_select = pn.widgets.Select(
-            name="Baseline epoch", options=list(means.index), value=list(means.index)[0]
+            options=list(means.index), value=list(means.index)[0], width=220, margin=CONTROL_MARGIN
         )
         self.bars_pane = pn.pane.HoloViews(self._make_bars(), sizing_mode="stretch_width")
         self.plot_pane = pn.pane.HoloViews(self._make_plot(), sizing_mode="stretch_width")
@@ -386,14 +397,13 @@ class TonicResultsView:
         self.site_select.param.watch(self._on_site_change, "value")
         self.baseline_select.param.watch(self._refresh, "value")
 
-        self.widget = pn.Column(
-            f"## Tonic / basal analysis — {self.label}",
-            pn.Row(self.site_select, self.baseline_select),
-            self.bars_pane,
-            pn.pane.Markdown(_BASELINE_HINT),
-            self.plot_pane,
-            self.table_pane,
-            sizing_mode="stretch_width",
+        self.widget = plot_page(
+            note="Each epoch's mean signal, measured against the baseline epoch.",
+            fields=[
+                toolbar_field("Recording Site", self.site_select),
+                toolbar_field("Baseline Epoch", self.baseline_select),
+            ],
+            body=[self.bars_pane, pn.pane.Markdown(_BASELINE_HINT), self.plot_pane, self.table_pane],
         )
 
     def _means(self, site: str) -> pd.DataFrame:
@@ -412,13 +422,13 @@ class TonicResultsView:
         table = self._means_with_diff()
         baseline = self.baseline_select.value
         epochs = list(table.index)
-        colors = [_BASELINE_BAR_COLOR if epoch == baseline else _EPOCH_BAR_COLOR for epoch in epochs]
+        colors = [epoch_color(index) for index in range(len(epochs))]
 
         panels = []
-        for column, label in (("diff_zscore", "Δ mean z-score"), ("diff_dff", "Δ mean ΔF/F")):
+        for column, label in (("diff_zscore", "Δ Mean Z-Score"), ("diff_dff", "Δ Mean ΔF/F")):
             values = [float(table.loc[epoch, column]) for epoch in epochs]
-            bars = hv.Bars(list(zip(epochs, values, strict=True)), "epoch", label).opts(
-                color=hv.dim("epoch").categorize(dict(zip(epochs, colors, strict=True))),
+            bars = hv.Bars(list(zip(epochs, values, strict=True)), "Epoch", label).opts(
+                color=hv.dim("Epoch").categorize(dict(zip(epochs, colors, strict=True))),
                 title=f"{label} vs. {baseline}",
                 responsive=True,
                 height=280,
@@ -448,19 +458,21 @@ class TonicResultsView:
         site = self.site_select.value
         timestamps = np.asarray(read_hdf5("timeCorrection_" + site, self.filepath, "timestampNew")).ravel()
         traces = {
-            "z-score": np.asarray(read_hdf5("", Path(self.filepath) / ("z_score_" + site + ".hdf5"), "data")).ravel(),
+            "Z-Score": np.asarray(read_hdf5("", Path(self.filepath) / ("z_score_" + site + ".hdf5"), "data")).ravel(),
             "ΔF/F": np.asarray(read_hdf5("", Path(self.filepath) / ("dff_" + site + ".hdf5"), "data")).ravel(),
         }
         # The analysed windows are fixed on disk, so the pipe is seeded once per rebuild
         # rather than driven by edits; it is retained so the spans layer keeps its source.
         epochs = read_tonic_epochs(self.filepath, site)
         self.spans_pipe = make_spans_pipe(
-            windows=[(float(row["start"]), float(row["end"])) for _, row in epochs.iterrows()]
+            windows=[
+                (float(row["start"]), float(row["end"]), epoch_color(index))
+                for index, (_, row) in enumerate(epochs.iterrows())
+            ]
         )
         return build_stacked_traces(
             x=timestamps,
             traces=traces,
-            suptitle=self.label,
             spans=self.spans_pipe,
         )
 
@@ -476,7 +488,7 @@ class TonicResultsView:
         self.table_pane.object = self._means_with_diff()
 
 
-def build_tonic_results_view(filepath: str, *, label: str) -> pn.Column:
+def build_tonic_results_view(filepath: str) -> pn.Column:
     """Build the Step-5 tonic results panel for a run folder.
 
     Returns a short note when the folder holds no ``tonic_<site>.h5`` results so
@@ -484,4 +496,4 @@ def build_tonic_results_view(filepath: str, *, label: str) -> pn.Column:
     """
     if not _tonic_result_sites(filepath):
         return pn.Column(pn.pane.Markdown("_No tonic/basal analysis results in this session._"))
-    return TonicResultsView(filepath, label=label).widget
+    return TonicResultsView(filepath).widget
