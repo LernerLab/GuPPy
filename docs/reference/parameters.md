@@ -14,7 +14,7 @@ The toggle above the cards. Decides where the sessions come from.
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
-| Data Source | Local-folder mode vs DANDI streaming. | radio | `Local` | `Local`, `DANDI` |
+| Data Source | Local-folder mode vs DANDI streaming. | radio | `Local folder` | `Local folder`, `DANDI Archive` |
 
 **Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. It sits above the cards because it changes what two of them show: the session-folder browser is replaced by the DANDI browser, and Root Folder Selection drops the input root folder a streamed session has no use for. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
