@@ -316,7 +316,7 @@ def build_store_labeling_template(
     npm_interactive: dict[str, object] | None = None,
     on_saved: Callable[[], None] | None = None,
 ) -> pn.template.BootstrapTemplate:
-    """Build and return the Label Stores GUI Panel template without serving it.
+    """Build and return the Label Stores Panel template without serving it.
 
     Parameters
     ----------
@@ -352,7 +352,7 @@ def build_store_labeling_template(
     output_root_folder = inputParameters["output_root_folder"]
     input_root_folder = inputParameters["input_root_folder"]
 
-    template = pn.template.BootstrapTemplate(title=f"Label Stores GUI - {Path(folder_path).name}")
+    template = pn.template.BootstrapTemplate(title=f"Label Stores - {Path(folder_path).name}")
 
     if npm_interactive is not None:
         store_labeling_instructions = StoreLabelingInstructionsNPM(

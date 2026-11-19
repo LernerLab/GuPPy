@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_custom_events_template(folder_path: str) -> pn.template.BootstrapTemplate:
-    """Build and return the Import Custom Events GUI Panel template without serving it.
+    """Build and return the Import Custom Events Panel template without serving it.
 
     Parameters
     ----------

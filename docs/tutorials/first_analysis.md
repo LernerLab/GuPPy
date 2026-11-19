@@ -93,7 +93,7 @@ A **store** is the human-readable label GuPPy uses for one of your data channels
 Click **Label Stores** in the sidebar. A Label Stores tab opens beside the form, with the Label Stores panel for the selected folder. With several folders selected, the panel has a tab for each.
 
 ```{image} ../_static/images/02_label_stores.png
-:alt: Label Stores GUI with the three sample CSV channels listed as available options
+:alt: The Label Stores page with the three sample CSV channels listed as available options
 :align: center
 ```
 
@@ -104,7 +104,7 @@ The three CSV filenames appear in the left list (**Filter available options**) o
 2. **Click "Select Stores".** A *Label Stores* section appears below, with one row per channel under the headings **Store**, **Type** and **Name or Signal**. Each row has a **Type** dropdown, and beside it either a text box or, for a control row, a picker of the signal rows.
 
    ```{image} ../_static/images/02b_label_stores_configured.png
-   :alt: Label Stores GUI after clicking Select Stores, showing the Label Stores section with Store, Type and Name or Signal columns for each of the three channels
+   :alt: The Label Stores page after clicking Select Stores, showing the Label Stores section with Store, Type and Name or Signal columns for each of the three channels
    :align: center
    ```
 
@@ -220,12 +220,12 @@ The visualization step in Step 5 reads these files; you do not need to inspect t
 
 ## Step 5: Visualize the results
 
-Click **Open Visualization GUI** in the sidebar. A Visualization tab opens with the Visualization GUI for this session, organized into tabs. This tutorial uses the first two, **PSTH** and **Heat Map**.
+Click **Open Visualization** in the sidebar. A Visualization tab opens with the dashboard for this session, organized into tabs. This tutorial uses the first two, **PSTH** and **Heat Map**.
 
 A **Metric** selector sits in the *Display Settings* card at the top of both tabs. It lists the metrics Step 4 actually computed for this run, so here it offers only `Z-Score`; had you run Step 4 with `Both`, you could switch both tabs between the two without re-running the step. Whichever metric is selected also labels the y axis of every PSTH plot.
 
 ```{image} ../_static/images/03_visualization.png
-:alt: GuPPy Visualization GUI showing the PSTH tab with the RewardPort event selected
+:alt: GuPPy's Visualization page showing the PSTH tab with the RewardPort event selected
 :align: center
 ```
 

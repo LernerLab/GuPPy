@@ -75,7 +75,7 @@ The third card on the homepage, collapsed by default. Selects which existing per
 | Run Names for All Sessions | Run names to select across every selected session at once. | list of run names | empty | run names found in any selected session |
 | Existing Runs (Steps 2–5) | Existing run directories the later steps act on. | list of paths | empty | one or more run directories, at least one per selected session |
 
-**Existing Runs (Steps 2–5)** lists the run directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels in the Label Stores GUI (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
+**Existing Runs (Steps 2–5)** lists the run directories that already exist for the selected sessions and lets you pick which run each later step acts on. A run directory is created when you configure channels on the Label Stores page (Step 1); every step from loading the raw data onward then reads and writes the run you select here.
 
 **Run Names for All Sessions** reaches those same directories by name instead of by browsing to them, so one choice covers a whole batch. Step 1 names each run: the run directory `output_1` has the run name `1`. Naming a run selects it in every selected session that has one by that name, and removing the name deselects exactly those — directories you ticked in the browser yourself are left alone either way. The picker offers every run name found in *any* selected session, so a name only some of them have still works; the sessions without it are yours to fill in from the browser.
 
@@ -287,7 +287,7 @@ The last card on the homepage, collapsed by default. Picks which defined groups 
 |-----------|-------------|------|---------|-----------------|
 | Group Output Directories | Group output directories to work with. | list of paths | empty | absolute paths to `<name>_group` directories |
 
-**Group Output Directories** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created in the Label Groups GUI, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
+**Group Output Directories** is the group counterpart of [Output Folder Selection](#output-folder-selection), rooted at your home directory. The same selection serves both averaging and visualization, so you choose it once: the Group Analysis step averages into the selected groups, and Step 5 opens them alongside any selected session runs. Groups are created on the Label Groups page, whose controls are covered in [Average results across sessions](../how-to/group-analysis.md). This is a UI selector, not a saved analysis parameter, so it has no internal name in the index below.
 
 Groups are visualized by selecting them here; there is no separate mode to switch on.
 

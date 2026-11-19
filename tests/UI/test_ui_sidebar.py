@@ -53,7 +53,7 @@ def test_psth_computation_button_visible(page, live_server_url):
 @pytest.mark.ui
 def test_open_visualization_gui_button_visible(page, live_server_url):
     page.goto(live_server_url)
-    expect(page.get_by_role("button", name="Open Visualization GUI")).to_be_visible()
+    expect(page.get_by_role("button", name="Open Visualization")).to_be_visible()
 
 
 @pytest.mark.ui

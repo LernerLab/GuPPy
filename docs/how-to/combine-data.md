@@ -37,7 +37,7 @@ halves must use the same run name.
    explicit name if you prefer — the second half just needs to match it).
 
    ```{image} ../_static/images/combine_data_run_name.png
-   :alt: The Label Stores GUI's "Choose where to save these store labels" section, with Create New Run selected and the Run Name field holding the default 1
+   :alt: The Label Stores page's "Choose where to save these store labels" section, with Create New Run selected and the Run Name field holding the default 1
    :width: 70%
    ```
 
