@@ -9,6 +9,7 @@ import panel as pn
 
 from .dandi_file_panel import DandiFilePanel
 from .frontend_utils import default_root_path
+from .tile_toggle import DANDI_ARCHIVE_TILE, LOCAL_FOLDER_TILE, tile_toggle_stylesheet
 from ..settings import remember_root_folders, remembered_root_folders
 from ..utils.dandi_filter import BUNDLED_VERDICT_CACHE_PATH, PhotometryVerdictCache
 from ..utils.utils import (
@@ -228,14 +229,12 @@ class ParameterForm:
     def setup_individual_parameters(self) -> None:
         """Build all widgets for the individual-analysis card and store them as instance attributes."""
         # Individual analysis components
-        # An outlined segmented control: the selected source fills in, the other stays an outline.
         self.source_mode = pn.widgets.RadioButtonGroup(
             name="Data Source",
-            options={"Local folder": "local", "DANDI Archive": "dandi"},
+            options={"Local Folder": "local", "DANDI Archive": "dandi"},
             value="local",
-            button_type="primary",
-            button_style="outline",
-            width=300,
+            sizing_mode="stretch_width",
+            stylesheets=[tile_toggle_stylesheet(tiles=[LOCAL_FOLDER_TILE, DANDI_ARCHIVE_TILE])],
         )
         self.source_mode.param.watch(self._on_source_mode_change, "value")
 
@@ -249,7 +248,8 @@ class ParameterForm:
             "**Input Root Folder.** Pick the folder your session folders live under. GuPPy "
             "mirrors each session's path below it into the output root folder, so "
             "`<input root>/subject1/session1` writes its runs to "
-            "`<output root>/subject1/session1`.",
+            "`<output root>/subject1/session1`. Only local sessions use it; sessions streamed from "
+            "DANDI are created inside the output root folder.",
             sizing_mode="stretch_width",
         )
         self.input_root_selector = pn.widgets.FileSelector(
@@ -754,8 +754,8 @@ class ParameterForm:
             self.significance_param_wd,
         )
 
-        self.source_mode_row = pn.Row(pn.pane.Markdown("Data Source"), self.source_mode)
         self.input_folder_selection_widget = pn.Column(
+            self.source_mode,
             self.session_selector_header,
             self.files_1,
             self.dandi_file_panel.panel,
@@ -820,7 +820,8 @@ class ParameterForm:
             list(self.outputs_selector.value or []),
             list(self.run_names_for_all_sessions.value),
         )
-        self._apply_source_mode_to_root_folders()
+        # The source decides which sessions the runs tree lists, so it is re-read like a move of the outputs.
+        self._on_output_location_changed()
         run_folders, run_names = self._run_selection_by_source_mode.get(event.new, ([], []))
         self._restore_run_selection(run_folders=run_folders, run_names=run_names)
 
@@ -866,7 +867,7 @@ class ParameterForm:
         """
         # Read the picked folder rather than `input_root_folder`, which names this
         # property back in DANDI mode.
-        if self.same_root_checkbox.value and self.source_mode.value != "dandi":
+        if self.same_root_checkbox.value:
             return self._chosen_input_root_folder
         selected = list(self.output_root_selector.value or [])
         return str(selected[0]) if selected else None
@@ -1135,24 +1136,9 @@ class ParameterForm:
                     run_folders.append(run_folder)
         return run_folders
 
-    def _apply_source_mode_to_root_folders(self) -> None:
-        """Show only the root folders the current data source has a use for.
-
-        DANDI assets are materialized as session folders inside the output root, so there
-        is no input root to pick and nothing for the matching checkbox to match.
-        """
-        is_dandi = self.source_mode.value == "dandi"
-        self.input_root_header.visible = not is_dandi
-        self.input_root_selector.visible = not is_dandi
-        self.same_root_checkbox.visible = not is_dandi
-        self.same_root_note.visible = not is_dandi
-        self._on_same_root_toggled()
-
     def _on_same_root_toggled(self, event: object = None) -> None:
         """Hide the output root browser while the two roots are set to match."""
-        # In DANDI mode the checkbox is hidden and the output root is the only root there
-        # is, so it stays on screen whatever the checkbox was left at.
-        matched = self.same_root_checkbox.value and self.source_mode.value != "dandi"
+        matched = self.same_root_checkbox.value
         self.output_root_selector.visible = not matched
         self.output_location_header.visible = not matched
         self._on_output_location_changed()
@@ -1270,8 +1256,7 @@ class ParameterForm:
         self.group_folders_selector._refresh()
 
     def add_to_template(self) -> None:
-        """Append the data-source row and the folder, individual, and group cards to the template's main area."""
-        self.template.main.append(self.source_mode_row)
+        """Append the folder, individual, and group cards to the template's main area."""
         self.template.main.append(self.root_folder_selection)
         self.template.main.append(self.input_folder_selection)
         self.template.main.append(self.output_folder_selection)
