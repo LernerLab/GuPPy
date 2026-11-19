@@ -41,7 +41,7 @@ from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
-from guppy.frontend.plot_card import RUN_FOLDER_WIDTH, toolbar_field
+from guppy.frontend.plot_card import CONTROL_MARGIN, run_folder_width, toolbar_field
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.tonic_epochs import TonicEpochConfig, TonicResultsView
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
@@ -83,7 +83,11 @@ DANDI_DEMO_ASSET = "sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
 
 def _run_field(run_label: str) -> pn.Column:
     """The "Run Folder" toolbar field a run-folder page shows, offering the one run."""
-    return toolbar_field("Run Folder", pn.widgets.Select(options=[run_label], width=RUN_FOLDER_WIDTH))
+    return toolbar_field(
+        "Run Folder", pn.widgets.Select(
+            options=[run_label], width=run_folder_width(labels=[run_label]), margin=CONTROL_MARGIN
+        )
+    )
 
 
 def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
@@ -805,14 +809,14 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
 
 
 def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
-    """How-to: the Data Source toggle set to ``dandi``, and the DANDI panel it reveals.
+    """How-to: the DANDI Archive tile selected, and the DANDI panel it reveals below it.
 
     Assigning ``source_mode`` fires its param watcher synchronously, which swaps the DANDI
     panel in and runs its opening search, so the catalog is populated before the template is
     served (mirroring screenshot_label_stores_configured).
 
-    The roots are pre-selected so Root Folder Selection folds away, which keeps the
-    toggle and the panel it drives in one shot rather than a card's height apart.
+    The roots are pre-selected so Root Folder Selection folds away, which brings the
+    Input Folder Selection card, tiles and panel, to the top of the shot.
     """
     template = build_homepage(
         input_root_folder=str(SAMPLE_DATA_DIR.parent),

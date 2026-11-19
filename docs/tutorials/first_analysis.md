@@ -47,7 +47,7 @@ guppy
 A browser tab opens showing the GuPPy dashboard.
 
 ```{image} ../_static/images/01_homepage.png
-:alt: The GuPPy homepage on first launch: the sidebar of pipeline steps on the left, and on the right the Data Source toggle above an open Root Folder Selection card asking for the input and output root folders
+:alt: The GuPPy homepage on first launch: the sidebar of pipeline steps on the left, and on the right an open Root Folder Selection card asking for the input and output root folders
 :align: center
 ```
 
@@ -62,11 +62,11 @@ Open the **Root Folder Selection** card at the top of the page. It holds the two
 In the **Input Folder Selection** card's **Session folders** browser, navigate to `stubbed_testing_data/csv/sample_data_csv_1/` and click **`>>`** to move that folder into the **Selected files** pane on the right. The browser supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session. Every session you select has to sit under the input root folder.
 
 ```{image} ../_static/images/02_data_selection.png
-:alt: The GuPPy homepage with Root Folder Selection folded away and the Input Folder Selection card open below it, its Session folders browser listing sample_data_csv_1 among the sample sessions
+:alt: The GuPPy homepage with Root Folder Selection folded away and the Input Folder Selection card open below it, with the Local Folder tile selected and its Session folders browser listing sample_data_csv_1 among the sample sessions
 :align: center
 ```
 
-The **Data Source** toggle above the cards lets you switch between `Local` (the default, file-system browsing) and `DANDI` (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
+The two tiles at the top of the **Input Folder Selection** card switch between **Local Folder** (the default, file-system browsing) and **DANDI Archive** (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 ### Set parameters
 

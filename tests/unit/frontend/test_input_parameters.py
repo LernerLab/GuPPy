@@ -14,6 +14,11 @@ from guppy.frontend.input_parameters import (
     _table_heading,
     _titled_box,
 )
+from guppy.frontend.tile_toggle import (
+    DANDI_ARCHIVE_TILE,
+    LOCAL_FOLDER_TILE,
+    tile_toggle_stylesheet,
+)
 from guppy.settings import remember_root_folders, remembered_root_folders
 from guppy.utils.utils import (
     run_directory_root,
@@ -299,6 +304,14 @@ class TestParameterFormInitialState:
         assert parameter_form.files_1.visible is True
         assert parameter_form.session_selector_header.visible is True
         assert parameter_form.dandi_file_panel.panel.visible is False
+
+    def test_source_mode_labels_map_to_mode_values(self, parameter_form):
+        assert parameter_form.source_mode.options == {"Local Folder": "local", "DANDI Archive": "dandi"}
+
+    def test_source_mode_is_drawn_as_the_local_and_dandi_tiles(self, parameter_form):
+        assert parameter_form.source_mode.stylesheets == [
+            tile_toggle_stylesheet(tiles=[LOCAL_FOLDER_TILE, DANDI_ARCHIVE_TILE])
+        ]
 
 
 class TestParameterForm:
@@ -1160,35 +1173,24 @@ class TestOutputBaseDirectory:
 class TestRootFolderSelection:
     def test_the_card_leads_the_cards(self, parameter_form):
         assert parameter_form.root_folder_selection.title == "Root Folder Selection"
-        assert parameter_form.template.main[1] is parameter_form.root_folder_selection
+        assert parameter_form.template.main[0] is parameter_form.root_folder_selection
 
-    def test_dandi_mode_hides_the_input_root(self, bare_parameter_form):
-        """A DANDI session has no local input, so there is no input root to pick and
-        nothing for the matching checkbox to match."""
+    def test_dandi_mode_leaves_the_card_as_it_is(self, bare_parameter_form):
         bare_parameter_form.source_mode.value = "dandi"
 
-        assert bare_parameter_form.input_root_selector.visible is False
-        assert bare_parameter_form.input_root_header.visible is False
-        assert bare_parameter_form.same_root_checkbox.visible is False
-        assert bare_parameter_form.output_root_selector.visible is True
-
-    def test_returning_to_local_brings_the_input_root_back(self, bare_parameter_form):
-        bare_parameter_form.source_mode.value = "dandi"
-        bare_parameter_form.source_mode.value = "local"
-
+        assert bare_parameter_form.input_root_header.visible is True
         assert bare_parameter_form.input_root_selector.visible is True
         assert bare_parameter_form.same_root_checkbox.visible is True
+        assert bare_parameter_form.output_root_selector.visible is True
 
-    def test_dandi_mode_keeps_the_output_root_on_screen_despite_a_ticked_checkbox(self, bare_parameter_form, tmp_path):
-        """The checkbox is hidden in DANDI mode, so whatever it was left at must not be
-        able to hide the only root the mode has."""
+    def test_dandi_mode_honors_a_ticked_checkbox(self, bare_parameter_form, tmp_path):
         bare_parameter_form.same_root_checkbox.value = True
-        assert bare_parameter_form.output_root_selector.visible is False
 
         bare_parameter_form.source_mode.value = "dandi"
 
-        assert bare_parameter_form.output_root_selector.visible is True
-        assert bare_parameter_form.output_root_folder is not None
+        assert bare_parameter_form.output_root_selector.visible is False
+        assert bare_parameter_form.output_root_folder == str(tmp_path)
+        assert bare_parameter_form.input_root_folder == str(tmp_path)
 
     def test_the_card_opens_itself_while_a_root_is_missing(self, unconfigured_parameter_form):
         assert unconfigured_parameter_form.root_folder_selection.collapsed is False
@@ -1365,23 +1367,18 @@ class TestFolderSelectionCards:
     def test_individual_card_starts_collapsed(self, parameter_form):
         assert parameter_form.individual.collapsed is True
 
-    def test_add_to_template_leads_with_the_data_source_then_the_roots(self, parameter_form):
+    def test_add_to_template_leads_with_the_roots(self, parameter_form):
         main = parameter_form.template.main
-        # The data source decides what the roots mean, and the roots are the project
-        # constants the per-run choices sit under, so both precede the cards they govern.
-        assert main[0] is parameter_form.source_mode_row
-        assert main[1] is parameter_form.root_folder_selection
-        assert main[2] is parameter_form.input_folder_selection
-        assert main[3] is parameter_form.output_folder_selection
-        assert main[4] is parameter_form.individual
-        assert main[5] is parameter_form.group
-        assert len(main) == 6
+        assert list(main) == [
+            parameter_form.root_folder_selection,
+            parameter_form.input_folder_selection,
+            parameter_form.output_folder_selection,
+            parameter_form.individual,
+            parameter_form.group,
+        ]
 
-    def test_the_data_source_sits_outside_the_card_it_governs(self, parameter_form):
-        """The Root Folder Selection card collapses itself, so a toggle that reshapes it
-        cannot live inside it."""
-        assert parameter_form.source_mode_row not in list(parameter_form.root_folder_selection_widget)
-        assert parameter_form.source_mode_row not in list(parameter_form.input_folder_selection_widget)
+    def test_the_data_source_leads_the_input_folder_card(self, parameter_form):
+        assert parameter_form.input_folder_selection_widget[0] is parameter_form.source_mode
 
 
 class TestTitledBox:

@@ -12,13 +12,13 @@ Streaming a public dandiset needs no DANDI API key. GuPPy reads the dandiset's
 
 ## Choosing a dandiset and assets
 
-Set **Data Source**, above the cards at the top of the page, to `DANDI`. In
-**Input Folder Selection** the local file browser is replaced by the DANDI panel,
-which walks you through three screens: a list of dandisets, one dandiset's page,
+In the **Input Folder Selection** card, click the **DANDI Archive** tile at its top.
+The local file browser is replaced by the DANDI panel, which walks you through three
+screens: a list of dandisets, one dandiset's page,
 and that dandiset's files.
 
 ```{image} ../_static/images/dandi_source_selection.png
-:alt: The Data Source toggle at the top of the page switched from local to dandi, with the Input Folder Selection card below it showing the DANDI source panel with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
+:alt: The Input Folder Selection card with its DANDI Archive tile selected and the DANDI source panel below it with its search box holding the word photometry, the filter checkbox beneath it, and a table of matching dandisets
 :width: 100%
 ```
 
@@ -136,9 +136,11 @@ after the asset filename minus `.nwb`, and writes that session's runs there. The
 recording itself is streamed and never downloaded, so the session folder holds only
 what the analysis writes into it.
 
-DANDI mode asks for no input root folder, and the card hides it: a streamed session
-has no local raw data to sit under. This is why the assets land in the output root —
-it keeps GuPPy from creating folders inside whatever you use for your own recordings.
+DANDI mode does not use the input root folder: a streamed session has no local raw
+data to sit under. This is why the assets land in the output root, which keeps GuPPy
+from creating folders inside whatever you use for your own recordings. The exception is
+**Output root folder is the same as the input root folder**: with it ticked, the two
+roots are one folder, and the session folders are created there.
 
 ## Labeling the streamed stores
 

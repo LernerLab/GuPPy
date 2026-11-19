@@ -13,8 +13,13 @@ from .typography import SECONDARY_INK, SEMIBOLD, SMALL_CLASS, SMALL_SIZE
 # Each control's own margin inside a toolbar field, so neighbouring controls share one gap.
 CONTROL_MARGIN = (0, 5)
 
-# Wide enough for a session and run path, which is what tells runs from different sessions apart.
-RUN_FOLDER_WIDTH = 560
+# Bokeh sizes a dropdown by a fixed width, not by its options, so the Run Folder dropdown's width is
+# estimated from its longest label: path labels in the 14px text face run about 7 to 7.4px a
+# character, so 8px leaves room for capitals and digits, and 34px covers the padding, arrow and border.
+_RUN_FOLDER_CHARACTER_WIDTH = 8
+_RUN_FOLDER_CHROME_WIDTH = 34
+_RUN_FOLDER_MINIMUM_WIDTH = 160
+_RUN_FOLDER_MAXIMUM_WIDTH = 560
 
 # A checkbox is shorter than a dropdown, so it drops to sit level with the dropdowns beside it.
 CHECKBOX_MARGIN = (8, 5, 0, 5)
@@ -24,6 +29,24 @@ _RULE_COLOR = "#E9ECEF"
 # above a toolbar starts where the toolbar's first label does.
 _NOTE_INDENT = 10 + 8 + 5
 _LABEL_STYLE = f"font-size: {SMALL_SIZE}; font-weight: {SEMIBOLD}; color: {SECONDARY_INK}; white-space: nowrap;"
+
+
+def run_folder_width(*, labels: list[str]) -> int:
+    """Return a width for the Run Folder dropdown that fits its longest label.
+
+    Parameters
+    ----------
+    labels : list of str
+        The labels the dropdown offers.
+
+    Returns
+    -------
+    int
+        Width in pixels, between 160 and 560.
+    """
+    longest = max(len(label) for label in labels)
+    width = longest * _RUN_FOLDER_CHARACTER_WIDTH + _RUN_FOLDER_CHROME_WIDTH
+    return min(max(width, _RUN_FOLDER_MINIMUM_WIDTH), _RUN_FOLDER_MAXIMUM_WIDTH)
 
 
 def toolbar_field(label: str, *controls: pn.viewable.Viewable) -> pn.Column:
