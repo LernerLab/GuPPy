@@ -99,13 +99,17 @@ A few modules hold the pieces the pages share, so every page is laid out and set
 - `typography.py` sets the type: the bundled Inter and JetBrains Mono fonts, the four text sizes
   and two weights, and `title_case` for labels, buttons and options.
 - `plot_card.py` lays out a plot: a short note, one toolbar of labeled fields (`toolbar_field`)
-  that wraps in a narrow window, then the plot. A tab or page with several plots puts each in a
+  that wraps in a narrow window, then the plot. A Run Folder dropdown takes its width from its
+  longest label (`run_folder_width`). A tab or page with several plots puts each in a
   homepage card (`plot_card`), and one with a single plot uses the same layout with no card
   (`plot_page`). A picker that chooses what a plot shows sits beside it (`plot_with_side_panel`).
 - `side_panel_split.py` is that side panel: a handle between the plot and the panel drags to
   resize the panel and hides it with its button.
 - `row_controls.py` holds the column headings and delete button of the editable tables, such as
   the artifact windows, the tonic epochs and the custom events.
+- `tile_toggle.py` draws a choice between a few options as tiles, each with an icon and the color
+  it takes when selected: full tiles with a one-line description for the homepage's Data Source,
+  and compact one-line tiles at dropdown height for a toolbar, such as the Drag Gesture toggle.
 
 The folder and run selectors start in the user's home directory. Choosing an input root folder
 re-points the session selector into it, which is how the testing API and the screenshot scripts
