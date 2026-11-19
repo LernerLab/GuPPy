@@ -491,6 +491,71 @@ def run_folder_for_run(session_path: str, run_name: str, *, output_root_folder: 
     return str(Path(root) / (_RUN_FOLDER_PREFIX + run_name))
 
 
+def run_names_in_sessions(
+    *, session_folders: Sequence[str], output_root_folder: str, input_root_folder: str
+) -> list[str]:
+    """Return every run name present in at least one of ``session_folders``.
+
+    A name need not exist in every session to be returned.
+
+    Parameters
+    ----------
+    session_folders : sequence of str
+        Paths to session folders.
+    output_root_folder : str
+        Folder the mirrored output tree is written into.
+    input_root_folder : str
+        Folder the session folders are selected inside.
+
+    Returns
+    -------
+    list of str
+        Run names in order of first appearance, each session's names sorted as
+        :func:`discover_run_folders` sorts them.
+    """
+    run_names = []
+    for session_folder in session_folders:
+        for run_folder in discover_run_folders(
+            session_folder, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        ):
+            run_name = parse_run_name(run_folder)
+            if run_name not in run_names:
+                run_names.append(run_name)
+    return run_names
+
+
+def existing_run_folders_for_run_names(
+    *, session_folders: Sequence[str], run_names: Sequence[str], output_root_folder: str, input_root_folder: str
+) -> list[str]:
+    """Return the run folders named by ``run_names`` that exist in ``session_folders``.
+
+    Parameters
+    ----------
+    session_folders : sequence of str
+        Paths to session folders.
+    run_names : sequence of str
+        Run names to look for in every session.
+    output_root_folder : str
+        Folder the mirrored output tree is written into.
+    input_root_folder : str
+        Folder the session folders are selected inside.
+
+    Returns
+    -------
+    list of str
+        Paths of the existing run folders, ordered by session and then by ``run_names``.
+    """
+    run_folders = []
+    for session_folder in session_folders:
+        for run_name in run_names:
+            run_folder = run_folder_for_run(
+                session_folder, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+            )
+            if Path(run_folder).is_dir():
+                run_folders.append(run_folder)
+    return run_folders
+
+
 def selected_session_runs(*, inputParameters: dict[str, object]) -> list[tuple[str, str]]:
     """Flatten ``selected_runs`` into ``(session_path, run_name)`` pairs.
 
