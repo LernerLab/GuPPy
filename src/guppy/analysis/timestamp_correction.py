@@ -10,6 +10,31 @@ from .io_utils import (
 logger = logging.getLogger(__name__)
 
 
+def expand_block_timestamps(*, block_timestamps: np.ndarray, npoints: int, sampling_rate: float) -> np.ndarray:
+    """
+    Return one timestamp per sample for data stored in fixed-size blocks.
+
+    Block-structured formats (TDT) record one timestamp per block of ``npoints`` samples.
+    Each sample is placed at its block's timestamp plus its offset within the block.
+
+    Parameters
+    ----------
+    block_timestamps : np.ndarray
+        Timestamp of the first sample of each block.
+    npoints : int
+        Number of samples in every block.
+    sampling_rate : float
+        Samples per second within a block.
+
+    Returns
+    -------
+    np.ndarray
+        ``len(block_timestamps) * npoints`` sample timestamps, block by block.
+    """
+    offsets = np.arange(npoints) / sampling_rate
+    return (np.asarray(block_timestamps)[:, np.newaxis] + offsets[np.newaxis, :]).ravel()
+
+
 def correct_timestamps(
     timeForLightsTurnOn: float,
     store_array: np.ndarray,
@@ -165,12 +190,9 @@ def timestampCorrection(
         if mode == "tdt":
             timeRecStart = timestamp[0]
             timestamps = np.subtract(timestamp, timeRecStart)
-            adder = np.arange(npoints) / sampling_rate
-            lengthAdder = adder.shape[0]
-            timestampNew = np.zeros((len(timestamps), lengthAdder))
-            for i in range(lengthAdder):
-                timestampNew[:, i] = np.add(timestamps, adder[i])
-            timestampNew = (timestampNew.T).reshape(-1, order="F")[:sample_count]
+            timestampNew = expand_block_timestamps(
+                block_timestamps=timestamps, npoints=npoints, sampling_rate=sampling_rate
+            )[:sample_count]
             correctionIndex = np.where(timestampNew >= timeForLightsTurnOn)[0]
             timestampNew = timestampNew[correctionIndex]
         elif mode == "csv":
