@@ -28,7 +28,7 @@ from ..analysis.io_utils import (
     recording_site_from_preprocessed_label,
 )
 from ..utils.utils import relative_output_labels
-from ..visualization.labels import trace_title
+from ..visualization.labels import DFF_LABEL, Z_SCORE_LABEL, trace_title
 from ..visualization.preprocessing import build_control_signal_fit
 
 # Load the bokeh HoloViews backend these components rely on for the trace plots.
@@ -135,8 +135,8 @@ class PreprocessingReviewView:
             fit=trace["fit"],
             titles=[trace_title(name) for name in trace["plot_name"]],
             extra_traces={
-                trace_title(f"z_score_{site}"): preprocessed["y_zscore"],
-                trace_title(f"dff_{site}"): preprocessed["y_dff"],
+                trace_title(f"z_score_{site}"): (Z_SCORE_LABEL, preprocessed["y_zscore"]),
+                trace_title(f"dff_{site}"): (DFF_LABEL, preprocessed["y_dff"]),
             },
         )
 
