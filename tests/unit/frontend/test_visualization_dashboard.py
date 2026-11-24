@@ -2,7 +2,10 @@ import panel as pn
 import pytest
 
 from guppy.frontend.input_parameters import CARD_STYLES, SECTION_STYLES
-from guppy.frontend.visualization_dashboard import VisualizationDashboard
+from guppy.frontend.visualization_dashboard import (
+    VisualizationDashboard,
+    whole_session_result_tabs,
+)
 
 BASENAME = "test_session"
 EVENTS = ["event1", "event2"]
@@ -39,6 +42,7 @@ def toolbar(card):
 @pytest.fixture
 def dashboard(plotter, panel_extension):
     return VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename=BASENAME,
         events=EVENTS,
@@ -51,6 +55,7 @@ def dashboard(plotter, panel_extension):
 def single_metric_dashboard(plotter, panel_extension):
     """A dashboard for an output directory where step 4 only computed the z-score."""
     return VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename=BASENAME,
         events=EVENTS,
@@ -394,3 +399,19 @@ class TestVisualizationDashboard:
         (download,) = dashboard._heatmap_tab.select(pn.widgets.FileDownload)
         assert download.filename == "heatmap.png"
         assert "Save Plot" in field_labels(dashboard._heatmap_tab)
+
+
+class TestWholeSessionResultTabs:
+    def test_names_no_tab_for_a_directory_without_results(self, tmp_path):
+        assert whole_session_result_tabs(filepath=str(tmp_path)) == []
+
+    def test_names_each_tab_whose_results_are_present_in_tab_order(self, tmp_path):
+        (tmp_path / "covariate_correlations_region.h5").write_bytes(b"")
+        (tmp_path / "tonic_region.h5").write_bytes(b"")
+
+        assert whole_session_result_tabs(filepath=str(tmp_path)) == ["Tonic", "Covariates"]
+
+    def test_psth_results_name_no_whole_session_tab(self, tmp_path):
+        (tmp_path / "ttl_region_z_score_region.h5").write_bytes(b"")
+
+        assert whole_session_result_tabs(filepath=str(tmp_path)) == []
