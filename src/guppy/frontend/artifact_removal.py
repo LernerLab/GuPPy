@@ -20,7 +20,7 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
-from .plot_card import CONTROL_MARGIN, RUN_FOLDER_WIDTH, plot_page, toolbar_field
+from .plot_card import CONTROL_MARGIN, plot_page, run_folder_width, toolbar_field
 from ..analysis.io_utils import (
     decide_naming_convention,
     read_hdf5,
@@ -173,7 +173,7 @@ def build_run_folder_page(
     folder_select = pn.widgets.Select(
         options={labels[str(folder)]: folder for folder in run_folders},
         value=run_folders[0],
-        width=RUN_FOLDER_WIDTH,
+        width=run_folder_width(labels=list(labels.values())),
         margin=CONTROL_MARGIN,
     )
     run_field = toolbar_field("Run Folder", folder_select)
