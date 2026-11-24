@@ -1,7 +1,5 @@
 """Panel web application for GuPPy: server startup."""
 
-from functools import partial
-
 import panel as pn
 
 from .orchestration.home import build_homepage
@@ -40,12 +38,16 @@ def serve_app(
     open_browser : bool, optional
         Whether to open the homepage in a browser on this machine once the server starts.
     """
-    build_page = partial(
-        build_session_homepage,
-        input_root_folder=input_root_folder,
-        output_root_folder=output_root_folder,
-        use_bundled_dandi_cache=use_bundled_dandi_cache,
-    )
+
+    # Panel builds a page per browser session only from a plain function; any other callable,
+    # such as a functools.partial, is served as an object and shown as its repr.
+    def build_page() -> pn.template.BootstrapTemplate:
+        return build_session_homepage(
+            input_root_folder=input_root_folder,
+            output_root_folder=output_root_folder,
+            use_bundled_dandi_cache=use_bundled_dandi_cache,
+        )
+
     print("GuPPy is starting. Open the address below in your browser, and press Ctrl+C here to stop GuPPy.")
     pn.serve(build_page, port=port, address=address, show=open_browser, verbose=True)
 

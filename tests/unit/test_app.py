@@ -1,3 +1,5 @@
+from types import FunctionType
+
 import panel as pn
 import pytest
 
@@ -25,7 +27,8 @@ class TestServeApp:
     def test_serves_the_homepage_alone(self, served):
         app.serve_app()
 
-        assert callable(served["build_page"])
+        # Panel builds a page per session only from a plain function, not from any callable.
+        assert isinstance(served["build_page"], FunctionType)
         assert served["kwargs"] == {"port": 0, "address": None, "show": True, "verbose": True}
 
     def test_prints_how_to_open_and_stop_guppy(self, served, capsys):
