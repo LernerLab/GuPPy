@@ -12,6 +12,17 @@ _RUNNING_COLOR = "#6C757D"
 _DONE_COLOR = "#1e7e34"
 _FAILED_COLOR = "#c0392b"
 
+# The View Results button reads as a link continuing the status line, set off from it by a dot.
+# The rules are marked important because the app's theme styles every button after this sheet.
+_RESULTS_LINK_STYLESHEET = """
+.bk-btn, .bk-btn:hover, .bk-btn:focus, .bk-btn:active {
+  border: none !important; background: none !important; box-shadow: none !important;
+  padding: 0 !important; font-size: 12px !important; color: #0072B5 !important;
+}
+.bk-btn:hover { text-decoration: underline !important; }
+.bk-btn::before { content: "·"; color: #ADB5BD; margin-right: 6px; display: inline-block; }
+"""
+
 
 def _progress_stylesheet(*, value: int, maximum: int) -> str:
     """Return the CSS that fills a progress bar with the logo's gradient.
@@ -52,7 +63,7 @@ class StepStatus:
     """
 
     def __init__(self, *, has_progress: bool, has_results: bool) -> None:
-        self.message = pn.pane.HTML(margin=(4, 10))
+        self.message = pn.pane.HTML(margin=(4, 6, 4, 10), align="center")
         self.progress = None
         if has_progress:
             self.progress = pn.indicators.Progress(
@@ -61,12 +72,9 @@ class StepStatus:
             self.progress.param.watch(self._repaint_progress, ["value", "max"])
         self.results_button = (
             pn.widgets.Button(
-                name="View Results →",
-                button_type="primary",
-                button_style="outline",
-                height=28,
-                width=120,
-                margin=(0, 10),
+                name="View Results",
+                stylesheets=[_RESULTS_LINK_STYLESHEET],
+                margin=(4, 0),
                 align="center",
                 visible=False,
             )
@@ -75,7 +83,7 @@ class StepStatus:
         )
         status_row = pn.Row(self.message, width=320)
         if self.results_button is not None:
-            status_row.extend([pn.HSpacer(), self.results_button])
+            status_row.append(self.results_button)
         self.layout = pn.Column(*([self.progress] if has_progress else []), status_row, margin=0)
         self._show(text="Not run yet", color=_NOT_RUN_COLOR)
 
