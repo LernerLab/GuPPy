@@ -1,40 +1,126 @@
-import logging
+import re
 import shutil
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-import panel as pn
 
-from guppy.extractors import CsvRecordingExtractor
-from guppy.extractors.detect_acquisition_formats import (
-    _classify_csv_file,
-    _is_event_csv,
+from guppy.extractors import BaseRecordingExtractor
+from guppy.extractors.detect_acquisition_formats import _classify_csv_file
+from guppy.utils._hdf5_io import write_hdf5
+
+# Filename patterns of per-channel and per-event files derived from a session, which are not
+# raw NPM sources.
+DERIVED_FILENAME_PATTERNS = ("*chev*", "*chod*", "*chpr*", "event*")
+# Substring, lowercased, that marks a column as a clock.
+TIMESTAMP_COLUMN_SUBSTRING = "timestamp"
+# Names of the column recording which excitation LEDs lit each frame, lowercased.
+STATE_COLUMN_NAMES = frozenset({"flags", "ledstate"})
+# The three lowest bits of a state word are one flag per excitation LED; the higher bits are
+# digital TTL lines. A wavelength's frames are those whose word has that wavelength's bit set.
+EXCITATION_BITS = 0b111
+WAVELENGTH_TO_EXCITATION_CODE = {415: 1, 470: 2, 560: 4}
+# Lowercased names of every column an NPM file writes that is not a region: the clocks and frame
+# index, the state word, and the digital lines.
+NON_REGION_COLUMN_NAMES = frozenset(
+    {
+        "framecounter",
+        "timestamp",
+        "systemtimestamp",
+        "computertimestamp",
+        "triggerevents",
+        "flags",
+        "ledstate",
+        "stimulation",
+        "output0",
+        "output1",
+        "input0",
+        "input1",
+    }
 )
-
-pn.extension()
-
-logger = logging.getLogger(__name__)
-
-# Timestamp units an NPM session can be recorded in, and the factor that converts them
-# to seconds. Nothing in the raw files states which one applies, so it is a parameter.
+# pandas names a column whose header cell is blank ``Unnamed: {position}``.
+BLANK_HEADER_COLUMN_PATTERN = re.compile(r"Unnamed: \d+")
+# Names of the interleaved channel slots of a file with no state column, in cycle order.
+STRIDE_CHANNEL_SLOTS = ("chev", "chod", "chpr")
+# Timestamp units a session can be recorded in, and the factor converting each to seconds.
 TIME_UNIT_DIVISORS = {"seconds": 1.0, "milliseconds": 1e3, "microseconds": 1e6}
 DEFAULT_TIME_UNIT = "seconds"
-# Channel count assumed until the Label Stores page asks for one.
+# Channel count assumed for a file with no state column until the Label Stores page asks for one.
 DEFAULT_NUM_CHANNELS = 2
 
 
-class NpmRecordingExtractor(CsvRecordingExtractor):
+def _is_number(value: object) -> bool:
+    """
+    Check whether a value parses as a float.
+
+    Parameters
+    ----------
+    value : object
+        Value to test, typically a CSV cell or header label.
+
+    Returns
+    -------
+    bool
+        ``True`` if ``float(value)`` succeeds, ``False`` otherwise.
+    """
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+@dataclass(frozen=True)
+class EventStore:
+    """
+    Where an event store comes from.
+
+    Attributes
+    ----------
+    file : str
+        Name of the event file.
+    event_value : object
+        The value whose events the store holds, or ``None`` when the file is not split and
+        the store holds all of them.
+    """
+
+    file: str
+    event_value: object
+
+
+@dataclass(frozen=True)
+class ChannelStore:
+    """
+    Where a photometry channel comes from.
+
+    Attributes
+    ----------
+    file : str
+        Name of the data file.
+    excitation_wavelength_in_nm : int or None
+        Wavelength of the LED that lit the channel's frames, or ``None`` for a file with no
+        state column.
+    interleave_position : int or None
+        The channel's slot in the interleave cycle of a file with no state column, or
+        ``None`` for a file with one.
+    data_column : str or int
+        Column the channel's samples are read from; a position in a header-less file.
+    timestamp_column : str or int
+        Column the channel is timed by; ``0`` in a header-less file.
+    """
+
+    file: str
+    excitation_wavelength_in_nm: int | None
+    interleave_position: int | None
+    data_column: str | int
+    timestamp_column: str | int
+
+
+class NpmRecordingExtractor(BaseRecordingExtractor):
     """
     Extractor for fiber photometry data from Neurophotometrics (NPM) systems.
-
-    NPM files store interleaved channels (and, optionally, a multi-type event
-    column) in multi-column CSVs. This extractor demultiplexes those raw files
-    into per-channel and per-event streams **entirely in memory** via
-    :meth:`decompose`; ``read`` and ``count_samples`` are thin wrappers over it.
-    Nothing is written to the source folder — only the final HDF5 outputs are
-    written, by the inherited :meth:`CsvRecordingExtractor.save`.
 
     Parameters
     ----------
@@ -43,22 +129,20 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
     num_ch : int, optional
         Number of interleaved channels expected. Default is 2.
     npm_timestamp_column_name : str, optional
-        Timestamp column to use in files that have more than one. ``None`` lets
-        the extractor pick the first timestamp column.
+        Timestamp column to use in files that have more than one.
     npm_time_unit : str, optional
         Unit of the session's timestamps (``"seconds"``, ``"milliseconds"``, or
-        ``"microseconds"``), applied to every file in the folder. ``None``
-        defaults to seconds.
+        ``"microseconds"``).
     npm_split_events : list of bool, optional
-        Per-file flag controlling whether a multi-type event column is split
-        into one event stream per unique value. ``None`` defaults to no split.
+        One entry per raw source file, in processing order: whether that file's events are split
+        into one event stream per unique value.
     """
 
     def __init__(
         self,
         folder_path: str,
         *,
-        num_ch: int = 2,
+        num_ch: int = DEFAULT_NUM_CHANNELS,
         npm_timestamp_column_name: str | None = None,
         npm_time_unit: str | None = None,
         npm_split_events: list[bool] | None = None,
@@ -68,59 +152,54 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         self.npm_timestamp_column_name = npm_timestamp_column_name
         self.npm_time_unit = npm_time_unit
         self.npm_split_events = npm_split_events
-        self._decomposed: dict[str, dict[str, np.ndarray]] | None = None
+        self._dataframes: dict[str, pd.DataFrame] | None = None
+        self._records: dict[str, EventStore | ChannelStore] | None = None
 
     @classmethod
     def discover_events_and_flags(
         cls, folder_path: str, num_ch: int, inputParameters: dict[str, object] | None
     ) -> tuple[list[str], list[str]]:
         """
-        Discover available events and format flags from NPM files.
-
-        This is read-only: it decomposes the raw NPM files in memory to
-        enumerate the derived stream names, but writes nothing to disk.
+        Discover the session's store IDs and format flags.
 
         Parameters
         ----------
         folder_path : str
-            Path to the folder containing NPM files.
+            Path to the session folder.
         num_ch : int
-            Number of channels in the recording.
+            Number of interleaved channels in a file with no state column.
         inputParameters : dict, optional
-            Input parameters containing NPM-specific configuration.
+            Input parameters carrying the NPM configuration: ``npm_timestamp_column_name``, and
+            ``npm_split_events``, one entry per raw source file saying whether it is split by value.
 
         Returns
         -------
         events : list of str
-            Names of all events/stores available in the dataset.
+            Store IDs of every stream the session yields, in file order.
         flags : list of str
-            Format indicators or file type flags.
+            One format flag per raw source file: ``"event_np"``, ``"data_np_v2"`` (a
+            state column names each frame's LED) or ``"data_np"`` (it does not).
         """
-        npm_timestamp_column_name = None
-        npm_time_unit = None
-        npm_split_events = None
-        if isinstance(inputParameters, dict):
-            npm_timestamp_column_name = inputParameters.get("npm_timestamp_column_name")
-            npm_time_unit = inputParameters.get("npm_time_unit")
-            # TODO: come up with a better name for npm_split_events that can be appropriately pluralized for a list
-            npm_split_events = inputParameters.get("npm_split_events")
-
-        streams, flags = cls._decompose_streams(
-            folder_path=folder_path,
+        if inputParameters is None:
+            inputParameters = {}
+        dataframes = cls._read_source_files(folder_path)
+        store_records = cls._store_records(
+            dataframes,
             num_ch=num_ch,
-            npm_timestamp_column_name=npm_timestamp_column_name,
-            npm_time_unit=npm_time_unit,
-            npm_split_events=npm_split_events,
+            npm_timestamp_column_name=inputParameters.get("npm_timestamp_column_name"),
+            npm_split_events=inputParameters.get("npm_split_events"),
         )
-        return list(streams.keys()), flags
+        store_ids = list(store_records)
 
-    @staticmethod
-    def _list_npm_files(folder_path: str | Path) -> list[Path]:
-        """List the raw NPM source files in a session folder, in processing order.
+        flags = []
+        for df in dataframes.values():
+            flags.append(cls._layout_flag(df))
+        return store_ids, flags
 
-        Excludes the derived per-channel/per-event filenames and the
-        single-column timestamp CSVs handled by
-        :class:`~guppy.extractors.CsvRecordingExtractor`.
+    @classmethod
+    def has_multiple_event_ttls(cls, folder_path: str) -> list[bool]:
+        """
+        Check which of the session's raw files are event files holding more than one TTL value.
 
         Parameters
         ----------
@@ -129,315 +208,24 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         Returns
         -------
-        list of Path
-            Sorted paths of the raw NPM files. The index of a path in this list
-            is the ``file{i}_`` prefix its channels are named with, and the
-            index its ``npm_split_events`` entry is read from.
+        list of bool
+            One entry per raw source file, in processing order: whether it is an event file whose
+            value column holds more than one distinct value.
         """
-        session_folder = Path(folder_path)
-        path = sorted(session_folder.glob("*.csv")) + sorted(session_folder.glob("*.doric"))
-        path_chev = list(session_folder.glob("*chev*"))
-        path_chod = list(session_folder.glob("*chod*"))
-        path_chpr = list(session_folder.glob("*chpr*"))
-        path_event = list(session_folder.glob("event*"))
-        path_chev_chod_event = path_chev + path_chod + path_event + path_chpr
-
-        path = sorted(set(path) - set(path_chev_chod_event))
-        return [csv_path for csv_path in path if not (csv_path.suffix == ".csv" and _is_event_csv(csv_path))]
+        multiple_event_ttls = []
+        for df in cls._read_source_files(folder_path).values():
+            if not cls._is_event_file(df):
+                multiple_event_ttls.append(False)
+                continue
+            event_values = df.iloc[:, 1]
+            unique_event_values = np.unique(event_values)
+            multiple_event_ttls.append(len(unique_event_values) > 1)
+        return multiple_event_ttls
 
     @classmethod
-    def _classify_npm_file(cls, path: str | Path) -> tuple[str, pd.DataFrame, bool]:
-        """Read one raw NPM file and determine which NPM layout it uses.
-
-        Parameters
-        ----------
-        path : str or Path
-            Path to a raw NPM file, as returned by :meth:`_list_npm_files`.
-
-        Returns
-        -------
-        flag : str
-            ``"data_np"`` (interleaved channels, no state column),
-            ``"data_np_v2"`` (interleaved channels annotated by a
-            ``Flags``/``LedState`` column), or ``"event_np"`` (timestamp/value
-            event pairs).
-        dataframe : pd.DataFrame
-            The file's contents, read with or without a text header according to
-            the layout.
-        columns_are_strings : bool
-            Whether the file carries a text header row.
+    def get_timestamp_column_options(cls, folder_path: str) -> list[str]:
         """
-        extension = Path(path).name.split(".")[-1]
-        if extension == "doric":
-            raise ValueError(f"Doric files are not supported by NpmRecordingExtractor; got '{path}'.")
-        df = pd.read_csv(path, header=None, nrows=2, index_col=False, dtype=str)
-        df = df.dropna(axis=1, how="all")
-        header_values = np.array(df).flatten()
-        check_all_str = []
-        for element in header_values:
-            try:
-                float(element)
-            except:
-                check_all_str.append(element)
-        if len(check_all_str) == len(header_values):
-            raise ValueError(
-                f"CSV file '{path}' appears to be a Doric .csv (all-string header rows). "
-                "NpmRecordingExtractor only supports NPM .csv files; use the Doric extractor instead."
-            )
-        df = pd.read_csv(path, index_col=False)
-        _, numeric_headers = cls._check_header(df)
-
-        # check dataframe structure and read data accordingly
-        if len(numeric_headers) > 0:
-            columns_are_strings = False
-            df = pd.read_csv(path, header=None)
-        else:
-            columns_are_strings = True
-        columns = np.array(list(df.columns), dtype=str)
-
-        # check the structure of dataframe and assign flag to the type of file
-        if len(columns) == 1:
-            raise ValueError(
-                f"CSV file '{path}' has 1 column (event .csv layout). "
-                "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for event timestamp files."
-            )
-        if len(columns) == 3:
-            raise ValueError(
-                f"CSV file '{path}' has 3 columns {list(columns)} (data .csv layout). "
-                "NpmRecordingExtractor only supports NPM .csv files; use the standard CSV extractor for 3-column data files."
-            )
-        if len(columns) == 2:
-            flag = "event_or_data_np"
-        else:
-            flag = "data_np"
-
-        if columns_are_strings and (
-            "flags" in np.char.lower(np.array(columns)) or "ledstate" in np.char.lower(np.array(columns))
-        ):
-            flag = flag + "_v2"
-
-        if flag == "event_or_data_np":
-            second_column_values = list(df.iloc[:, 1])
-            check_float = [True for value in second_column_values if isinstance(value, float)]
-            if len(second_column_values) == len(check_float) and not columns_are_strings:
-                flag = "data_np"
-            else:
-                flag = "event_np"
-
-        return flag, df, columns_are_strings
-
-    @classmethod
-    def _decompose_streams(
-        cls,
-        *,
-        folder_path: str,
-        num_ch: int,
-        npm_timestamp_column_name: str | None,
-        npm_time_unit: str | None,
-        npm_split_events: list[bool] | None,
-    ) -> tuple[dict[str, dict[str, np.ndarray]], list[str]]:
-        """
-        Demultiplex raw NPM files into per-channel and per-event streams in memory.
-
-        Pure function: reads the raw NPM CSVs and returns the derived streams,
-        keyed by event name, without writing anything to disk.
-
-        Parameters
-        ----------
-        folder_path : str
-            Path to the folder containing the raw NPM files.
-        num_ch : int
-            Number of interleaved channels expected.
-        npm_timestamp_column_name : str or None
-            Timestamp column to use in files with more than one; ``None`` for
-            default selection.
-        npm_time_unit : str or None
-            Unit of the session's timestamps, applied to every file in the
-            folder; ``None`` for seconds.
-        npm_split_events : list of bool or None
-            Per-file event-split flags; ``None`` for no split.
-
-        Returns
-        -------
-        streams : dict
-            Maps event name to a stream dict. Data channels
-            (``file{i}_chev{j}`` / ``chod{j}`` / ``chpr{j}``) carry
-            ``timestamps``, ``data``, and ``sampling_rate``; event streams
-            (``event{value}`` / ``event0``) carry only ``timestamps``.
-        flags : list of str
-            One format flag per raw source file processed.
-        """
-        logger.debug("If it exists, importing NPM file based on the structure of file")
-        divisor = cls._time_unit_divisor(npm_time_unit)
-        path = cls._list_npm_files(folder_path)
-
-        streams: dict[str, dict[str, np.ndarray]] = {}
-        # Track derived stream names in creation order so the cross-file channel
-        # pairing (chod/chpr borrow their paired chev) is deterministic.
-        chev_names: list[str] = []
-        chod_names: list[str] = []
-        chpr_names: list[str] = []
-        flags: list[str] = []
-        for i in range(len(path)):
-            # TODO: validate npm_split_events length
-            if npm_split_events is None:
-                split_events = False
-            else:
-                split_events = npm_split_events[i]
-
-            flag, df, _ = cls._classify_npm_file(path[i])
-
-            flags.append(flag)
-            logger.info(flag)
-            if flag == "data_np":
-                file_prefix = f"file{str(i)}_"
-                df, indices_dict, _ = cls.decide_indices(file_prefix, df, flag, num_ch)
-                keys = list(indices_dict.keys())
-                for k in range(len(keys)):
-                    for j in range(df.shape[1]):
-                        if j == 0:
-                            timestamps = df.iloc[:, j][indices_dict[keys[k]]]
-                        else:
-                            name = keys[k] + str(j)
-                            streams[name] = {
-                                "timestamps": np.asarray(timestamps, dtype=float),
-                                "data": np.asarray(df.iloc[:, j][indices_dict[keys[k]]], dtype=float),
-                            }
-                            cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
-
-            elif flag == "event_np":
-                type_val = np.array(df.iloc[:, 1])
-                type_val_unique = np.unique(type_val)
-                if split_events:
-                    timestamps = np.array(df.iloc[:, 0])
-                    for j in range(len(type_val_unique)):
-                        matching_indices = np.where(type_val == type_val_unique[j])
-                        name = "event" + str(type_val_unique[j])
-                        streams[name] = {"timestamps": np.asarray(timestamps[matching_indices], dtype=float)}
-                else:
-                    timestamps = np.array(df.iloc[:, 0])
-                    name = "event" + str(0)
-                    streams[name] = {"timestamps": np.asarray(timestamps, dtype=float)}
-            else:
-                file_prefix = f"file{str(i)}_"
-                df = cls._update_df_with_timestamp_columns(df, timestamp_column_name=npm_timestamp_column_name)
-                df, indices_dict, _ = cls.decide_indices(file_prefix, df, flag)
-                keys = list(indices_dict.keys())
-                for k in range(len(keys)):
-                    for j in range(df.shape[1]):
-                        if j == 0:
-                            timestamps = df.iloc[:, j][indices_dict[keys[k]]]
-                        else:
-                            name = keys[k] + str(j)
-                            streams[name] = {
-                                "timestamps": np.asarray(timestamps, dtype=float),
-                                "data": np.asarray(df.iloc[:, j][indices_dict[keys[k]]], dtype=float),
-                            }
-                            cls._register_channel_name(name, keys[k], chev_names, chod_names, chpr_names)
-
-        # Convert every stream to seconds with the session's single timestamp unit, then
-        # compute sampling rates. Timestamps keep the acquisition's own clock.
-        for stream in streams.values():
-            stream["timestamps"] = stream["timestamps"] / divisor
-
-        channel_group_lengths = [len(names) for names in (chev_names, chod_names, chpr_names) if len(names) > 0]
-        if len(set(channel_group_lengths)) > 1:
-            channel_group_counts = {
-                "chev": len(chev_names),
-                "chod": len(chod_names),
-                "chpr": len(chpr_names),
-            }
-            message = (
-                "Number of channel files must match across channel groups (chev/chod/chpr). "
-                f"Found per-channel-group counts: {channel_group_counts}."
-            )
-            logger.error(message)
-            raise ValueError(message)
-
-        # The paired chod/chpr channels borrow chev's timestamps and rate.
-        for j in range(len(chev_names)):
-            chev_stream = streams[chev_names[j]]
-            chev_timestamps = chev_stream["timestamps"]
-            sampling_rate = chev_timestamps.shape[0] / (chev_timestamps[-1] - chev_timestamps[0])
-            chev_stream["sampling_rate"] = np.array([sampling_rate])
-
-            if j < len(chod_names):
-                chod_stream = streams[chod_names[j]]
-                chod_stream["timestamps"] = chev_timestamps
-                chod_stream["sampling_rate"] = np.array([sampling_rate])
-            if j < len(chpr_names):
-                chpr_stream = streams[chpr_names[j]]
-                chpr_stream["timestamps"] = chev_timestamps
-                chpr_stream["sampling_rate"] = np.array([sampling_rate])
-
-        logger.info("Importing of NPM file is done.")
-        return streams, flags
-
-    @staticmethod
-    def _time_unit_divisor(npm_time_unit: str | None) -> float:
-        """Return the factor converting ``npm_time_unit`` timestamps to seconds.
-
-        Parameters
-        ----------
-        npm_time_unit : str or None
-            One of the keys of :data:`TIME_UNIT_DIVISORS`. ``None`` selects
-            :data:`DEFAULT_TIME_UNIT`.
-
-        Returns
-        -------
-        float
-            Divisor to apply to raw timestamps.
-        """
-        time_unit = npm_time_unit if npm_time_unit is not None else DEFAULT_TIME_UNIT
-        if time_unit not in TIME_UNIT_DIVISORS:
-            message = (
-                f"npm_time_unit='{time_unit}' is not a recognized timestamp unit; "
-                f"choose one of {list(TIME_UNIT_DIVISORS)}."
-            )
-            logger.error(message)
-            raise ValueError(message)
-        return TIME_UNIT_DIVISORS[time_unit]
-
-    @staticmethod
-    def _register_channel_name(
-        name: str, channel_key: str, chev_names: list[str], chod_names: list[str], chpr_names: list[str]
-    ) -> None:
-        """Append ``name`` to the creation-order list for its channel group."""
-        if "chev" in channel_key:
-            chev_names.append(name)
-        elif "chod" in channel_key:
-            chod_names.append(name)
-        elif "chpr" in channel_key:
-            chpr_names.append(name)
-
-    def decompose(self) -> dict[str, dict[str, np.ndarray]]:
-        """
-        Demultiplex this session's raw NPM files into in-memory streams.
-
-        Returns
-        -------
-        dict
-            Maps event name to a stream dict. Data channels carry
-            ``timestamps``, ``data``, and ``sampling_rate``; event streams carry
-            only ``timestamps``. The result is cached on the instance.
-        """
-        if self._decomposed is None:
-            streams, _ = self._decompose_streams(
-                folder_path=self.folder_path,
-                num_ch=self.num_ch,
-                npm_timestamp_column_name=self.npm_timestamp_column_name,
-                npm_time_unit=self.npm_time_unit,
-                npm_split_events=self.npm_split_events,
-            )
-            self._decomposed = streams
-        return self._decomposed
-
-    @classmethod
-    def _timestamp_column_spans(cls, folder_path: str) -> dict[str, tuple[float, float]]:
-        """Return each named timestamp column's raw span across the session's data files.
-
-        Raw means in the file's own units, before ``npm_time_unit`` is applied. Header-less
-        sessions name no columns and yield an empty mapping.
+        List the timestamp columns the session's data files offer.
 
         Parameters
         ----------
@@ -446,160 +234,155 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
 
         Returns
         -------
+        list of str
+            Distinct timestamp column names, in the order encountered. Empty for a session
+            whose data files are all header-less.
+        """
+        column_options = []
+        for df in cls._read_source_files(folder_path).values():
+            if cls._is_event_file(df):
+                continue
+            if not cls._has_text_header(df):
+                continue
+            for name in cls._timestamp_column_names(df):
+                if name not in column_options:
+                    column_options.append(name)
+        return column_options
+
+    def get_store_provenance(self) -> dict[str, dict[str, object]]:
+        """
+        Report what each data channel was demultiplexed from.
+
+        Returns
+        -------
         dict
-            Maps timestamp column name to its ``(minimum, maximum)`` raw value.
+            Maps each photometry channel's store ID to the fields of its :class:`ChannelStore`.
         """
-        column_spans: dict[str, tuple[float, float]] = {}
-        for path in cls._list_npm_files(folder_path):
-            flag, df, columns_are_strings = cls._classify_npm_file(path)
-            if flag == "event_np" or not columns_are_strings:
-                continue
-            for name in df.columns:
-                if "timestamp" not in str(name).lower():
-                    continue
-                values = np.asarray(df[name], dtype=float)
-                span = (float(np.nanmin(values)), float(np.nanmax(values)))
-                if str(name) in column_spans:
-                    previous = column_spans[str(name)]
-                    span = (min(previous[0], span[0]), max(previous[1], span[1]))
-                column_spans[str(name)] = span
-        return column_spans
-
-    def _validate_events_share_data_clock(self, *, events: list[str], streams: dict) -> None:
-        """Check that each selected event stream lies on the photometry channels' clock.
-
-        A session's photometry file may offer several timestamp columns on different clocks,
-        and ``npm_timestamp_column_name`` chooses between them for the photometry channels
-        only — an NPM event file carries a single column, always on the acquisition's absolute
-        clock. Selecting a column that is not that clock decouples the two streams, which stays
-        invisible until PSTH computation indexes far outside the trace.
-
-        Parameters
-        ----------
-        events : list of str
-            The event names being read.
-        streams : dict
-            The decomposed streams, as returned by :meth:`decompose`.
-
-        Raises
-        ------
-        ValueError
-            If a selected event stream has no timestamp inside the photometry timespan.
-        """
-        # Only the photometry being read alongside these events is a valid reference: Step 2 batches
-        # all of one extractor's stores into a single read, so a session whose traces come from
-        # another format selects no NPM channel here and has no NPM clock to be checked against.
-        data_timestamps = [streams[event]["timestamps"] for event in events if "data" in streams[event]]
-        selected_event_names = [event for event in events if "data" not in streams[event]]
-        if not data_timestamps or not selected_event_names:
-            return
-
-        data_start = min(float(timestamps[0]) for timestamps in data_timestamps)
-        data_end = max(float(timestamps[-1]) for timestamps in data_timestamps)
-
-        for event in selected_event_names:
-            event_timestamps = streams[event]["timestamps"]
-            if ((event_timestamps >= data_start) & (event_timestamps <= data_end)).any():
-                continue
-
-            message = (
-                f"Event store '{event}' spans [{float(event_timestamps[0]):.4g}, "
-                f"{float(event_timestamps[-1]):.4g}]s, which lies entirely outside the photometry "
-                f"timespan [{data_start:.4g}, {data_end:.4g}]s, so no PSTH trial can be built from it. "
-                f"{self._clock_advice(event_timestamps=event_timestamps)}"
-            )
-            logger.error(message)
-            raise ValueError(message)
-
-    def _clock_advice(self, *, event_timestamps: np.ndarray) -> str:
-        """Build the fix clause naming the timestamp column the events actually ride."""
-        divisor = self._time_unit_divisor(self.npm_time_unit)
-        raw_event_timestamps = np.asarray(event_timestamps, dtype=float) * divisor
-        column_spans = self._timestamp_column_spans(self.folder_path)
-
-        for column_name, (column_start, column_end) in column_spans.items():
-            if ((raw_event_timestamps >= column_start) & (raw_event_timestamps <= column_end)).any():
-                return (
-                    "NPM event files are written on the acquisition's absolute clock, which for this "
-                    f"session is the '{column_name}' column (raw span [{column_start:.6g}, {column_end:.6g}]). "
-                    f"Set Timestamp column to '{column_name}', and set Time unit to that column's own unit, "
-                    "in the Label Stores NPM configuration."
-                )
-
-        if column_spans:
-            offered = ", ".join(f"'{name}' [{start:.6g}, {end:.6g}]" for name, (start, end) in column_spans.items())
-            return (
-                "NPM event files are written on the acquisition's absolute clock, but none of this "
-                f"session's timestamp columns ({offered}, raw) contains these event times. Check the "
-                "Timestamp column and Time unit in the Label Stores NPM configuration."
-            )
-
-        return (
-            "NPM event files are written on the acquisition's absolute clock. Check the Time unit in "
-            "the Label Stores NPM configuration."
-        )
+        store_records = self._get_records()
+        provenance = {}
+        for store_id, record in store_records.items():
+            if isinstance(record, ChannelStore):
+                provenance[store_id] = asdict(record)
+        return provenance
 
     def read(self, *, events: list[str], outputPath: str) -> list[dict[str, Any]]:
         """
-        Read data for the specified events from the in-memory decomposition.
+        Read the requested stores.
 
         Parameters
         ----------
         events : list of str
-            Event names to read. Each must be a key produced by
-            :meth:`decompose`.
+            Store IDs to read.
         outputPath : str
-            Path to the output directory (unused by this extractor; required by
-            the base-class interface).
+            Path to the output directory. Unused; required by the base-class interface.
 
         Returns
         -------
         list of dict
-            One dictionary per event. Data channels produce dicts with keys
-            ``store_id``, ``timestamps``, ``data``, and ``sampling_rate``;
-            event streams produce dicts with keys ``store_id`` and
-            ``timestamps``.
+            One dict per store, in the order requested. An event store carries ``store_id``
+            and ``timestamps``; a photometry channel adds ``data`` and ``sampling_rate``.
+            Timestamps are in seconds, and every channel of a file is timed by the file's first
+            channel reading the same column.
 
         Raises
         ------
         ValueError
-            If a selected event stream lies entirely outside the photometry timespan.
+            If ``npm_time_unit`` is not one of the recognized units.
         """
-        streams = self.decompose()
-        self._validate_events_share_data_clock(events=events, streams=streams)
+        store_records = self._get_records()
+        dataframes = self._get_dataframes()
+        time_unit = self.npm_time_unit or DEFAULT_TIME_UNIT
+        if time_unit not in TIME_UNIT_DIVISORS:
+            raise ValueError(
+                f"npm_time_unit='{time_unit}' is not a recognized timestamp unit; choose one of "
+                f"{list(TIME_UNIT_DIVISORS)}."
+            )
+        divisor = TIME_UNIT_DIVISORS[time_unit]
+
         output_dicts = []
-        for event in events:
-            output_dicts.append({"store_id": event, **streams[event]})
+        for store_id in events:
+            record = store_records[store_id]
+            df = dataframes[record.file]
+
+            if isinstance(record, EventStore):
+                rows = self._event_rows(df, record)
+                timestamps = np.asarray(df.iloc[:, 0], dtype=float)[rows] / divisor
+                output_dicts.append({"store_id": store_id, "timestamps": timestamps})
+                continue
+
+            timeline_rows, data_rows = self._shared_clock_rows(df, record)
+            timeline = np.asarray(df[record.timestamp_column], dtype=float)[timeline_rows] / divisor
+            sampling_rate = timeline.shape[0] / (timeline[-1] - timeline[0])
+            sample_count = min(timeline_rows.shape[0], data_rows.shape[0])
+            timestamps = timeline[:sample_count]
+            data = np.asarray(df[record.data_column], dtype=float)[data_rows][:sample_count]
+            output_dicts.append(
+                {
+                    "store_id": store_id,
+                    "timestamps": timestamps,
+                    "data": data,
+                    "sampling_rate": np.array([sampling_rate]),
+                }
+            )
         return output_dicts
 
+    def save(self, *, output_dicts: list[dict[str, Any]], outputPath: str) -> None:
+        """
+        Write stores to HDF5.
+
+        Parameters
+        ----------
+        output_dicts : list of dict
+            Output dicts as returned by :meth:`read`.
+        outputPath : str
+            Path to the output directory. Each store is written to ``{store_id}.hdf5``, one
+            dataset per array.
+        """
+        for output_dict in output_dicts:
+            store_id = output_dict["store_id"]
+            for key, value in output_dict.items():
+                if key == "store_id":
+                    continue
+                write_hdf5(value, store_id, outputPath, key)
+
     def count_samples(self, *, event: str) -> int:
-        """Return the number of samples for ``event`` from the in-memory decomposition."""
-        streams = self.decompose()
-        if event not in streams:
-            return 0
-        stream = streams[event]
-        if "data" in stream:
-            return len(stream["data"])
-        return len(stream["timestamps"])
+        """
+        Count the samples in one store.
+
+        Parameters
+        ----------
+        event : str
+            Store ID to count.
+
+        Returns
+        -------
+        int
+            Number of samples in the store.
+        """
+        record = self._get_records()[event]
+        df = self._get_dataframes()[record.file]
+        if isinstance(record, EventStore):
+            return len(self._event_rows(df, record))
+        timeline_rows, data_rows = self._shared_clock_rows(df, record)
+        return min(len(timeline_rows), len(data_rows))
 
     def stub(self, *, folder_path: str | Path, duration_in_seconds: float = 1.0) -> None:
         """
-        Create a stubbed copy of the NPM folder with truncated signal files.
+        Write a copy of the session folder with each raw NPM file truncated.
 
-        Copies the folder to ``folder_path``, then truncates each raw NPM data
-        CSV to approximately ``duration_in_seconds``. The cutoff timestamp is computed
-        as the first value in the timestamp column plus ``duration_in_seconds``
-        (scaled to milliseconds when the first timestamp value exceeds ``1e6``). Each
-        two-column event file then keeps only the events that fall inside the span a
-        truncated data file retains on any of its timestamp columns, so no event outlasts
-        the photometry it belongs to; an event file left with no events is removed.
+        Each data file is cut at its own first timestamp plus ``duration_in_seconds``, read on
+        the file's first timestamp column (its leading column when it has no header). A first
+        timestamp above ``1e6`` is taken to be in milliseconds. Each event file then keeps only
+        the events that fall inside the span a truncated data file retains on any of its
+        timestamp columns, so no event outlasts the photometry it belongs to; an event file left
+        with no events is removed.
 
         Parameters
         ----------
         folder_path : str or Path
-            Destination directory. Created if absent; overwritten if present.
+            Destination directory. Overwritten if it exists.
         duration_in_seconds : float, optional
-            Approximate signal duration to retain in seconds. Default is 1.0.
+            Approximate duration of data to retain. Default is 1.0.
         """
         folder_path = Path(folder_path)
         if folder_path.exists():
@@ -611,250 +394,613 @@ class NpmRecordingExtractor(CsvRecordingExtractor):
         for csv_path in sorted(folder_path.glob("*.csv")):
             if _classify_csv_file(str(csv_path)) != "npm":
                 continue
-            df_probe = pd.read_csv(csv_path, index_col=False)
-            _, float_conversions = self._check_header(df_probe)
-            if len(float_conversions) > 0:
-                # No text header — first column is the timestamp
-                dataframe = pd.read_csv(csv_path, header=None)
-                timestamp_columns = [0]
-                has_text_header = False
-            else:
-                dataframe = df_probe
-                timestamp_columns = [column for column in dataframe.columns if "timestamp" in column.lower()]
-                if not timestamp_columns:
-                    timestamp_columns = [dataframe.columns[0]]
-                has_text_header = True
-            if len(dataframe.columns) == 2:
+            df = pd.read_csv(csv_path, index_col=False)
+            has_text_header = self._has_text_header(df)
+            if not has_text_header:
+                df = pd.read_csv(csv_path, header=None)
+            if self._is_event_file(df):
                 event_csv_paths.append(csv_path)
                 continue
 
-            timestamp_column = timestamp_columns[0]
-            first_timestamp = float(dataframe[timestamp_column].iloc[0])
-            # Heuristic: timestamps > 1e6 are in milliseconds (e.g. ComputerTimestamp)
-            unit_factor = 1000.0 if first_timestamp > 1e6 else 1.0
+            if has_text_header:
+                timestamp_column_names = self._timestamp_column_names(df)
+                if not timestamp_column_names:
+                    timestamp_column_names = [df.columns[0]]
+            else:
+                timestamp_column_names = [0]
+            timestamp_column = timestamp_column_names[0]
+
+            first_timestamp = float(df[timestamp_column].iloc[0])
+            if first_timestamp > 1e6:
+                unit_factor = 1000.0
+            else:
+                unit_factor = 1.0
             cutoff = first_timestamp + duration_in_seconds * unit_factor
-            dataframe = dataframe[dataframe[timestamp_column] <= cutoff]
-            dataframe.to_csv(csv_path, index=False, header=has_text_header)
-            for column in timestamp_columns:
-                retained_spans.append((float(dataframe[column].min()), float(dataframe[column].max())))
+            df = df[df[timestamp_column] <= cutoff]
+            df.to_csv(csv_path, index=False, header=has_text_header)
+
+            for name in timestamp_column_names:
+                retained_spans.append((float(df[name].min()), float(df[name].max())))
 
         for csv_path in event_csv_paths:
-            dataframe = pd.read_csv(csv_path, header=None)
-            event_timestamps = np.asarray(dataframe.iloc[:, 0], dtype=float)
+            df = pd.read_csv(csv_path, header=None)
+            event_timestamps = np.asarray(df.iloc[:, 0], dtype=float)
             inside_retained_data = np.zeros(event_timestamps.shape[0], dtype=bool)
             for span_start, span_end in retained_spans:
                 inside_retained_data |= (event_timestamps >= span_start) & (event_timestamps <= span_end)
             if inside_retained_data.any():
-                dataframe[inside_retained_data].to_csv(csv_path, index=False, header=False)
+                df[inside_retained_data].to_csv(csv_path, index=False, header=False)
             else:
                 csv_path.unlink()
 
-    @classmethod
-    def has_multiple_event_ttls(cls, folder_path: str) -> list[bool]:
+    def _get_dataframes(self) -> dict[str, pd.DataFrame]:
         """
-        Check whether any NPM event files in the folder contain multiple TTL types.
-
-        Parameters
-        ----------
-        folder_path : str
-            Path to the folder containing NPM CSV files.
+        Get the session's raw files, read once per instance.
 
         Returns
         -------
-        multiple_event_ttls : list of bool
-            One entry per NPM data file. ``True`` if the corresponding event
-            file encodes more than one unique TTL state value, ``False`` otherwise.
+        dict of str to pd.DataFrame
+            Maps each raw file's name to its contents, as read by :meth:`_read_source_files`.
         """
-        multiple_event_ttls = []
-        for path in cls._list_npm_files(folder_path):
-            flag, df, _ = cls._classify_npm_file(path)
+        if self._dataframes is None:
+            self._dataframes = self._read_source_files(self.folder_path)
+        return self._dataframes
 
-            if flag == "event_np":
-                type_val = np.array(df.iloc[:, 1])
-                type_val_unique = np.unique(type_val)
-                if len(type_val_unique) > 1:
-                    multiple_event_ttls.append(True)
-                else:
-                    multiple_event_ttls.append(False)
-            else:
-                multiple_event_ttls.append(False)
-
-        return multiple_event_ttls
-
-    # function to decide indices of interleaved channels
-    # in neurophotometrics data
-    @classmethod
-    def decide_indices(
-        cls, file_prefix: str, df: pd.DataFrame, flag: str, num_ch: int = 2
-    ) -> tuple[pd.DataFrame, dict[str, np.ndarray], int]:
+    def _get_records(self) -> dict[str, EventStore | ChannelStore]:
         """
-        Determine the row indices belonging to each interleaved channel in NPM data.
-
-        For older NPM layouts (``data_np``), rows are assumed to cycle through
-        channels in order. For newer layouts (``data_np_v2``), the ``Flags`` or
-        ``LedState`` column is used to assign rows to channels.
-
-        Parameters
-        ----------
-        file_prefix : str
-            Filename prefix used to build per-channel keys (e.g. ``"file0_"``).
-        df : pd.DataFrame
-            NPM data DataFrame, with or without a text header.
-        flag : str
-            Layout flag as returned by :meth:`discover_events_and_flags`.
-        num_ch : int, optional
-            Number of interleaved channels expected. Default is 2.
+        Get the session's store records under this instance's configuration, built once.
 
         Returns
         -------
-        df : pd.DataFrame
-            The input DataFrame with flag columns (``Flags`` / ``LedState``)
-            dropped for ``data_np_v2`` layouts.
-        indices_dict : dict
-            Mapping from channel key (e.g. ``"file0_chev"``) to a NumPy array
-            of row indices belonging to that channel.
-        num_ch : int
-            Actual number of channels detected.
+        dict of str to EventStore or ChannelStore
+            Maps each store ID to its record, as built by :meth:`_store_records`.
         """
-        channel_keys = [file_prefix + "chev", file_prefix + "chod", file_prefix + "chpr"]
-        if len(channel_keys) < num_ch:
-            message = (
-                f"Number of channels in the Input Parameters GUI is set to {num_ch}, which exceeds the "
-                "maximum of 3 channels supported for NPM files. Set 'Number of channels' to 3 or fewer "
-                "in the Input Parameters GUI."
+        if self._records is None:
+            self._records = self._store_records(
+                self._get_dataframes(),
+                num_ch=self.num_ch,
+                npm_timestamp_column_name=self.npm_timestamp_column_name,
+                npm_split_events=self.npm_split_events,
             )
-            logger.error(message)
-            raise ValueError(message)
-        if flag == "data_np":
-            indices_dict = dict()
-            for i in range(num_ch):
-                indices_dict[channel_keys[i]] = np.arange(i, df.shape[0], num_ch)
+        return self._records
 
-        else:
-            columns = np.array(list(df.columns))
-            # Detection matches these columns case-insensitively, so resolve the
-            # actual (possibly mixed-case) column names before indexing.
-            column_by_name = cls._column_by_lowercase_name(df)
-            if "flags" in column_by_name:
-                columns_to_drop = [column_by_name["framecounter"], column_by_name["flags"]]
-                state = np.array(df[column_by_name["flags"]])
-            elif "ledstate" in column_by_name:
-                columns_to_drop = [column_by_name["framecounter"], column_by_name["ledstate"]]
-                state = np.array(df[column_by_name["ledstate"]])
-            else:
-                message = (
-                    "File type indicates Neurophotometrics newer version data but the columns do not "
-                    f"contain a 'Flags' or 'LedState' column. Found columns: {list(columns)}."
-                )
-                logger.error(message)
-                raise ValueError(message)
-
-            num_ch, unique_states = cls.check_channels(state)
-            indices_dict = dict()
-            for i in range(num_ch):
-                first_occurrence = np.where(state == unique_states[i])[0]
-                indices_dict[channel_keys[i]] = np.arange(first_occurrence[0], df.shape[0], num_ch)
-
-            df = df.drop(columns_to_drop, axis=1)
-
-        return df, indices_dict, num_ch
-
-    # check flag consistency in neurophotometrics data
-    @classmethod
-    def check_channels(cls, state: np.ndarray) -> tuple[int, np.ndarray]:
+    @staticmethod
+    def _event_rows(df: pd.DataFrame, record: EventStore) -> np.ndarray:
         """
-        Validate and count unique channel states in NPM ``Flags``/``LedState`` data.
+        Select the rows of an event file that belong to one event store.
 
         Parameters
         ----------
-        state : array-like
-            Integer channel-state values (from the ``Flags`` or ``LedState``
-            column). Only rows 2–11 are examined to skip potential startup
-            artefacts.
+        df : pd.DataFrame
+            Contents of the event file.
+        record : EventStore
+            The store's record.
 
         Returns
         -------
-        num_ch : int
-            Number of unique channel states found.
-        unique_state : np.ndarray
-            Sorted array of unique state values.
+        np.ndarray
+            Integer row indices: every row when the file is not split, otherwise the rows
+            whose value is the store's ``event_value``.
         """
-        state = state.astype(int)
-        unique_state = np.unique(state[2:12])
-        if unique_state.shape[0] > 3:
-            message = (
-                f"NPM file contains {unique_state.shape[0]} unique channel states ({unique_state.tolist()}), "
-                "but only 1-3 channels are supported."
-            )
-            logger.error(message)
-            raise ValueError(message)
+        if record.event_value is None:
+            return np.arange(df.shape[0])
+        return np.flatnonzero(np.asarray(df.iloc[:, 1]) == record.event_value)
 
-        return unique_state.shape[0], unique_state
-
-    @classmethod
-    def timestamp_column_options(cls, folder_path: str) -> list[str]:
+    def _shared_clock_rows(self, df: pd.DataFrame, record: ChannelStore) -> tuple[np.ndarray, np.ndarray]:
         """
-        List the timestamp columns the session's data files offer.
+        Select the rows a channel is timed by and the rows its samples come from.
 
-        Newer NPM exports can carry more than one timestamp column (e.g. both
-        ``Timestamp`` and ``ComputerTimestamp``), which are on different clocks,
-        so the user has to say which one to use.
+        Every channel of a file is timed by the file's first channel reading the same column --
+        the lowest wavelength, or the first interleave slot -- so that a file's channels share
+        one clock.
 
         Parameters
         ----------
-        folder_path : str
-            Path to the folder containing NPM CSV files.
+        df : pd.DataFrame
+            Contents of the data file.
+        record : ChannelStore
+            The channel's record.
+
+        Returns
+        -------
+        timeline_rows : np.ndarray
+            Integer row indices of the first channel's frames, which time the channel.
+        data_rows : np.ndarray
+            Integer row indices of the channel's own frames, which hold its samples.
+        """
+        first_record = next(
+            candidate
+            for candidate in self._get_records().values()
+            if isinstance(candidate, ChannelStore)
+            and candidate.file == record.file
+            and candidate.data_column == record.data_column
+        )
+        return self._channel_rows(df, first_record), self._channel_rows(df, record)
+
+    def _channel_rows(self, df: pd.DataFrame, record: ChannelStore) -> np.ndarray:
+        """
+        Select the frames of a data file that belong to one photometry channel.
+
+        In a file with a state column, a frame belongs to a wavelength when the wavelength's
+        bit is set in its state word, whatever else is set alongside it. An opening
+        initialization frame, which has every excitation bit set, belongs to none.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Contents of the data file.
+        record : ChannelStore
+            The channel's record.
+
+        Returns
+        -------
+        np.ndarray
+            Integer row indices: the frames its LED lit, or, in a file with no state column,
+            every ``num_ch``-th frame from its interleave position.
+        """
+        if record.excitation_wavelength_in_nm is None:
+            return np.arange(record.interleave_position, df.shape[0], self.num_ch)
+
+        state_column = next(name for name in df.columns if name.lower() in STATE_COLUMN_NAMES)
+        state = np.asarray(df[state_column], dtype=int)
+        code = WAVELENGTH_TO_EXCITATION_CODE[record.excitation_wavelength_in_nm]
+        is_lit = state & code == code
+        if state[0] & EXCITATION_BITS == EXCITATION_BITS:
+            is_lit[0] = False
+        return np.flatnonzero(is_lit)
+
+    @classmethod
+    def _read_source_files(cls, folder_path: str | Path) -> dict[str, pd.DataFrame]:
+        """
+        Read every raw NPM file in a session folder.
+
+        A CSV is an NPM file when :func:`_classify_csv_file` says so; Doric and standard-format
+        CSVs sharing the folder belong to their own extractors. A file whose first row is numeric
+        has no header, and its columns are labeled by position.
+
+        Parameters
+        ----------
+        folder_path : str or Path
+            Path to the session folder.
+
+        Returns
+        -------
+        dict of str to pd.DataFrame
+            Maps each raw file's name to its contents, sorted by name.
+        """
+        session_folder = Path(folder_path)
+        derived_paths = {path for pattern in DERIVED_FILENAME_PATTERNS for path in session_folder.glob(pattern)}
+        source_paths = [
+            path
+            for path in sorted(set(session_folder.glob("*.csv")) - derived_paths)
+            if _classify_csv_file(str(path)) == "npm"
+        ]
+        dataframes = {}
+        for path in source_paths:
+            df = pd.read_csv(path, index_col=False)
+            if not cls._has_text_header(df):
+                df = pd.read_csv(path, header=None)
+            dataframes[path.name] = df
+        return dataframes
+
+    @staticmethod
+    def _has_text_header(df: pd.DataFrame) -> bool:
+        """
+        Check whether a file is in the headered layout rather than the legacy header-less one.
+
+        A header is text: no column label parses as a number. A file read without a header has
+        its columns labeled by position, which parse as numbers too.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            File contents, read either with its first row as the header or with none.
+
+        Returns
+        -------
+        bool
+            ``True`` if the column labels are a text header.
+        """
+        return not any(_is_number(name) for name in df.columns)
+
+    @staticmethod
+    def _timestamp_column_names(df: pd.DataFrame) -> list[str]:
+        """
+        List a headered data file's timestamp columns.
+
+        A timestamp column is one whose name contains ``"timestamp"``, case-insensitively.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Contents of a data file with a text header, as read by :meth:`_read_source_files`.
 
         Returns
         -------
         list of str
-            Distinct timestamp-like column names across the session's data
-            files, in the order encountered. Empty for sessions whose files
-            carry no text header.
+            Names of the timestamp columns, in file order.
         """
-        column_options: list[str] = []
-        for path in cls._list_npm_files(folder_path):
-            flag, df, _ = cls._classify_npm_file(path)
-            if flag == "event_np":
-                continue
-            for name in df.columns:
-                if "timestamp" in str(name).lower() and name not in column_options:
-                    column_options.append(str(name))
-
-        return column_options
+        return [name for name in df.columns if TIMESTAMP_COLUMN_SUBSTRING in name.lower()]
 
     @staticmethod
-    def _update_df_with_timestamp_columns(df: pd.DataFrame, timestamp_column_name: str | None) -> pd.DataFrame:
-        """Reduce multiple timestamp columns to a single ``Timestamp`` column.
+    def _is_event_file(df: pd.DataFrame) -> bool:
+        """
+        Check whether a file holds TTL events rather than photometry.
 
-        Files offering only one timestamp column are returned unchanged, so a
-        session-wide ``timestamp_column_name`` may name a column that some of
-        the session's files do not have.
+        An event file has two columns: a timestamp and a value per event.
 
         Parameters
         ----------
         df : pd.DataFrame
-            NPM data file contents, with a text header.
-        timestamp_column_name : str or None
-            Timestamp column to keep; ``None`` keeps the first one.
+            File contents, as read by :meth:`_read_source_files`.
 
         Returns
         -------
-        pd.DataFrame
-            The DataFrame with the chosen column inserted as ``Timestamp`` and
-            the original timestamp columns dropped.
+        bool
+            ``True`` if the file is an event file.
         """
-        timestamp_column_names = [name for name in df.columns if "timestamp" in name.lower()]
-        if len(timestamp_column_names) <= 1:
-            return df
+        return len(df.columns) == 2
 
-        timestamp_column_name = (
-            timestamp_column_name if timestamp_column_name is not None else timestamp_column_names[0]
-        )
-        if timestamp_column_name not in timestamp_column_names:
-            raise ValueError(
-                f"Provided timestamp_column_name '{timestamp_column_name}' not found in columns {timestamp_column_names}."
+    @staticmethod
+    def _has_state_column(df: pd.DataFrame) -> bool:
+        """
+        Check whether a headered data file has a ``Flags``/``LedState`` column.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Contents of a data file with a text header.
+
+        Returns
+        -------
+        bool
+            ``True`` if a column, matched case-insensitively, is the state column.
+        """
+        return any(name.lower() in STATE_COLUMN_NAMES for name in df.columns)
+
+    @staticmethod
+    def _is_region_column(name: str) -> bool:
+        """
+        Check whether a headered data file's column holds a region's fluorescence.
+
+        A region is every column left after removing the blank-header columns, the clocks,
+        the frame counters, the state word and the digital lines.
+
+        Parameters
+        ----------
+        name : str
+            Column name.
+
+        Returns
+        -------
+        bool
+            ``True`` if the column is a region.
+        """
+        if BLANK_HEADER_COLUMN_PATTERN.fullmatch(name):
+            return False
+        lowered_name = name.lower()
+        if TIMESTAMP_COLUMN_SUBSTRING in lowered_name:
+            return False
+        if lowered_name.endswith("counter"):
+            return False
+        return lowered_name not in NON_REGION_COLUMN_NAMES
+
+    @classmethod
+    def _region_columns(cls, df: pd.DataFrame) -> list[str]:
+        """
+        List a headered data file's region columns.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Contents of a data file with a text header.
+
+        Returns
+        -------
+        list of str
+            Names of the region columns, in file order.
+        """
+        return [name for name in df.columns if cls._is_region_column(name)]
+
+    @staticmethod
+    def _excitation_wavelengths(df: pd.DataFrame) -> list[int]:
+        """
+        List the excitation wavelengths a file with a state column records.
+
+        A recording can open with an initialization frame that has every excitation bit set;
+        that first row is left out, so it does not count toward every wavelength.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Contents of a data file with a state column.
+
+        Returns
+        -------
+        list of int
+            Wavelengths, in nanometers and ascending, whose bit is set in any frame.
+        """
+        state_column = next(name for name in df.columns if name.lower() in STATE_COLUMN_NAMES)
+        state = np.asarray(df[state_column], dtype=int)
+        if state[0] & EXCITATION_BITS == EXCITATION_BITS:
+            state = state[1:]
+        state_values = np.unique(state)
+
+        wavelengths = []
+        for wavelength, code in sorted(WAVELENGTH_TO_EXCITATION_CODE.items()):
+            if np.any(state_values & code == code):
+                wavelengths.append(wavelength)
+        return wavelengths
+
+    @classmethod
+    def _store_records(
+        cls,
+        dataframes: dict[str, pd.DataFrame],
+        *,
+        num_ch: int,
+        npm_timestamp_column_name: str | None,
+        npm_split_events: list[bool] | None,
+    ) -> dict[str, EventStore | ChannelStore]:
+        """
+        Work out every store the session yields and where each one comes from.
+
+        This is the one place a store is defined: the store IDs, the provenance and the
+        demultiplexing all read these records.
+
+        Parameters
+        ----------
+        dataframes : dict of str to pd.DataFrame
+            The session's raw files, as read by :meth:`_read_source_files`.
+        num_ch : int
+            Number of interleaved channels in a file with no state column.
+        npm_timestamp_column_name : str or None
+            Timestamp column to read in files that offer more than one; ``None`` reads the
+            first.
+        npm_split_events : list of bool or None
+            One entry per raw source file, in processing order: whether it is split by value;
+            ``None`` splits none.
+
+        Returns
+        -------
+        dict of str to EventStore or ChannelStore
+            Maps each store ID, in file order, to its record.
+
+        Raises
+        ------
+        ValueError
+            If a data file's state column sets no excitation bit, if a headered data file has
+            no region column, or if its timestamp column cannot be resolved.
+        """
+        if npm_split_events is None:
+            npm_split_events = [False] * len(dataframes)
+
+        store_records = {}
+        for file_index, (file_name, df) in enumerate(dataframes.items()):
+            if cls._is_event_file(df):
+                split_events = npm_split_events[file_index]
+                store_records.update(cls._event_store_records(file_name, df, split_events=split_events))
+                continue
+
+            timestamp_column = cls._resolve_timestamp_column(
+                df, npm_timestamp_column_name=npm_timestamp_column_name, file_name=file_name
             )
-        df.insert(1, "Timestamp", df[timestamp_column_name])
-        df = df.drop(timestamp_column_names, axis=1)
-        return df
+            if cls._has_text_header(df) and cls._has_state_column(df):
+                wavelengths = cls._excitation_wavelengths(df)
+                if not wavelengths:
+                    raise ValueError(
+                        f"NPM file '{file_name}' has a state column whose values set no excitation bit, so "
+                        f"it names no channel. The three lowest bits select the LED: "
+                        f"{WAVELENGTH_TO_EXCITATION_CODE}."
+                    )
+                region_columns = cls._region_columns(df)
+                if not region_columns:
+                    raise ValueError(
+                        f"NPM file '{file_name}' has no region columns. Found columns: {list(df.columns)}, "
+                        "all of which name a clock, a frame counter, the state column, a digital line, or "
+                        "nothing at all."
+                    )
+                store_records.update(
+                    cls._excitation_store_records(
+                        file_name, wavelengths, region_columns, timestamp_column=timestamp_column
+                    )
+                )
+            else:
+                if cls._has_text_header(df):
+                    data_columns = cls._region_columns(df)
+                    if not data_columns:
+                        raise ValueError(
+                            f"NPM file '{file_name}' has no region columns. Found columns: "
+                            f"{list(df.columns)}, all of which name a clock, a frame counter, a digital "
+                            "line, or nothing at all."
+                        )
+                else:
+                    data_columns = list(df.columns[1:])
+                store_records.update(
+                    cls._stride_store_records(file_name, data_columns, num_ch=num_ch, timestamp_column=timestamp_column)
+                )
+        return store_records
+
+    @classmethod
+    def _resolve_timestamp_column(
+        cls, df: pd.DataFrame, *, npm_timestamp_column_name: str | None, file_name: str
+    ) -> str | int:
+        """
+        Pick the column a data file is timed by.
+
+        A header-less file's timestamps are its leading column. A headered file offering a
+        single timestamp column is timed by it whatever ``npm_timestamp_column_name`` names,
+        so a session-wide choice may name a column some of its files lack.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Data file contents, as read by :meth:`_read_source_files`.
+        npm_timestamp_column_name : str or None
+            Timestamp column to read in a file offering more than one; ``None`` reads the
+            first.
+        file_name : str
+            Name of the file, used in messages.
+
+        Returns
+        -------
+        str or int
+            Name of the timestamp column, or ``0`` for a header-less file.
+
+        Raises
+        ------
+        ValueError
+            If a headered file has no timestamp column, or offers several of which none is
+            ``npm_timestamp_column_name``.
+        """
+        if not cls._has_text_header(df):
+            return 0
+
+        timestamp_column_names = cls._timestamp_column_names(df)
+        if not timestamp_column_names:
+            raise ValueError(
+                f"NPM file '{file_name}' carries a text header but no timestamp column. "
+                f"Found columns: {list(df.columns)}."
+            )
+        if len(timestamp_column_names) == 1 or npm_timestamp_column_name is None:
+            return timestamp_column_names[0]
+        if npm_timestamp_column_name not in timestamp_column_names:
+            raise ValueError(
+                f"Provided timestamp_column_name '{npm_timestamp_column_name}' not found in "
+                f"columns {timestamp_column_names}."
+            )
+        return npm_timestamp_column_name
+
+    @classmethod
+    def _layout_flag(cls, df: pd.DataFrame) -> str:
+        """
+        Name a file's layout as :meth:`discover_events_and_flags` reports it.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            File contents, as read by :meth:`_read_source_files`.
+
+        Returns
+        -------
+        str
+            ``"event_np"``, ``"data_np_v2"`` (a state column names each frame's LED) or
+            ``"data_np"`` (it does not).
+        """
+        if cls._is_event_file(df):
+            return "event_np"
+        if cls._has_text_header(df) and cls._has_state_column(df):
+            return "data_np_v2"
+        return "data_np"
+
+    @staticmethod
+    def _event_store_records(file_name: str, df: pd.DataFrame, *, split_events: bool) -> dict[str, EventStore]:
+        """
+        Define an event file's stores.
+
+        Parameters
+        ----------
+        file_name : str
+            Name of the event file.
+        df : pd.DataFrame
+            Contents of the event file.
+        split_events : bool
+            Whether the file is split into one store per distinct value.
+
+        Returns
+        -------
+        dict of str to EventStore
+            When split, maps ``event{value}`` for each distinct value, in sorted order, to its
+            record; otherwise maps ``"event0"`` to a record whose ``event_value`` is ``None``.
+        """
+        if not split_events:
+            return {"event0": EventStore(file=file_name, event_value=None)}
+        store_records = {}
+        for value in np.unique(df.iloc[:, 1]):
+            store_records[f"event{value}"] = EventStore(file=file_name, event_value=value)
+        return store_records
+
+    @staticmethod
+    def _excitation_store_records(
+        file_name: str, wavelengths: list[int], region_columns: list[str], *, timestamp_column: str
+    ) -> dict[str, ChannelStore]:
+        """
+        Define the stores of a data file with a state column.
+
+        Parameters
+        ----------
+        file_name : str
+            Name of the data file.
+        wavelengths : list of int
+            Excitation wavelengths the file records, in nanometers.
+        region_columns : list of str
+            The file's region columns.
+        timestamp_column : str
+            Column the file is timed by.
+
+        Returns
+        -------
+        dict of str to ChannelStore
+            Maps ``{stem}_{wavelength}nm_{region}``, for each wavelength and then each region,
+            to the channel's record.
+        """
+        stem = Path(file_name).stem
+        store_records = {}
+        for wavelength in wavelengths:
+            for region_column in region_columns:
+                store_records[f"{stem}_{wavelength}nm_{region_column}"] = ChannelStore(
+                    file=file_name,
+                    excitation_wavelength_in_nm=wavelength,
+                    interleave_position=None,
+                    data_column=region_column,
+                    timestamp_column=timestamp_column,
+                )
+        return store_records
+
+    @staticmethod
+    def _stride_store_records(
+        file_name: str, data_columns: list, *, num_ch: int, timestamp_column: str | int
+    ) -> dict[str, ChannelStore]:
+        """
+        Define the stores of a data file with no state column.
+
+        Parameters
+        ----------
+        file_name : str
+            Name of the data file.
+        data_columns : list
+            The file's data columns.
+        num_ch : int
+            Number of channels interleaved in the file.
+        timestamp_column : str or int
+            Column the file is timed by.
+
+        Returns
+        -------
+        dict of str to ChannelStore
+            Maps ``{stem}_{slot}{n}``, for each cycle slot (``chev``, ``chod``, ``chpr``) and
+            then each data column numbered from 1, to the channel's record.
+
+        Raises
+        ------
+        ValueError
+            If ``num_ch`` exceeds the three cycle slots.
+        """
+        if num_ch > len(STRIDE_CHANNEL_SLOTS):
+            raise ValueError(
+                f"Number of channels is set to {num_ch}, which exceeds the maximum of "
+                f"{len(STRIDE_CHANNEL_SLOTS)} channels supported for an NPM file with no state column. "
+                f"Set 'Number of channels' to {len(STRIDE_CHANNEL_SLOTS)} or fewer on the Label Stores page."
+            )
+        stem = Path(file_name).stem
+        store_records = {}
+        for slot_index in range(num_ch):
+            slot = STRIDE_CHANNEL_SLOTS[slot_index]
+            for column_number, data_column in enumerate(data_columns, start=1):
+                store_records[f"{stem}_{slot}{column_number}"] = ChannelStore(
+                    file=file_name,
+                    excitation_wavelength_in_nm=None,
+                    interleave_position=slot_index,
+                    data_column=data_column,
+                    timestamp_column=timestamp_column,
+                )
+        return store_records
