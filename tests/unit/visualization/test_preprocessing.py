@@ -157,8 +157,8 @@ class TestBuildControlSignalFit:
             titles=["control", "signal", "fit"],
             spans=make_spans_pipe(windows=[]),
             extra_traces={
-                "z_score": np.array([30.0, 31.0, 32.0, 33.0, 34.0]),
-                "dff": np.array([40.0, 41.0, 42.0, 43.0, 44.0]),
+                "z_score": ("Z-Score", np.array([30.0, 31.0, 32.0, 33.0, 34.0])),
+                "dff": ("ΔF/F (%)", np.array([40.0, 41.0, 42.0, 43.0, 44.0])),
             },
         )
         overlays = [resolve_plot(plot) for plot in layout.values()]
@@ -176,7 +176,7 @@ class TestBuildControlSignalFit:
             fit=fit,
             titles=["control", "signal", "fit"],
             spans=make_spans_pipe(windows=[(1.0, 2.0)]),
-            extra_traces={"z_score": np.array([30.0, 31.0, 32.0, 33.0, 34.0])},
+            extra_traces={"z_score": ("Z-Score", np.array([30.0, 31.0, 32.0, 33.0, 34.0]))},
         )
         spans = [item for item in resolve_plot(layout.values()[3]).values() if isinstance(item, hv.VSpans)][0]
         np.testing.assert_array_equal(spans.dimension_values("x0"), np.array([1.0]))
@@ -255,7 +255,7 @@ class TestPanelSizing:
                 fit=np.cos(x) * 0.9,
                 titles=["control", "signal", "fit"],
                 spans=make_spans_pipe(windows=windows),
-                extra_traces={"z_score": np.sin(x) * 2},
+                extra_traces={"z_score": ("Z-Score", np.sin(x) * 2)},
             )
             figure = hv.render(layout)
             return [model for model in figure.references() if isinstance(model, Plot)]
@@ -271,6 +271,15 @@ class TestPanelSizing:
     def test_every_panel_keeps_its_title(self, rendered_plots):
         titles = {plot.title.text for plot in rendered_plots([])}
         assert titles == {"control", "signal", "fit", "z_score"}
+
+    def test_each_panel_labels_its_value_axis_by_quantity(self, rendered_plots):
+        labels = {plot.title.text: plot.yaxis[0].axis_label for plot in rendered_plots([])}
+        assert labels == {
+            "control": "Fluorescence (a.u.)",
+            "signal": "Fluorescence (a.u.)",
+            "fit": "Fluorescence (a.u.)",
+            "z_score": "Z-Score",
+        }
 
 
 class TestBuildMarkableTrace:

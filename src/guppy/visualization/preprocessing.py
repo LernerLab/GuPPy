@@ -5,7 +5,7 @@ import holoviews as hv
 import numpy as np
 from bokeh.models import BoxSelectTool, PanTool
 
-from .labels import TIME_LABEL
+from .labels import FLUORESCENCE_LABEL, TIME_LABEL
 from .palette import HIGHLIGHT
 from .shading import FIT_COLOR, TRACE_COLOR, shade_trace
 
@@ -109,7 +109,7 @@ def build_control_signal_fit(
     fit: np.ndarray,
     titles: list[str],
     spans: hv.streams.Pipe | None = None,
-    extra_traces: dict[str, np.ndarray] | None = None,
+    extra_traces: dict[str, tuple[str, np.ndarray]] | None = None,
 ) -> hv.Layout:
     """Build stacked curves (control, signal, signal+fit) over a shared time axis.
 
@@ -132,7 +132,8 @@ def build_control_signal_fit(
         Stream carrying the ``(start, end)`` windows shaded on every curve. Omit to draw
         the traces unshaded.
     extra_traces : dict, optional
-        Further traces to stack below the fit, as title → values against the same ``x``.
+        Further traces to stack below the fit, as title → ``(value axis label, values)`` against
+        the same ``x``.
 
     Returns
     -------
@@ -145,16 +146,16 @@ def build_control_signal_fit(
         hv.Curve((x, fit), TIME_LABEL, titles[2]), color=FIT_COLOR
     )
 
-    def panel(curve: hv.DynamicMap, title: str) -> hv.DynamicMap:
-        return _shaded_panel(curve=curve, title=title, spans=spans)
+    def panel(curve: hv.DynamicMap, title: str, ylabel: str) -> hv.DynamicMap:
+        return _shaded_panel(curve=curve, title=title, spans=spans).opts(ylabel=ylabel)
 
     panels = [
-        panel(control_curve, titles[0]),
-        panel(signal_curve, titles[1]),
-        panel(fit_curve, titles[2]),
+        panel(control_curve, titles[0], FLUORESCENCE_LABEL),
+        panel(signal_curve, titles[1], FLUORESCENCE_LABEL),
+        panel(fit_curve, titles[2], FLUORESCENCE_LABEL),
     ]
-    for title, values in (extra_traces or {}).items():
-        panels.append(panel(shade_trace(hv.Curve((x, values), TIME_LABEL, title)), title))
+    for title, (ylabel, values) in (extra_traces or {}).items():
+        panels.append(panel(shade_trace(hv.Curve((x, values), TIME_LABEL, title)), title, ylabel))
 
     return hv.Layout(panels).cols(1)
 

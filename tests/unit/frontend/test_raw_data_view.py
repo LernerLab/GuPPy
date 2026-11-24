@@ -10,7 +10,7 @@ from guppy.frontend.raw_data_view import (
 )
 from guppy.utils._hdf5_io import write_hdf5
 from guppy.utils.stores_list import write_stores_list
-from guppy_test_data import resolve_plot
+from guppy_test_data import inked_color, resolve_plot
 
 
 def toolbar_labels(page):
@@ -112,15 +112,18 @@ class TestLoadRawData:
         np.testing.assert_allclose(event_times["reward"], [1.5])
 
 
+def _trace_panels(view):
+    return [panel for panel in view.plot_pane.object.values() if isinstance(panel, hv.DynamicMap)]
+
+
 def _panel_titles(view):
-    return [resolve_plot(axis).opts.get("plot").kwargs["title"] for axis in view.plot_pane.object.values()]
+    return [resolve_plot(panel).opts.get("plot").kwargs["title"] for panel in _trace_panels(view)]
 
 
-def _event_lines(view, index):
-    """Event label → x positions of the vertical lines drawn on one panel."""
-    plot = resolve_plot(view.plot_pane.object.values()[index])
-    elements = list(plot.values()) if isinstance(plot, hv.Overlay) else [plot]
-    return {item.label: list(item.data["Time (s)"]) for item in elements if isinstance(item, hv.VLines)}
+def _raster_rows(view):
+    """Event label → times of its ticks in the raster under the traces."""
+    rasters = [panel for panel in view.plot_pane.object.values() if isinstance(panel, hv.Overlay)]
+    return {row.label: list(row.dimension_values("Time (s)")) for raster in rasters for row in raster.values()}
 
 
 @pytest.fixture
@@ -138,14 +141,16 @@ class TestRawDataView:
         raw_data_view.site_select.value = "B"
         assert _panel_titles(raw_data_view) == ["Signal (B)"]
 
-    def test_marks_every_event_on_every_panel(self, raw_data_view):
-        assert raw_data_view.event_select.value == ["lick", "reward"]
-        for index in range(2):
-            assert _event_lines(raw_data_view, index) == {"lick": [0.5, 2.5], "reward": [1.5]}
+    def test_draws_the_control_blue_and_the_signal_green(self, raw_data_view):
+        assert [inked_color(resolve_plot(panel)) for panel in _trace_panels(raw_data_view)] == ["#1F6FD1", "#3A9E5C"]
 
-    def test_unchecking_an_event_removes_its_lines(self, raw_data_view):
+    def test_rasters_every_event_under_the_traces(self, raw_data_view):
+        assert raw_data_view.event_select.value == ["lick", "reward"]
+        assert _raster_rows(raw_data_view) == {"lick": [0.5, 2.5], "reward": [1.5]}
+
+    def test_unchecking_an_event_removes_its_row(self, raw_data_view):
         raw_data_view.event_select.value = ["reward"]
-        assert _event_lines(raw_data_view, 0) == {"reward": [1.5]}
+        assert _raster_rows(raw_data_view) == {"reward": [1.5]}
 
     def test_no_event_stores_shows_no_event_picker(self, panel_extension):
         view = RawDataView(
@@ -154,7 +159,7 @@ class TestRawDataView:
             run_field=pn.Column(),
         )
         assert view.widget.select(pn.widgets.CheckBoxGroup) == []
-        assert _event_lines(view, 0) == {}
+        assert _raster_rows(view) == {}
 
 
 class TestBuildRawDataViewPage:

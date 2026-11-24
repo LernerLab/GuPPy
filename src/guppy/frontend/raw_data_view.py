@@ -21,6 +21,7 @@ from ..analysis.io_utils import (
 from ..analysis.timestamp_correction import expand_block_timestamps
 from ..utils.stores_list import read_stores_list
 from ..visualization.labels import trace_title
+from ..visualization.palette import CONTROL, SIGNAL
 from ..visualization.raw_data import build_raw_traces, event_colors
 
 hv.extension("bokeh")
@@ -128,8 +129,12 @@ class RawDataView:
         self.widget = plot_page(fields=fields, body=[self.plot_pane])
 
     def _make_plot(self) -> hv.Layout:
+        site_channels = self.channels[self.site_select.value]
         return build_raw_traces(
-            traces={trace_title(channel): trace for channel, trace in self.channels[self.site_select.value].items()},
+            traces={trace_title(channel): trace for channel, trace in site_channels.items()},
+            trace_colors={
+                trace_title(channel): CONTROL if channel.startswith("control_") else SIGNAL for channel in site_channels
+            },
             event_times={label: self.event_times[label] for label in self.event_select.value},
             colors=self.colors,
         )
