@@ -6,7 +6,10 @@ import numpy as np
 from .save_parameters import save_parameters
 from ..analysis.io_utils import is_continuous_label
 from ..frontend.parameterized_plotter import available_psth_metrics, build_plotter
-from ..frontend.visualization_dashboard import VisualizationDashboard
+from ..frontend.visualization_dashboard import (
+    VisualizationDashboard,
+    whole_session_result_tabs,
+)
 from ..utils import page_links
 from ..utils.stores_list import read_stores_list
 from ..utils.utils import (
@@ -22,9 +25,20 @@ logger = logging.getLogger(__name__)
 # Glob patterns matching the PSTH result files step 4 writes, one per metric.
 PSTH_FILE_PATTERNS = ("*_z_score_*.h5", "*_dff_*.h5")
 
+# What step 5 can show, and the steps that produce it, for the error raised when a
+# selected directory holds none of it.
+NOTHING_TO_VISUALIZE_HINT = (
+    "Step 5 shows PSTH results, which need behavioral events and come from step 4 (or, for a "
+    "'_group' directory, from the Group Analysis step); binned metrics and covariate correlations "
+    "from step 4; and results from the Tonic Analysis step."
+)
+
 
 def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, object], *, label: str) -> None:
-    """Build and display the interactive PSTH visualization dashboard for one output directory.
+    """Build and display the interactive visualization dashboard for one output directory.
+
+    A directory without PSTH results, for example a session with no behavioral events,
+    still gets a dashboard when it holds Tonic Analysis results or binned metrics.
 
     Parameters
     ----------
@@ -35,19 +49,25 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
     inputParameters : dict
         Full pipeline input parameters.
     """
-    # note when there are no behavior event TTLs
-    if len(event) == 0:
-        logger.warning("There are no behavior event TTLs present to visualize.")
-        return 0
-
-    available_metrics = available_psth_metrics(filepath=filepath, events=list(event))
+    available_metrics = available_psth_metrics(filepath=filepath, events=list(event)) if len(event) > 0 else []
     if not available_metrics:
-        logger.warning(
-            "No PSTH results were found in %s, so no dashboard is opened for it. Run step 4 "
-            "(or, for a '_group' directory, the Group Analysis step) first.",
-            filepath,
+        if not whole_session_result_tabs(filepath=filepath):
+            logger.warning(
+                "Nothing to visualize was found in %s, so no dashboard is opened for it. %s",
+                filepath,
+                NOTHING_TO_VISUALIZE_HINT,
+            )
+            return
+        dashboard = VisualizationDashboard(
+            filepath=filepath,
+            plotter=None,
+            basename=label,
+            events=[],
+            metric=None,
+            available_metrics=[],
         )
-        return 0
+        page_links.offer_template(name=label, template=dashboard.build_template())
+        return
 
     metric = available_metrics[0]
     plotter = build_plotter(
@@ -60,6 +80,7 @@ def helper_plots(filepath: str, event: list[str], inputParameters: dict[str, obj
         x_max=float(inputParameters["nSecPost"]),
     )
     dashboard = VisualizationDashboard(
+        filepath=filepath,
         plotter=plotter,
         basename=label,
         events=list(event),
@@ -122,8 +143,35 @@ def _output_directories(inputParameters: dict[str, object]) -> list[str]:
     return run_folders
 
 
-def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
-    """Check that at least one selected output directory holds step-4 PSTH results.
+def _has_results_to_visualize(*, output_directory: str) -> bool:
+    """Return whether ``output_directory`` holds anything a step-5 dashboard can show.
+
+    Parameters
+    ----------
+    output_directory : str
+        A session run folder or a group folder.
+
+    Returns
+    -------
+    bool
+        True when the directory holds PSTH results, Tonic Analysis results, or binned
+        metrics.
+    """
+    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the metric name,
+    # e.g. "<event>_<site>_z_score_<site>.h5". Step-3 z-score/dff files use ".hdf5" and
+    # are therefore never false-positives. The transient frequency/amplitude tables
+    # ("freqAndAmp_z_score_<site>.h5") also carry the metric name, and step 4 writes them
+    # whether or not the run has events, so they are excluded.
+    has_psth_results = any(
+        not path.name.startswith("freqAndAmp_")
+        for pattern in PSTH_FILE_PATTERNS
+        for path in Path(output_directory).glob(pattern)
+    )
+    return has_psth_results or bool(whole_session_result_tabs(filepath=output_directory))
+
+
+def _validate_results_exist(inputParameters: dict[str, object]) -> None:
+    """Check that at least one selected output directory holds results step 5 can show.
 
     Parameters
     ----------
@@ -133,25 +181,23 @@ def _validate_psth_outputs_exist(inputParameters: dict[str, object]) -> None:
     Raises
     ------
     ValueError
-        When none of the selected output directories contain PSTH ``.h5`` files.
+        When none of the selected output directories hold PSTH results, Tonic Analysis
+        results, or binned metrics.
     """
     run_folders = _output_directories(inputParameters)
 
     if not run_folders:
         return  # Nothing to check; the main function will handle the empty case.
 
-    # PSTH output files use the ".h5" extension (pandas HDF5) and embed the metric name,
-    # e.g. "<event>_<site>_z_score_<site>.h5". Step-3 z-score/dff files use ".hdf5" and
-    # are therefore never false-positives.
-    if any(any(Path(run_folder).glob(pattern)) for run_folder in run_folders for pattern in PSTH_FILE_PATTERNS):
+    if any(_has_results_to_visualize(output_directory=run_folder) for run_folder in run_folders):
         return
 
     directory_lines = "\n  - ".join(run_folders)
     raise ValueError(
-        f"No PSTH results were found in any of the {len(run_folders)} selected output "
+        f"Nothing to visualize was found in any of the {len(run_folders)} selected output "
         f"director(ies):\n"
         f"  - {directory_lines}\n\n"
-        f"Run step 4 (or, for a '_group' directory, the Group Analysis step) before visualizing."
+        f"{NOTHING_TO_VISUALIZE_HINT}"
     )
 
 
@@ -167,11 +213,11 @@ def visualizeResults(inputParameters: dict[str, object]) -> None:
     ------
     ValueError
         When a selected group directory is not usable, or when no selected output
-        directory holds step-4 PSTH results.
+        directory holds PSTH results, Tonic Analysis results, or binned metrics.
     """
     inputParameters = inputParameters
 
-    _validate_psth_outputs_exist(inputParameters)
+    _validate_results_exist(inputParameters)
     group_folders = list(inputParameters.get("selected_group_folders") or [])
     validate_group_definitions(group_folders=group_folders)
 

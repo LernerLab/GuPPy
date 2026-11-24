@@ -1,22 +1,8 @@
 # Input parameter reference
 
-Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the homepage top to bottom: the **Data Source** toggle above the cards, then the five cards (**Root Folder Selection**, **Input Folder Selection**, **Output Folder Selection**, **Parameter Selection**, **Group Output Folder Selection**) and the titled sections inside each card. The GUI answers what a single parameter does, through the **?** beside each control; this page is where they are documented together, in relation to each other and in more detail. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
+Every parameter the GuPPy GUI exposes, organized to match what you see on screen. The page mirrors the homepage top to bottom: the five cards (**Root Folder Selection**, **Input Folder Selection**, **Output Folder Selection**, **Parameter Selection**, **Group Output Folder Selection**) and the titled sections inside each card. The GUI answers what a single parameter does, through the **?** beside each control; this page is where they are documented together, in relation to each other and in more detail. Each row gives the parameter as it appears in the GUI, a one-line description of what it does, the data type, the default value, and the accepted values or range. Prose paragraphs underneath cover the parameters that need more than a single line. If this is your first time using GuPPy, follow the [Your First Analysis](../tutorials/first_analysis.md) tutorial instead.
 
 The pipeline-step numbering used in this page matches the steps in [Your First Analysis](../tutorials/first_analysis.md): Step 2 (Load the raw data), Step 3 (Preprocess the signal), Step 4 (Compute the PSTH), Step 5 (Visualize the results).
-
----
-
-## Data Source
-
-The toggle above the cards. Decides where the sessions come from.
-
-*Used by: Step 1 (Label Stores) and Step 2 (Load the raw data).*
-
-| Parameter | Description | Type | Default | Options / range |
-|-----------|-------------|------|---------|-----------------|
-| Data Source | Local-folder mode vs DANDI streaming. | radio | `Local` | `Local`, `DANDI` |
-
-**Data Source** picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI. It sits above the cards because it changes what two of them show: the session-folder browser is replaced by the DANDI browser, and Root Folder Selection drops the input root folder a streamed session has no use for. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 ---
 
@@ -40,7 +26,7 @@ Both roots rarely change between analyses, so GuPPy remembers them between launc
 
 **Output root folder is the same as the input root folder** points both roots at one folder, which makes each session mirror onto itself: its run folders are created inside the session folder, so the session travels as one self-contained directory. It also means GuPPy writes into your raw data, which is why it is off by default. Ticking it hides the output-root browser, since there is nothing left to choose.
 
-In DANDI mode the input root folder and the checkbox are hidden, and only the output root folder is asked for: a streamed session has no local raw data to sit under, so its session folder is created inside the output root folder instead.
+Only local sessions use the input root folder. A session streamed from DANDI has no local raw data to sit under, so its session folder is created inside the output root folder instead, or inside the input root folder when the two are set to match.
 
 ---
 
@@ -52,9 +38,12 @@ The second card on the homepage, open by default. Selects the session data the p
 
 | Parameter | Description | Type | Default | Options / range |
 |-----------|-------------|------|---------|-----------------|
+| Data Source | Local-folder mode vs DANDI streaming. | radio | `Local Folder` | `Local Folder`, `DANDI Archive` |
 | (session folders browser) | Session folders to analyze. | list of paths | empty | absolute paths to session directories under the input root folder |
 | (DANDI selector) | DANDI assets to materialize as sessions. | dict | `None` (local mode) | per-session mapping of `dandi://` URIs |
 | Combine Data? | Concatenate two split files into one trace. | bool | `False` | `True`, `False` |
+
+**Data Source** is the pair of tiles at the top of the card. It picks between selecting local session folders from the file browser (the common case) and streaming NWB sessions directly from DANDI, and swaps the card's browser to match. See [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 **Session folders** holds the list of session folder paths the pipeline will analyze. Multiple folders are allowed for batch runs, and they do not have to sit side by side: sessions kept in different sub-directories of the input root folder can be analyzed together in a single run, and their differing depths carry straight through into the output tree.
 
@@ -328,7 +317,7 @@ The table is sorted alphabetically by internal name. Each row links to the secti
 | `highAmpFilt` | HAFT | [Transient Detection](#transient-detection) |
 | `input_root_folder` | (input root folder browser) | [Root Folder Selection](#root-folder-selection) |
 | `isosbestic_control` | Isosbestic Control Channel? | [Control Channel Fitting](#control-channel-fitting) |
-| `mode` | Data Source | [Data Source](#data-source) |
+| `mode` | Data Source | [Input Folder Selection](#input-folder-selection) |
 | `moving_window` | Moving Window for Transient Detection (s) | [Transient Detection](#transient-detection) |
 | `nSecPost` | Seconds After 0 | [PSTH Computation](#psth-computation) |
 | `nSecPrev` | Seconds Before 0 | [PSTH Computation](#psth-computation) |

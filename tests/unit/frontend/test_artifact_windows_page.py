@@ -17,7 +17,6 @@ from guppy.frontend.artifact_windows_page import (
     ArtifactWindowSelector,
     build_artifact_window_page,
 )
-from guppy.frontend.plot_card import RUN_FOLDER_WIDTH
 from guppy.utils._hdf5_io import write_hdf5
 from guppy_test_data import inked_color, resolve_plot
 
@@ -450,7 +449,8 @@ class TestBuildArtifactWindowPage:
 
     def test_single_folder_still_offers_its_run(self, panel_extension, run_folder):
         page = build_artifact_window_page(run_folders=[str(run_folder)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.width == RUN_FOLDER_WIDTH]
+        # The label "mySession_output_1" is 18 characters: 18 * 8 + 34 = 178 pixels.
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.width == 178]
         assert [list(select.options.values()) for select in run_folder_selectors] == [[str(run_folder)]]
 
     def test_multiple_folders_get_a_folder_selector(self, panel_extension, tmp_path):
@@ -460,7 +460,8 @@ class TestBuildArtifactWindowPage:
             folder.mkdir()
             _write_site(folder, "DMS")
         page = build_artifact_window_page(run_folders=[str(folder_a), str(folder_b)])
-        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.width == RUN_FOLDER_WIDTH]
+        # The longer label, "session_a_output_1", is 18 characters: 18 * 8 + 34 = 178 pixels.
+        run_folder_selectors = [w for w in page.select(pn.widgets.Select) if w.width == 178]
         assert [set(select.options.values()) for select in run_folder_selectors] == [{str(folder_a), str(folder_b)}]
 
 

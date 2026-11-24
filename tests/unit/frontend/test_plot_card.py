@@ -5,6 +5,7 @@ from guppy.frontend.plot_card import (
     plot_card,
     plot_page,
     plot_with_side_panel,
+    run_folder_width,
     side_column,
     toolbar_field,
 )
@@ -13,6 +14,20 @@ from guppy.frontend.side_panel_split import SidePanelSplit
 
 def label_text(pane):
     return pane.object.split(">")[1].split("<")[0]
+
+
+class TestRunFolderWidth:
+    def test_fits_the_longest_label(self):
+        # "sample_data_csv_1/output_1" is 26 characters: 26 * 8 + 34 = 242 pixels.
+        assert run_folder_width(labels=["output_1", "sample_data_csv_1/output_1"]) == 242
+
+    def test_a_short_label_gets_the_minimum_width(self):
+        # "output_1" alone would be 8 * 8 + 34 = 98 pixels.
+        assert run_folder_width(labels=["output_1"]) == 160
+
+    def test_a_long_label_is_capped(self):
+        # 80 characters would be 80 * 8 + 34 = 674 pixels.
+        assert run_folder_width(labels=["x" * 80]) == 560
 
 
 class TestToolbarField:

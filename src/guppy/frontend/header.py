@@ -9,8 +9,11 @@ from .typography import INK, TITLE_SIZE, GuppyTypeDesign, font_face_css
 
 ASSETS_DIRECTORY = Path(__file__).parent.parent / "assets"
 
+LOGO_VIOLET = "#6E56CF"
+LOGO_BLUE = "#1F7FC4"
+
 # The GuPPy logo's gradient, violet through blue and teal to green.
-LOGO_GRADIENT = "linear-gradient(90deg, #6E56CF, #1F7FC4, #14A39A, #5DB45C)"
+LOGO_GRADIENT = f"linear-gradient(90deg, {LOGO_VIOLET}, {LOGO_BLUE}, #14A39A, #5DB45C)"
 
 HEADER_BACKGROUND = "#FFFFFF"
 HEADER_TEXT_COLOR = "#212529"

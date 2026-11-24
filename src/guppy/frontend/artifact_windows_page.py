@@ -14,8 +14,10 @@ import numpy as np
 import panel as pn
 
 from .artifact_removal import build_run_folder_page, load_pair_traces
+from .header import LOGO_BLUE
 from .plot_card import CONTROL_MARGIN, plot_page, toolbar_field
 from .row_controls import column_heading, delete_row_button
+from .tile_toggle import HAND_ICON, PEN_ICON, Tile, tile_toggle_stylesheet
 from ..analysis.io_utils import fetchCoords
 from ..orchestration.save_parameters import record_artifact_provenance
 from ..utils.artifact_windows import (
@@ -42,6 +44,8 @@ ARTIFACT_REMOVAL_METHODS = {"Replace with NaN": "replace with NaN", "Concatenate
 MARK_MODE = "Mark Artifacts"
 NAVIGATE_MODE = "Navigate"
 INTERACTION_MODES = [MARK_MODE, NAVIGATE_MODE]
+MARK_TILE = Tile(icon=PEN_ICON, accent=LOGO_BLUE)
+NAVIGATE_TILE = Tile(icon=HAND_ICON, accent=LOGO_BLUE)
 
 # Which of a recording site's three traces the plot shows, in selector order.
 CONTROL_TRACE, SIGNAL_TRACE, FIT_TRACE = "control", "signal", "fit"
@@ -249,10 +253,9 @@ class ArtifactWindowSelector:
         self.mode_toggle = pn.widgets.RadioButtonGroup(
             options=INTERACTION_MODES,
             value=MARK_MODE,
-            button_type="primary",
-            button_style="outline",
-            width=240,
+            width=300,
             margin=CONTROL_MARGIN,
+            stylesheets=[tile_toggle_stylesheet(tiles=[MARK_TILE, NAVIGATE_TILE], compact=True)],
         )
         self.runs_with_windows = _runs_with_saved_windows(filepath)
         self.copy_from_select = pn.widgets.Select(
