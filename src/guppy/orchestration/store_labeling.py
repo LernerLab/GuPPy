@@ -306,6 +306,70 @@ def _save(
     return "#### No alerts !!"
 
 
+def save_store_labels_to_sessions(
+    *,
+    store_labeling_config: dict,
+    run_name: str,
+    overwrite_mode: str,
+    store_ids_by_session: dict[str, list[str] | None],
+    output_root_folder: str,
+    input_root_folder: str,
+) -> tuple[list[str], dict[str, str]]:
+    """Save one store labeling to the same run name in several sessions.
+
+    A session is saved to only when it holds every store id the labeling names.
+
+    Parameters
+    ----------
+    store_labeling_config : dict
+        The labeling to save, with ``"store_ids"`` and ``"store_labels"`` lists.
+    run_name : str
+        Run name of the run folder written in each session.
+    overwrite_mode : {"create_new_file", "over_write_file"}
+        Whether an existing run folder of that name is skipped or replaced.
+    store_ids_by_session : dict of {str: list of str or None}
+        Each target session's discovered store ids, or ``None`` for an NPM session, whose
+        store ids depend on the NPM configuration confirmed on its own page.
+    output_root_folder : str
+        Folder the mirrored output tree is written into.
+    input_root_folder : str
+        Folder the session folders are selected inside.
+
+    Returns
+    -------
+    saved_run_folders : list of str
+        Run folders written, one per session saved to.
+    skipped_sessions : dict of {str: str}
+        Each session not saved to, mapped to the reason.
+    """
+    configured_store_ids = set(store_labeling_config["store_ids"])
+    saved_run_folders = []
+    skipped_sessions = {}
+    for session_folder, store_ids in store_ids_by_session.items():
+        if store_ids is None:
+            skipped_sessions[session_folder] = (
+                "its store ids depend on its NPM configuration, so label it on its own page."
+            )
+            continue
+        missing_store_ids = sorted(configured_store_ids - set(store_ids))
+        if missing_store_ids:
+            skipped_sessions[session_folder] = f"it has no store id(s) {missing_store_ids}."
+            continue
+        run_folder = run_folder_for_run(
+            session_folder, run_name, output_root_folder=output_root_folder, input_root_folder=input_root_folder
+        )
+        alert_message = _save(
+            store_labeling_config=store_labeling_config,
+            select_location=run_folder,
+            overwrite_mode=overwrite_mode,
+        )
+        if alert_message != "#### No alerts !!":
+            skipped_sessions[session_folder] = alert_message.removeprefix("#### Alert !! \n ")
+            continue
+        saved_run_folders.append(run_folder)
+    return saved_run_folders, skipped_sessions
+
+
 def build_store_labeling_template(
     events: list[str],
     flags: list[str],
@@ -315,6 +379,7 @@ def build_store_labeling_template(
     inputParameters: dict[str, object] | None = None,
     npm_interactive: dict[str, object] | None = None,
     on_saved: Callable[[], None] | None = None,
+    store_ids_by_other_session: dict[str, list[str] | None] | None = None,
 ) -> pn.template.BootstrapTemplate:
     """Build and return the Label Stores GUI Panel template without serving it.
 
@@ -342,6 +407,9 @@ def build_store_labeling_template(
         callback.
     on_saved : callable, optional
         Called with no arguments after each successful Save.
+    store_ids_by_other_session : dict of {str: list of str or None}, optional
+        The other selected sessions and their discovered store ids (``None`` for an NPM
+        session). When non-empty, the page offers to save its store labels to all of them.
 
     Returns
     -------
@@ -462,6 +530,34 @@ def build_store_labeling_template(
         if on_saved is not None:
             on_saved()
 
+    # on clicking 'Save to All Selected Sessions', following function is executed
+    def save_to_all_sessions_button(event: object = None) -> None:
+        save_button()
+        if store_labeling_selector.alert.object != "#### No alerts !!":
+            return
+        select_location = store_labeling_selector.get_select_location()
+        saved_run_folders, skipped_sessions = save_store_labels_to_sessions(
+            store_labeling_config=store_labeling_selector.get_literal_input_2(),
+            run_name=parse_run_name(select_location),
+            overwrite_mode=store_labeling_selector.get_overwrite_mode(),
+            store_ids_by_session=store_ids_by_other_session,
+            output_root_folder=output_root_folder,
+            input_root_folder=input_root_folder,
+        )
+        saved_locations = "".join(f"<br>{run_folder}" for run_folder in [select_location, *saved_run_folders])
+        store_labeling_selector.show_saved_message(
+            f"Saved the store labels to {1 + len(saved_run_folders)} session(s):{saved_locations}"
+        )
+        if skipped_sessions:
+            skipped_lines = "\n".join(
+                f"- {Path(session_folder).name}: {reason}" for session_folder, reason in skipped_sessions.items()
+            )
+            store_labeling_selector.set_alert_message(
+                f"#### Alert !! \n Could not save to {len(skipped_sessions)} session(s):\n{skipped_lines}"
+            )
+        if saved_run_folders and on_saved is not None:
+            on_saved()
+
     # on clicking the NPM "Confirm NPM Configuration" button, following function is executed
     def confirm_npm_configuration(event: object = None) -> None:
         npm_time_unit, npm_timestamp_column_name = store_labeling_instructions.get_timestamp_configuration()
@@ -491,6 +587,7 @@ def build_store_labeling_template(
         "update_options": update_values,
         "save": save_button,
         "show_config_button": fetchValues,
+        "save_to_all_sessions": save_to_all_sessions_button,
     }
     store_labeling_selector.attach_callbacks(button_name_to_onclick_fn)
     store_labeling_selector.attach_overwrite_mode_watcher(overwrite_button_actions)
@@ -505,6 +602,8 @@ def build_store_labeling_template(
 
     if npm_interactive is not None:
         store_labeling_instructions.confirm_button.on_click(confirm_npm_configuration)
+    if store_ids_by_other_session:
+        store_labeling_selector.show_save_to_all_sessions_button()
 
     # The selector sits beside the instructions when the page has room for both and wraps below them when not,
     # growing to fill whatever width is left on its line.
@@ -514,7 +613,11 @@ def build_store_labeling_template(
     )
 
     # Expose hooks/widgets so tests can drive the page headlessly without a browser.
-    template._hooks = {"save_button": save_button, "confirm_npm_configuration": confirm_npm_configuration}
+    template._hooks = {
+        "save_button": save_button,
+        "save_to_all_sessions_button": save_to_all_sessions_button,
+        "confirm_npm_configuration": confirm_npm_configuration,
+    }
     template._widgets = {"instructions": store_labeling_instructions, "selector": store_labeling_selector}
 
     return template
@@ -658,8 +761,18 @@ def orchestrate_store_labeling_page(
 
     logger.info(session_folders)
 
-    for folder_path in session_folders:
-        events, flags, npm_interactive = read_header(inputParameters, num_ch, folder_path)
+    headers = {folder_path: read_header(inputParameters, num_ch, folder_path) for folder_path in session_folders}
+    # An NPM session's store ids are known only once its NPM configuration is confirmed.
+    store_ids_by_session = {
+        folder_path: (events if npm_interactive is None else None)
+        for folder_path, (events, _, npm_interactive) in headers.items()
+    }
+    for folder_path, (events, flags, npm_interactive) in headers.items():
+        store_ids_by_other_session = {
+            other_folder_path: store_ids
+            for other_folder_path, store_ids in store_ids_by_session.items()
+            if other_folder_path != folder_path
+        }
         template = build_store_labeling_template(
             events,
             flags,
@@ -668,6 +781,7 @@ def orchestrate_store_labeling_page(
             inputParameters=inputParameters,
             npm_interactive=npm_interactive,
             on_saved=on_saved,
+            store_ids_by_other_session=store_ids_by_other_session,
         )
         page_links.offer_template(name=Path(folder_path).name, template=template)
     logger.info("#" * 400)
