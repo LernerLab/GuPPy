@@ -1,8 +1,13 @@
 """Panel web application for GuPPy: server startup."""
 
+from functools import partial
+
 import panel as pn
 
 from .orchestration.home import build_homepage
+
+# Bokeh's query argument naming the server session a page attaches to.
+SESSION_ID_QUERY_ARGUMENT = "bokeh-session-id"
 
 
 def serve_app(
@@ -35,13 +40,50 @@ def serve_app(
     open_browser : bool, optional
         Whether to open the homepage in a browser on this machine once the server starts.
     """
-
-    def build_page() -> pn.template.BootstrapTemplate:
-        return build_homepage(
-            input_root_folder=input_root_folder,
-            output_root_folder=output_root_folder,
-            use_bundled_dandi_cache=use_bundled_dandi_cache,
-        )
-
+    build_page = partial(
+        build_session_homepage,
+        input_root_folder=input_root_folder,
+        output_root_folder=output_root_folder,
+        use_bundled_dandi_cache=use_bundled_dandi_cache,
+    )
     print("GuPPy is starting. Open the address below in your browser, and press Ctrl+C here to stop GuPPy.")
     pn.serve(build_page, port=port, address=address, show=open_browser, verbose=True)
+
+
+def build_session_homepage(
+    *,
+    input_root_folder: str | None = None,
+    output_root_folder: str | None = None,
+    use_bundled_dandi_cache: bool = True,
+) -> pn.template.BootstrapTemplate:
+    """Build the homepage for one browser session, which a refresh of the page keeps.
+
+    Once the page loads, its address names its server session, so refreshing the browser
+    reattaches to that session with its open tabs and form values instead of starting a new one.
+
+    Parameters
+    ----------
+    input_root_folder : str or None, optional
+        Directory the session folders live under, pre-selected on the homepage.
+    output_root_folder : str or None, optional
+        Directory the mirrored output tree is written into, pre-selected on the homepage.
+    use_bundled_dandi_cache : bool, optional
+        Whether the DANDI catalog filter falls back on the dandiset verdicts shipped with GuPPy.
+
+    Returns
+    -------
+    template : pn.template.BootstrapTemplate
+        The homepage.
+    """
+    template = build_homepage(
+        input_root_folder=input_root_folder,
+        output_root_folder=output_root_folder,
+        use_bundled_dandi_cache=use_bundled_dandi_cache,
+    )
+    pn.state.onload(_name_session_in_address)
+    return template
+
+
+def _name_session_in_address() -> None:
+    session_id = pn.state.curdoc.session_context.id
+    pn.state.location.update_query(**{SESSION_ID_QUERY_ARGUMENT: session_id})

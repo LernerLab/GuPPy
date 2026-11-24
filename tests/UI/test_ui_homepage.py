@@ -1,9 +1,13 @@
+import re
+import socket
+import time
+
 import panel as pn
 import pytest
 from playwright.sync_api import expect
 
+from guppy.app import build_session_homepage
 from guppy.frontend.frontend_utils import scanPortsAndFind
-from guppy.orchestration.home import build_homepage
 
 
 @pytest.mark.ui
@@ -35,16 +39,34 @@ def test_no_javascript_errors_on_load(page, live_server_url):
 
 
 @pytest.fixture(scope="module")
-def homepage_route_url(panel_extension, ui_base_dir):
+def served_homepages():
+    """The document and homepage of each browser session the homepage route has built, in order."""
+    return []
+
+
+@pytest.fixture(scope="module")
+def homepage_route_url(panel_extension, ui_base_dir, served_homepages):
     """Serve the homepage as a per-session route, the way ``guppy`` serves it.
 
     The shared ``live_server`` serves one prebuilt template, so it never builds a homepage
     inside a browser session.
     """
+
+    def build_page():
+        template = build_session_homepage(input_root_folder=str(ui_base_dir))
+        served_homepages.append((pn.state.curdoc, template))
+        return template
+
     port = scanPortsAndFind()
-    server = pn.serve(
-        {"/": lambda: build_homepage(input_root_folder=str(ui_base_dir))}, port=port, show=False, threaded=True
-    )
+    server = pn.serve({"/": build_page}, port=port, show=False, threaded=True)
+    # The server thread starts listening a moment after pn.serve returns.
+    for _ in range(50):
+        try:
+            connection = socket.create_connection(("localhost", port), timeout=0.1)
+            connection.close()
+            break
+        except OSError:
+            time.sleep(0.05)
     yield f"http://localhost:{port}"
     # Joining lets the session-wide kill_all_servers find this server already stopped.
     server.stop()
@@ -66,3 +88,25 @@ def test_the_homepage_renders_on_every_load(browser, homepage_route_url):
         expect(page.get_by_text("Parameter Selection").first).to_be_visible()
         assert console_errors == []
         page.close()
+
+
+@pytest.mark.ui
+def test_refreshing_the_homepage_keeps_its_open_tabs(page, homepage_route_url, served_homepages):
+    page.goto(homepage_route_url)
+    expect(page.get_by_text("Parameter Selection").first).to_be_visible()
+    expect(page).to_have_url(re.compile("bokeh-session-id="))
+    document, template = served_homepages[-1]
+    page_area = template._widgets["page_area"]
+    # A sidebar button needs a selected session folder to open its page, so the page is opened
+    # on the server, inside the session's document, the way a click's handler runs.
+    document.add_next_tick_callback(
+        lambda: page_area.show(key="open_visualization", name="Visualization", content=pn.pane.Markdown("dashboard"))
+    )
+    expect(page.locator(".bk-tab")).to_have_text(["Home", "Visualization"])
+    built_before_refresh = len(served_homepages)
+
+    page.reload()
+
+    expect(page.get_by_text("Parameter Selection").first).to_be_visible()
+    expect(page.locator(".bk-tab")).to_have_text(["Home", "Visualization"])
+    assert len(served_homepages) == built_before_refresh

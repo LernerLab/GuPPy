@@ -9,12 +9,15 @@ def served(monkeypatch):
     """Capture what would be served instead of starting a real Bokeh server.
 
     ``pn.serve`` binds a port and opens a browser tab, so it is stubbed here; everything
-    downstream of it (the homepage factory itself) runs for real.
+    downstream of it (the homepage factory itself) runs for real. Outside a served session
+    ``pn.state.onload`` would run its callback at once against a browser that is not there, so
+    it is stubbed too.
     """
     captured = {}
     monkeypatch.setattr(
         app.pn, "serve", lambda build_page, **kwargs: captured.update(build_page=build_page, kwargs=kwargs)
     )
+    monkeypatch.setattr(app.pn.state, "onload", lambda callback: None)
     return captured
 
 
