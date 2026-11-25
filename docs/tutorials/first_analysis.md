@@ -47,7 +47,7 @@ guppy
 A browser tab opens showing the GuPPy dashboard.
 
 ```{image} ../_static/images/01_homepage.png
-:alt: The GuPPy homepage on first launch: the sidebar of pipeline steps on the left, and on the right the Data Source toggle above an open Root Folder Selection card asking for the input and output root folders
+:alt: The GuPPy homepage on first launch: the sidebar of pipeline steps on the left, and on the right an open Root Folder Selection card asking for the input and output root folders
 :align: center
 ```
 
@@ -62,11 +62,11 @@ Open the **Root Folder Selection** card at the top of the page. It holds the two
 In the **Input Folder Selection** card's **Session folders** browser, navigate to `stubbed_testing_data/csv/sample_data_csv_1/` and click **`>>`** to move that folder into the **Selected files** pane on the right. The browser supports selecting multiple session folders at once for batch analysis; for this tutorial we are running a single session. Every session you select has to sit under the input root folder.
 
 ```{image} ../_static/images/02_data_selection.png
-:alt: The GuPPy homepage with Root Folder Selection folded away and the Input Folder Selection card open below it, its Session folders browser listing sample_data_csv_1 among the sample sessions
+:alt: The GuPPy homepage with Root Folder Selection folded away and the Input Folder Selection card open below it, with the Local Folder tile selected and its Session folders browser listing sample_data_csv_1 among the sample sessions
 :align: center
 ```
 
-The **Data Source** toggle above the cards lets you switch between `Local` (the default, file-system browsing) and `DANDI` (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
+The two tiles at the top of the **Input Folder Selection** card switch between **Local Folder** (the default, file-system browsing) and **DANDI Archive** (streaming NWB sessions directly from DANDI). We are using local files here; see [Analyze data streamed from the DANDI Archive](../how-to/analyze-dandi-data.md) for the DANDI workflow.
 
 ### Set parameters
 
@@ -154,9 +154,14 @@ Click **Read Raw Data**. A progress bar appears in the sidebar directly below th
 
 Every step has a status line under its button. It reads *Not run yet* until you run the step, shows the progress bar and *Running…* while it runs, and then reads *✓ Done at* the time it finished, or *✗ Failed at* if it stopped with an error.
 
-GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store (so for this tutorial: `sample_data_csv_1/output_1/control_A.hdf5`, `.../signal_A.hdf5`, `.../RewardPort.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
+GuPPy loads each CSV file and writes the data into the output folder you created in Step 1, one HDF5 file per store, named after its store id (so for this tutorial: `sample_data_csv_1/output_1/Sample_Control_Channel.hdf5`, `.../Sample_Signal_Channel.hdf5`, `.../Sample_TTL.hdf5`). Each file holds the channel's `data`, `timestamps`, and `sampling_rate` datasets plus a few metadata fields. HDF5 is a binary format that stores large numerical arrays efficiently and supports partial reads, which speeds up the later pipeline steps.
 
-When the step finishes, its status line changes to *✓ Done at* the time it finished. Confirmation messages are also logged to the terminal where you launched `guppy`.
+When the step finishes, its status line changes to *✓ Done at* the time it finished, and a Raw Data tab opens beside the form so you can check what was read before preprocessing anything. Pick a recording site and its control and signal traces stack up together, exactly as recorded, on one time axis measured from the first sample. Below them, an Events raster gives each event store its own row of ticks at the times it occurred, and the **Events** checkboxes hide the rows you don't want to see. Zooming one panel zooms the others. If you close the tab, the **View Results** link in the status line under **Read Raw Data** opens it again. Confirmation messages are also logged to the terminal where you launched `guppy`.
+
+```{image} ../_static/images/04b_raw_data_view.png
+:alt: Raw Data results tab after Read Raw Data, showing the Control (A) and Signal (A) traces stacked on a shared time axis above an Events raster with a row of RewardPort ticks
+:align: center
+```
 
 ## Step 3: Preprocess the signal
 
@@ -185,7 +190,7 @@ The results are written into the same output folder as Step 2, in four new HDF5 
 
 Step 3 also rewrites the per-channel files under their store labels. The [Output data model](../reference/outputs.md) reference lists every file and the datasets inside it, and [Custom Plots from GuPPy Outputs](custom_plots.md) shows how to load them in Python.
 
-When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View Results →** button in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Home tab and keep working, and the results tab stays open.
+When preprocessing finishes, a Preprocessing tab opens beside the form with the results. If you close it, the **View Results** link in the status line under **Preprocess** opens it again. Pick a recording site and its five traces stack up together — control, signal, signal with the fitted control, z-score, and ΔF/F — sharing one time axis, so zooming any of them zooms them all. You can switch back to the Home tab and keep working, and the results tab stays open.
 
 <!-- TODO: add a screenshot of the preprocessing results tab that opens after preprocess completes (e.g. 05_preprocess_plot.png). It is a tab inside the homepage, so the screenshot script will need to run Preprocess to capture it. -->
 

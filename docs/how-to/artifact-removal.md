@@ -123,7 +123,7 @@ The step recomputes the control fit, z-score, and dF/F with the marked periods
 excluded, so it takes about as long as Step 3 itself.
 
 When it finishes, an Artifact Removal tab opens showing the cleaned traces, so you
-can confirm the result. If you close it, **View Results →** under the button opens it again.
+can confirm the result. If you close it, **View Results** under the button opens it again.
 
 If you click Remove Artifacts without having saved any periods, GuPPy tells you
 which run is unmarked.

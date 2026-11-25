@@ -446,6 +446,7 @@ def test_main_area_holds_only_the_page_area(homepage, page_area):
 
 
 RESULTS_HANDLERS = [
+    ("onclickreaddata", "run_read_raw_data_step", "read_rawData", "open_raw_data_view", "Raw Data"),
     ("onclickpreprocess", "run_preprocess_step", "preprocess", "open_preprocess_view", "Preprocessing"),
     (
         "onclickRemoveArtifacts",
@@ -635,6 +636,7 @@ def test_success_marks_the_step_done_and_hides_its_bar(homepage, selected_sessio
         progress.advance(4)
 
     monkeypatch.setattr("guppy.orchestration.home.run_read_raw_data_step", worker)
+    monkeypatch.setattr("guppy.orchestration.home.open_raw_data_view", lambda session_folders, params: None)
 
     homepage._hooks["onclickreaddata"]()
     poll_until_stopped(capture_periodic)

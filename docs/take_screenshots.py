@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import shutil
 import socket
 import time
 from pathlib import Path
@@ -41,7 +42,8 @@ from guppy.frontend.frontend_utils import scanPortsAndFind
 from guppy.frontend.group_labeling import GroupLabelingPage
 from guppy.frontend.input_parameters import ParameterForm
 from guppy.frontend.parameterized_plotter import ParameterizedPlotter
-from guppy.frontend.plot_card import RUN_FOLDER_WIDTH, toolbar_field
+from guppy.frontend.plot_card import CONTROL_MARGIN, run_folder_width, toolbar_field
+from guppy.frontend.raw_data_view import build_raw_data_view_page
 from guppy.frontend.store_labeling_selector import StoreLabelingSelector
 from guppy.frontend.tonic_epochs import TonicEpochConfig, TonicResultsView
 from guppy.frontend.visualization_dashboard import VisualizationDashboard
@@ -49,6 +51,7 @@ from guppy.orchestration.home import build_homepage
 from guppy.orchestration.metadata import build_metadata_template
 from guppy.orchestration.store_labeling import build_store_labeling_template
 from guppy.settings import SETTINGS_PATH_VARIABLE
+from guppy.testing.api import locate_run_folder, step1, step2
 from guppy.testing.covariate_session import SESSION_NAME as COVARIATE_SESSION_NAME
 from guppy.testing.covariate_session import run_covariate_session
 from guppy.utils._hdf5_io import write_hdf5
@@ -59,6 +62,7 @@ from guppy.utils.nwb_metadata import (
     load_yaml,
     parse_metadata_dict,
 )
+from guppy.utils.utils import parse_run_name
 
 if TYPE_CHECKING:
     from panel.template.base import BasicTemplate
@@ -83,7 +87,11 @@ DANDI_DEMO_ASSET = "sub-112-283_ses-FP-PS-2019-06-20T09-32-04_behavior.nwb"
 
 def _run_field(run_label: str) -> pn.Column:
     """The "Run Folder" toolbar field a run-folder page shows, offering the one run."""
-    return toolbar_field("Run Folder", pn.widgets.Select(options=[run_label], width=RUN_FOLDER_WIDTH))
+    return toolbar_field(
+        "Run Folder", pn.widgets.Select(
+            options=[run_label], width=run_folder_width(labels=[run_label]), margin=CONTROL_MARGIN
+        )
+    )
 
 
 def _wait_for_port(port: int, retries: int = 50, delay: float = 0.05) -> None:
@@ -643,6 +651,7 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
         x_max=20.0,
     )
     dashboard = VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename="average",
         events=events,
@@ -673,6 +682,46 @@ def screenshot_group_psth_plot(page: Page, tmp_path: Path) -> None:
     print("Saved group_psth_plot.png")
     page.set_viewport_size(VIEWPORT)
 
+    pn.state.kill_all_servers()
+
+
+def screenshot_raw_data_view(page: Page, tmp_path: Path) -> None:
+    """Tutorial Step 2: the Raw Data results tab Read Raw Data opens when it finishes.
+
+    Labels and reads the tutorial's sample session headlessly, so the traces and reward
+    times are the ones a reader following the tutorial sees.
+    """
+    base_dir = tmp_path / "raw_data_view"
+    session = base_dir / SAMPLE_DATA_DIR.name
+    shutil.copytree(SAMPLE_DATA_DIR, session)
+    step1(
+        base_dir=str(base_dir),
+        selected_folders=[str(session)],
+        store_id_to_store_label={
+            "Sample_Control_Channel": "control_A",
+            "Sample_Signal_Channel": "signal_A",
+            "Sample_TTL": "RewardPort",
+        },
+    )
+    run_folder = locate_run_folder(session=str(session))
+    step2(
+        base_dir=str(base_dir),
+        selected_folders=[str(session)],
+        selected_runs={str(session): [parse_run_name(run_folder)]},
+    )
+
+    template = pn.template.BootstrapTemplate(title="Raw Data")
+    template.main.append(build_raw_data_view_page(run_folders=[run_folder]))
+    url = _serve(template)
+
+    page.set_viewport_size({"width": 1280, "height": 1000})
+    page.goto(url)
+    page.get_by_text("Recording Site").first.wait_for()
+    page.wait_for_timeout(3000)
+    page.screenshot(path=OUTPUT_DIR / "04b_raw_data_view.png", full_page=False)
+    print("Saved 04b_raw_data_view.png")
+
+    page.set_viewport_size(VIEWPORT)
     pn.state.kill_all_servers()
 
 
@@ -757,6 +806,7 @@ def screenshot_visualization(page: Page, tmp_path: Path) -> None:
         x_max=20.0,
     )
     dashboard = VisualizationDashboard(
+        filepath=plotter.filepath,
         plotter=plotter,
         basename="sample_data_csv_1",
         events=events,
@@ -805,14 +855,14 @@ def screenshot_run_name_section(page: Page, *, run_name: str, filename: str) -> 
 
 
 def screenshot_dandi_source_selection(page: Page, tmp_path: Path) -> None:
-    """How-to: the Data Source toggle set to ``dandi``, and the DANDI panel it reveals.
+    """How-to: the DANDI Archive tile selected, and the DANDI panel it reveals below it.
 
     Assigning ``source_mode`` fires its param watcher synchronously, which swaps the DANDI
     panel in and runs its opening search, so the catalog is populated before the template is
     served (mirroring screenshot_label_stores_configured).
 
-    The roots are pre-selected so Root Folder Selection folds away, which keeps the
-    toggle and the panel it drives in one shot rather than a card's height apart.
+    The roots are pre-selected so Root Folder Selection folds away, which brings the
+    Input Folder Selection card, tiles and panel, to the top of the shot.
     """
     template = build_homepage(
         input_root_folder=str(SAMPLE_DATA_DIR.parent),
@@ -1159,6 +1209,7 @@ def main() -> None:
                 running="read_rawData",
                 opened=("open_label_stores",),
             ),
+            lambda page: screenshot_raw_data_view(page, tmp_path),
             lambda page: screenshot_sidebar(
                 page,
                 "05_preprocess_progress.png",

@@ -20,7 +20,7 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
-from .plot_card import CONTROL_MARGIN, RUN_FOLDER_WIDTH, plot_page, toolbar_field
+from .plot_card import CONTROL_MARGIN, plot_page, run_folder_width, toolbar_field
 from ..analysis.io_utils import (
     decide_naming_convention,
     read_hdf5,
@@ -28,7 +28,7 @@ from ..analysis.io_utils import (
     recording_site_from_preprocessed_label,
 )
 from ..utils.utils import relative_output_labels
-from ..visualization.labels import trace_title
+from ..visualization.labels import DFF_LABEL, Z_SCORE_LABEL, trace_title
 from ..visualization.preprocessing import build_control_signal_fit
 
 # Load the bokeh HoloViews backend these components rely on for the trace plots.
@@ -135,8 +135,8 @@ class PreprocessingReviewView:
             fit=trace["fit"],
             titles=[trace_title(name) for name in trace["plot_name"]],
             extra_traces={
-                trace_title(f"z_score_{site}"): preprocessed["y_zscore"],
-                trace_title(f"dff_{site}"): preprocessed["y_dff"],
+                trace_title(f"z_score_{site}"): (Z_SCORE_LABEL, preprocessed["y_zscore"]),
+                trace_title(f"dff_{site}"): (DFF_LABEL, preprocessed["y_dff"]),
             },
         )
 
@@ -173,7 +173,7 @@ def build_run_folder_page(
     folder_select = pn.widgets.Select(
         options={labels[str(folder)]: folder for folder in run_folders},
         value=run_folders[0],
-        width=RUN_FOLDER_WIDTH,
+        width=run_folder_width(labels=list(labels.values())),
         margin=CONTROL_MARGIN,
     )
     run_field = toolbar_field("Run Folder", folder_select)

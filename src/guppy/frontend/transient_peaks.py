@@ -13,7 +13,7 @@ import holoviews as hv
 import numpy as np
 import panel as pn
 
-from .plot_card import CONTROL_MARGIN, RUN_FOLDER_WIDTH, plot_page, toolbar_field
+from .plot_card import CONTROL_MARGIN, plot_page, run_folder_width, toolbar_field
 from ..analysis.standard_io import read_transients_from_hdf5
 from ..utils.utils import relative_output_labels
 from ..visualization.labels import trace_title
@@ -74,7 +74,7 @@ class PeaksReviewView:
         first_run = next(iter(runs))
 
         self.run_select = pn.widgets.Select(
-            options=list(runs), value=first_run, width=RUN_FOLDER_WIDTH, margin=CONTROL_MARGIN
+            options=list(runs), value=first_run, width=run_folder_width(labels=list(runs)), margin=CONTROL_MARGIN
         )
         self.trace_select = pn.widgets.Select(
             options=self._trace_options(first_run), value=next(iter(runs[first_run])), width=220, margin=CONTROL_MARGIN

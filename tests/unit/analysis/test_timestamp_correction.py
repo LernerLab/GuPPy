@@ -5,6 +5,7 @@ from guppy.analysis.timestamp_correction import (
     applyCorrection_ttl,
     correct_timestamps,
     decide_naming_and_applyCorrection_ttl,
+    expand_block_timestamps,
     pair_timeline_label,
     timestampCorrection,
 )
@@ -367,3 +368,9 @@ class TestPairTimestampsChannel:
         )
 
         np.testing.assert_allclose(result["TTL1_dms"], expected_ttl)
+
+
+def test_expand_block_timestamps_places_each_sample_after_its_block_start():
+    # Blocks at 10.0 s and 12.0 s, three samples each at 2 Hz → offsets 0.0, 0.5, 1.0 s.
+    result = expand_block_timestamps(block_timestamps=np.array([10.0, 12.0]), npoints=3, sampling_rate=2.0)
+    np.testing.assert_allclose(result, np.array([10.0, 10.5, 11.0, 12.0, 12.5, 13.0]))

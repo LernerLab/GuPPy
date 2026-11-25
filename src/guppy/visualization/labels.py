@@ -3,6 +3,12 @@
 # The time axis every trace and PSTH is plotted against. Plots that share it link their x-axes.
 TIME_LABEL = "Time (s)"
 
+# The value axis of each kind of trace. A trace's title names what it is and its site; its axis names the quantity.
+RAW_FLUORESCENCE_LABEL = "Raw Fluorescence (a.u.)"
+FLUORESCENCE_LABEL = "Fluorescence (a.u.)"
+Z_SCORE_LABEL = "Z-Score"
+DFF_LABEL = "ΔF/F (%)"
+
 # The file prefix of each trace GuPPy writes for a recording site, and the name a plot gives it.
 _TRACE_NAMES = {
     "cntrl_sig_fit_": "Control Fit",
