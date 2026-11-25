@@ -13,12 +13,15 @@ def served(monkeypatch):
     """Capture the served homepage factory instead of starting a real Bokeh server.
 
     Stubbing ``pn.serve`` (rather than ``serve_app``) lets ``main`` dispatch through the
-    real application wiring, so the deferred ``from .app import serve_app`` is exercised.
+    real application wiring, so the deferred ``from .app import serve_app`` is exercised. Outside a
+    served session ``pn.state.onload`` would run its callback at once against a browser that is not
+    there, so it is stubbed too.
     """
     captured = {}
     monkeypatch.setattr(
         app.pn, "serve", lambda build_page, **kwargs: captured.update(build_page=build_page, kwargs=kwargs)
     )
+    monkeypatch.setattr(app.pn.state, "onload", lambda callback: None)
     return captured
 
 

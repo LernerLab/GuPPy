@@ -1,3 +1,5 @@
+from types import FunctionType
+
 import panel as pn
 import pytest
 
@@ -9,12 +11,15 @@ def served(monkeypatch):
     """Capture what would be served instead of starting a real Bokeh server.
 
     ``pn.serve`` binds a port and opens a browser tab, so it is stubbed here; everything
-    downstream of it (the homepage factory itself) runs for real.
+    downstream of it (the homepage factory itself) runs for real. Outside a served session
+    ``pn.state.onload`` would run its callback at once against a browser that is not there, so
+    it is stubbed too.
     """
     captured = {}
     monkeypatch.setattr(
         app.pn, "serve", lambda build_page, **kwargs: captured.update(build_page=build_page, kwargs=kwargs)
     )
+    monkeypatch.setattr(app.pn.state, "onload", lambda callback: None)
     return captured
 
 
@@ -22,7 +27,8 @@ class TestServeApp:
     def test_serves_the_homepage_alone(self, served):
         app.serve_app()
 
-        assert callable(served["build_page"])
+        # Panel builds a page per session only from a plain function, not from any callable.
+        assert isinstance(served["build_page"], FunctionType)
         assert served["kwargs"] == {"port": 0, "address": None, "show": True, "verbose": True}
 
     def test_prints_how_to_open_and_stop_guppy(self, served, capsys):
