@@ -111,8 +111,8 @@ class CsvRecordingExtractor(BaseRecordingExtractor):
             elif len(columns) >= 2:
                 raise ValueError(
                     f"CSV file '{path[i]}' has {len(columns)} columns {list(columns)}, which matches the "
-                    "Neurophotometrics (NPM) layout. Set 'Acquisition System' to 'NPM' in the "
-                    "Input Parameters GUI before re-running the pipeline."
+                    "Neurophotometrics (NPM) layout. Set 'Acquisition System' to 'NPM' on the "
+                    "homepage before re-running the pipeline."
                 )
 
             flags.append(flag)
