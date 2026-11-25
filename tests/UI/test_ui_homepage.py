@@ -107,6 +107,6 @@ def test_refreshing_the_homepage_keeps_its_open_tabs(page, homepage_route_url, s
 
     page.reload()
 
-    expect(page.get_by_text("Parameter Selection").first).to_be_visible()
+    expect(page.get_by_text("dashboard")).to_be_visible()
     expect(page.locator(".bk-tab")).to_have_text(["Home", "Visualization"])
     assert len(served_homepages) == built_before_refresh
