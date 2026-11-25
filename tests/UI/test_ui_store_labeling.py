@@ -11,7 +11,7 @@ from guppy.orchestration.store_labeling import build_store_labeling_template
 
 @pytest.fixture(scope="session")
 def store_labeling_server_url(panel_extension, ui_base_dir, tmp_path_factory):
-    """Serve the Label Stores GUI on a free local port.
+    """Serve the Label Stores page on a free local port.
 
     Yields the base URL of the running server.
     """
@@ -45,7 +45,7 @@ def store_labeling_server_url(panel_extension, ui_base_dir, tmp_path_factory):
 def test_page_title_contains_label_stores_gui(page, store_labeling_server_url):
     page.goto(store_labeling_server_url)
     expect(page.get_by_text("Select Stores").first).to_be_visible()
-    assert "Label Stores GUI" in page.title()
+    assert "Label Stores" in page.title()
 
 
 @pytest.mark.ui

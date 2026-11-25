@@ -2,7 +2,7 @@
 
 Opens one window per selected session, each editing that session's single
 self-contained ``nwb_metadata.yaml`` (saved in the session's output directory).
-Modeled on the Storenames GUI: structured widgets feed a YAML ``CodeEditor`` that
+Modeled on the Label Stores page: structured widgets feed a YAML ``CodeEditor`` that
 is the authoritative artifact, and Save writes the editor's YAML to disk. The
 saved YAML is a reusable, hand-editable source of truth for the Step 7 export.
 """
@@ -54,7 +54,7 @@ def build_metadata_template(
         initial_metadata=metadata,
         require_session_start_time=require_session_start_time,
     )
-    template = pn.template.BootstrapTemplate(title=f"Metadata GUI - {session_label}")
+    template = pn.template.BootstrapTemplate(title=f"Input Metadata - {session_label}")
 
     def _format_errors(errors: list[str]) -> str:
         return "####Alert !! \n Missing required metadata for NWB export:\n" + "\n".join(

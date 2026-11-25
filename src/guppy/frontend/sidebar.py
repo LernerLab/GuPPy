@@ -83,7 +83,7 @@ class Sidebar:
         self.label_groups = pn.widgets.Button(name="Label Groups", button_type="default", width=300, align="end")
         self.group_analysis = pn.widgets.Button(name="Group Analysis", button_type="default", width=300, align="end")
         self.open_visualization = pn.widgets.Button(
-            name="Open Visualization GUI", button_type="primary", width=300, align="end"
+            name="Open Visualization", button_type="primary", width=300, align="end"
         )
         self.open_metadata = pn.widgets.Button(name="Input Metadata", button_type="primary", width=300, align="end")
         self.export_nwb = pn.widgets.Button(name="Export to NWB", button_type="primary", width=300, align="end")

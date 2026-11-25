@@ -67,7 +67,7 @@ must match.
 
 Put the CSV alongside your other data files, in the session folder itself. No
 configuration is needed — GuPPy finds it automatically, and it appears as a store
-the next time you open the Label Stores GUI.
+the next time you open the Label Stores page.
 
 ## 4. Label it
 
@@ -77,7 +77,7 @@ Open **Step 1: Label Stores**. Your file appears as a store named after the file
 that appears in the outputs and in the plots.
 
 ```{image} ../_static/images/covariate_label_stores.png
-:alt: The Label Stores GUI for a session with two covariates: the control, signal and TTL stores labeled as usual, then rows for akinesia and grooming whose Type is set to behavioral covariate with the variable name typed alongside
+:alt: The Label Stores page for a session with two covariates: the control, signal and TTL stores labeled as usual, then rows for akinesia and grooming whose Type is set to behavioral covariate with the variable name typed alongside
 :width: 90%
 ```
 
